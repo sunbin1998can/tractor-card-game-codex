@@ -1,0 +1,116 @@
+:root {
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  color: #0b0b0b;
+  background: #f5f2ed;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  gap: 16px;
+}
+
+.panel {
+  background: #fff7ec;
+  border: 1px solid #e8dcc6;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 10px 30px rgba(12, 10, 8, 0.08);
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid #1e1b16;
+  background: #1e1b16;
+  color: #fef9f0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+input, select {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #c9bca8;
+  background: #fff;
+}
+
+.seats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.seat {
+  border: 1px dashed #b9a88b;
+  border-radius: 10px;
+  padding: 8px;
+  background: #fff;
+}
+
+.seat.active {
+  border-style: solid;
+  border-color: #1e1b16;
+}
+
+.table {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.card {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+  margin: 4px;
+  border-radius: 6px;
+  border: 1px solid #b9a88b;
+  background: #fff;
+  font-size: 12px;
+}
+
+.card.selected {
+  border-color: #1e1b16;
+  background: #efe5d2;
+}
+
+.toast {
+  background: #1e1b16;
+  color: #fff;
+  padding: 8px 10px;
+  border-radius: 8px;
+  margin-top: 8px;
+}
+
+@media (max-width: 600px) {
+  .app {
+    padding: 12px;
+  }
+
+  button {
+    width: 100%;
+  }
+}

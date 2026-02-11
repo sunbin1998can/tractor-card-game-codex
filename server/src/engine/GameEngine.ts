@@ -18,6 +18,7 @@ export type Event =
   | { type: 'REQUEST_ACTION'; seat: number }
   | { type: 'TRICK_UPDATE'; seat: number; cards: Card[] }
   | { type: 'TRICK_END'; winnerSeat: number; cards: Card[] }
+  | { type: 'THROW_PUNISHED'; seat: number; originalCards: Card[]; punishedCards: Card[]; reason: string }
   | {
       type: 'ROUND_RESULT';
       levelFrom: Rank;

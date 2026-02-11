@@ -19,7 +19,19 @@ Agent constraints: see AGENTS.md
 
 ## Quick Start (Local)
 ```bash
-cd server && npm install && npm test && npm run dev
+cd server
+npm install
+npm test
+npm run dev
+
 # In another terminal:
-cd web && npm install && npm run dev
+cd web
+npm install
+npm run dev
+```
+
+### Env
+```bash
+# Web client
+VITE_WS_URL=ws://localhost:3000/ws
 ```
