@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Online Tractor/Shengji (升级拖拉机) card game — 2 decks, 4 or 6 players. Server-authoritative architecture where the client never computes game logic. Full game rules are in RULES.md; agent constraints are in AGENTS.md.
+Online Tractor/Shengji (升级拖拉机) card game — 2 decks, 4 or 6 players. Server-authoritative architecture where the client never computes game logic. Full game rules are in docs/RULES.md; agent constraints are in docs/AGENTS.md.
 
 ## Commands
 
