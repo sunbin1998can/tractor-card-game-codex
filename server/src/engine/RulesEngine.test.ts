@@ -30,7 +30,18 @@ describe('RulesEngine basics', () => {
     expect(seqRankForTractor('SJ', '7')).toBeNull();
     expect(seqRankForTractor('BJ', '7')).toBeNull();
     expect(seqRankForTractor('7', '7')).toBeNull();
-    expect(seqRankForTractor('10', '7')).toBe(10);
+    // Ranks above level are compressed down by 1 to bridge the gap
+    expect(seqRankForTractor('10', '7')).toBe(9);
+  });
+
+  it('seqRankForTractor bridges gap across level rank', () => {
+    // When level=7, rank 6 stays at 6, rank 8 compresses to 7 → consecutive
+    expect(seqRankForTractor('6', '7')).toBe(6);
+    expect(seqRankForTractor('8', '7')).toBe(7);
+    // Ranks below level are unchanged
+    expect(seqRankForTractor('3', '7')).toBe(3);
+    // Ranks well above level
+    expect(seqRankForTractor('A', '7')).toBe(13);
   });
 });
 
@@ -70,6 +81,19 @@ describe('analyze pattern recognition', () => {
     ];
     const pattern = analyze(cards, '6', 'H');
     expect(pattern.kind).toBe('INVALID');
+  });
+
+  it('recognizes tractor bridging the level rank gap', () => {
+    // When level=7, 6 and 8 are adjacent (gap bridged)
+    const cards = [
+      makeCard('S', '6', 1),
+      makeCard('S', '6', 2),
+      makeCard('S', '8', 1),
+      makeCard('S', '8', 2),
+    ];
+    const pattern = analyze(cards, '7', 'H');
+    expect(pattern.kind).toBe('TRACTOR');
+    expect(pattern.length).toBe(2);
   });
 
   it('rejects non-consecutive tractor', () => {

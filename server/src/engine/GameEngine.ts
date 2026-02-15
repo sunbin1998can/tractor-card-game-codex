@@ -114,6 +114,7 @@ export class GameEngine {
 
   capturedPoints: [number, number] = [0, 0];
   lastTrickLeadKind: 'SINGLE' | 'PAIR' | 'TRACTOR' | null = null;
+  lastTrickLeadPairCount: number = 0;
   lastTrickWinnerSeat: number | null = null;
 
   trumpCandidate: TrumpCandidate | null = null;
@@ -148,7 +149,13 @@ export class GameEngine {
     if (strength === null) return;
 
     const suit = trumpSuitFromCards(cards, this.config.trumpSuit);
-    if (!suit) return;
+
+    // Partner reinforcement restriction: partner cannot reinforce the current bid
+    if (this.trumpCandidate) {
+      const candidateTeam = teamOfSeat(this.trumpCandidate.seat);
+      const bidderTeam = teamOfSeat(seat);
+      if (bidderTeam === candidateTeam && seat !== this.trumpCandidate.seat) return;
+    }
 
     const candidate: TrumpCandidate = {
       seat,
@@ -169,6 +176,23 @@ export class GameEngine {
 
     this.config.trumpSuit = this.trumpCandidate.trumpSuit;
     this.trumpCandidate = null;
+    this.phase = 'BURY_KITTY';
+    this.emit({ type: 'PHASE', phase: this.phase });
+  }
+
+  finalizeTrumpFallback() {
+    if (this.phase !== 'FLIP_TRUMP') return;
+    if (this.trumpCandidate) return; // use normal path if a candidate exists
+
+    // No bids: first non-joker kitty card determines trump suit
+    for (const card of this.kitty) {
+      if (card.rank !== 'BJ' && card.rank !== 'SJ') {
+        this.config.trumpSuit = card.suit as Suit;
+        break;
+      }
+    }
+    // If all kitty cards are jokers, keep the existing config trump suit
+
     this.phase = 'BURY_KITTY';
     this.emit({ type: 'PHASE', phase: this.phase });
   }
@@ -290,6 +314,13 @@ export class GameEngine {
     this.lastTrickLeadKind = this.trick.leadPattern.kind === 'TRACTOR' || this.trick.leadPattern.kind === 'PAIR'
       ? this.trick.leadPattern.kind
       : 'SINGLE';
+    if (this.trick.leadPattern.kind === 'TRACTOR') {
+      this.lastTrickLeadPairCount = this.trick.leadPattern.length ?? this.trick.leadPattern.size / 2;
+    } else if (this.trick.leadPattern.kind === 'PAIR') {
+      this.lastTrickLeadPairCount = 1;
+    } else {
+      this.lastTrickLeadPairCount = 0;
+    }
     this.lastTrickWinnerSeat = winner.seat;
 
     this.emit({ type: 'TRICK_END', winnerSeat: winner.seat, cards: trickCards });
@@ -316,7 +347,7 @@ export class GameEngine {
     let killMultiplier = 1;
 
     if (this.lastTrickWinnerSeat !== null && teamOfSeat(this.lastTrickWinnerSeat) === defenderTeam) {
-      killMultiplier = this.lastTrickLeadKind === 'PAIR' || this.lastTrickLeadKind === 'TRACTOR' ? 4 : 2;
+      killMultiplier = 2 * Math.pow(2, this.lastTrickLeadPairCount);
       defenderPoints += kittyPoints * killMultiplier;
       this.capturedPoints[defenderTeam] = defenderPoints;
     }
@@ -372,10 +403,11 @@ function trumpStrength(cards: Card[], levelRank: Rank): number | null {
   return null;
 }
 
-function trumpSuitFromCards(cards: Card[], _fallback: Suit): Suit | null {
+function trumpSuitFromCards(cards: Card[], fallback: Suit): Suit {
   for (const card of cards) {
     if (card.rank === 'BJ' || card.rank === 'SJ') continue;
     return card.suit as Suit;
   }
-  return null;
+  // Joker-only bid: preserve the current/default trump suit
+  return fallback;
 }

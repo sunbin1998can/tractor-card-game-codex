@@ -44,7 +44,10 @@ export function cardKey(card: Card, levelRank: Rank, trumpSuit: Suit): number {
 export function seqRankForTractor(rank: Rank, levelRank: Rank): number | null {
   if (rank === 'BJ' || rank === 'SJ') return null;
   if (rank === levelRank) return null;
-  return RANK_VALUE[rank];
+  const rv = RANK_VALUE[rank];
+  const lv = RANK_VALUE[levelRank];
+  // Compress: ranks above the level rank shift down by 1 to bridge the gap
+  return rv > lv ? rv - 1 : rv;
 }
 
 export function pairKey(card: Card, levelRank: Rank, trumpSuit: Suit): string {

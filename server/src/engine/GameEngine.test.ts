@@ -63,6 +63,167 @@ describe('GameEngine trick resolution', () => {
   });
 });
 
+describe('GameEngine trump flipping', () => {
+  it('accepts BJ pair bid with strength 60', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 8
+    });
+    engine.phase = 'FLIP_TRUMP';
+    engine.flipTrump(0, [makeCard('J', 'BJ', 1), makeCard('J', 'BJ', 2)], 1000);
+    expect(engine.trumpCandidate).toBeTruthy();
+    expect(engine.trumpCandidate!.strength).toBe(60);
+    // Joker bid preserves the existing trump suit
+    expect(engine.trumpCandidate!.trumpSuit).toBe('H');
+  });
+
+  it('accepts SJ pair bid with strength 50', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'S',
+      kittySize: 8
+    });
+    engine.phase = 'FLIP_TRUMP';
+    engine.flipTrump(1, [makeCard('J', 'SJ', 1), makeCard('J', 'SJ', 2)], 1000);
+    expect(engine.trumpCandidate).toBeTruthy();
+    expect(engine.trumpCandidate!.strength).toBe(50);
+    expect(engine.trumpCandidate!.trumpSuit).toBe('S');
+  });
+
+  it('accepts single BJ bid with strength 40', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'D',
+      kittySize: 8
+    });
+    engine.phase = 'FLIP_TRUMP';
+    engine.flipTrump(2, [makeCard('J', 'BJ', 1)], 1000);
+    expect(engine.trumpCandidate).toBeTruthy();
+    expect(engine.trumpCandidate!.strength).toBe(40);
+  });
+
+  it('partner cannot reinforce trump bid', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 8
+    });
+    engine.phase = 'FLIP_TRUMP';
+    // Seat 0 bids single level-rank (strength 10)
+    engine.flipTrump(0, [makeCard('S', '2', 1)], 1000);
+    expect(engine.trumpCandidate!.seat).toBe(0);
+    // Seat 2 (partner, same team) tries to override with pair (strength 20)
+    engine.flipTrump(2, [makeCard('D', '2', 1), makeCard('D', '2', 2)], 1500);
+    // Should still be seat 0's bid — partner reinforcement blocked
+    expect(engine.trumpCandidate!.seat).toBe(0);
+    expect(engine.trumpCandidate!.strength).toBe(10);
+  });
+
+  it('opponent can override trump bid', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 8
+    });
+    engine.phase = 'FLIP_TRUMP';
+    engine.flipTrump(0, [makeCard('S', '2', 1)], 1000);
+    // Seat 1 (opponent) overrides with pair (strength 20)
+    engine.flipTrump(1, [makeCard('D', '2', 1), makeCard('D', '2', 2)], 1500);
+    expect(engine.trumpCandidate!.seat).toBe(1);
+    expect(engine.trumpCandidate!.strength).toBe(20);
+  });
+
+  it('original bidder can self-reinforce', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 8
+    });
+    engine.phase = 'FLIP_TRUMP';
+    engine.flipTrump(0, [makeCard('S', '2', 1)], 1000);
+    // Same seat upgrades to pair
+    engine.flipTrump(0, [makeCard('S', '2', 1), makeCard('S', '2', 2)], 1500);
+    expect(engine.trumpCandidate!.seat).toBe(0);
+    expect(engine.trumpCandidate!.strength).toBe(20);
+  });
+});
+
+describe('GameEngine no-bids fallback', () => {
+  it('uses first kitty card suit when no bids', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 8
+    });
+    engine.phase = 'FLIP_TRUMP';
+    engine.kitty = [makeCard('S', '5', 1), makeCard('D', '10', 1)];
+    engine.finalizeTrumpFallback();
+    expect(engine.config.trumpSuit).toBe('S');
+    expect(engine.phase).toBe('BURY_KITTY');
+  });
+
+  it('skips joker kitty cards for fallback suit', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 8
+    });
+    engine.phase = 'FLIP_TRUMP';
+    engine.kitty = [makeCard('J', 'BJ', 1), makeCard('J', 'SJ', 1), makeCard('C', '3', 1)];
+    engine.finalizeTrumpFallback();
+    expect(engine.config.trumpSuit).toBe('C');
+    expect(engine.phase).toBe('BURY_KITTY');
+  });
+
+  it('keeps default trump suit if all kitty cards are jokers', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 8
+    });
+    engine.phase = 'FLIP_TRUMP';
+    engine.kitty = [makeCard('J', 'BJ', 1), makeCard('J', 'SJ', 2)];
+    engine.finalizeTrumpFallback();
+    expect(engine.config.trumpSuit).toBe('H');
+    expect(engine.phase).toBe('BURY_KITTY');
+  });
+
+  it('does nothing if a candidate exists', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 8
+    });
+    engine.phase = 'FLIP_TRUMP';
+    engine.flipTrump(0, [makeCard('S', '2', 1)], 1000);
+    engine.kitty = [makeCard('D', '5', 1)];
+    engine.finalizeTrumpFallback();
+    // Should not have changed — candidate exists, use normal finalizeTrump path
+    expect(engine.phase).toBe('FLIP_TRUMP');
+  });
+});
+
 describe('GameEngine round scoring', () => {
   it('applies kitty kill multiplier 2x', () => {
     const engine = new GameEngine({
@@ -96,10 +257,51 @@ describe('GameEngine round scoring', () => {
     engine.kitty = [makeCard('S', '10', 1)];
     engine.lastTrickWinnerSeat = 1;
     engine.lastTrickLeadKind = 'PAIR';
+    engine.lastTrickLeadPairCount = 1;
 
     (engine as any).finishRound();
     const result = engine.events.find((e) => e.type === 'ROUND_RESULT');
     expect(result && 'killMultiplier' in result ? result.killMultiplier : 0).toBe(4);
+  });
+
+  it('applies kitty kill multiplier 8x for 2-pair tractor lead', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 2
+    });
+
+    engine.capturedPoints = [0, 70];
+    engine.kitty = [makeCard('S', '10', 1)];
+    engine.lastTrickWinnerSeat = 1;
+    engine.lastTrickLeadKind = 'TRACTOR';
+    engine.lastTrickLeadPairCount = 2;
+
+    (engine as any).finishRound();
+    const result = engine.events.find((e) => e.type === 'ROUND_RESULT');
+    expect(result && 'killMultiplier' in result ? result.killMultiplier : 0).toBe(8);
+  });
+
+  it('applies kitty kill multiplier 16x for 3-pair tractor lead', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 2
+    });
+
+    engine.capturedPoints = [0, 70];
+    engine.kitty = [makeCard('S', '10', 1)];
+    engine.lastTrickWinnerSeat = 1;
+    engine.lastTrickLeadKind = 'TRACTOR';
+    engine.lastTrickLeadPairCount = 3;
+
+    (engine as any).finishRound();
+    const result = engine.events.find((e) => e.type === 'ROUND_RESULT');
+    expect(result && 'killMultiplier' in result ? result.killMultiplier : 0).toBe(16);
   });
 
   it('upgrades defenders by +1 when >= 80', () => {
