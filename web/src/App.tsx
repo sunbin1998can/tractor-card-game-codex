@@ -8,6 +8,7 @@ import ScoreBoard from './components/ScoreBoard';
 import RoundPopup from './components/RoundPopup';
 import KouDiPopup from './components/KouDiPopup';
 import ChatBox from './components/ChatBox';
+import Toasts from './components/Toasts';
 
 export default function App() {
   const roomId = useStore((s) => s.roomId);
@@ -85,6 +86,7 @@ export default function App() {
       <Hand />
       <ActionPanel />
       <ChatBox />
+      <Toasts />
       <KouDiPopup />
       <RoundPopup />
     </div>

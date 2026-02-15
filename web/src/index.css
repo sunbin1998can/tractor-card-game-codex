@@ -665,15 +665,100 @@ input::placeholder {
   font-size: 12px;
 }
 
-/* ===== Toasts ===== */
+/* ===== Announcements (center-screen narration) ===== */
+.announcements-container {
+  position: fixed;
+  top: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.announcement {
+  background: rgba(0, 0, 0, 0.8);
+  color: var(--card-glow-gold);
+  padding: 10px 24px;
+  border-radius: 12px;
+  font-size: 20px;
+  font-weight: 800;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+}
+
+/* ===== Toasts (bottom-right system messages) ===== */
+.toasts-container {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 800;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 320px;
+  pointer-events: none;
+}
+
 .toast {
   background: rgba(0, 0, 0, 0.75);
   color: #fff;
   padding: 6px 10px;
   border-radius: 8px;
-  margin-top: 6px;
   font-size: 12px;
   backdrop-filter: blur(4px);
+}
+
+/* ===== Declare Timer ===== */
+.declare-timer-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+  padding: 4px 0;
+}
+
+.declare-timer-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 3px solid var(--card-glow-gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 215, 0, 0.1);
+  animation: timer-pulse 1s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes timer-pulse {
+  0%, 100% { border-color: var(--card-glow-gold); box-shadow: 0 0 8px rgba(255, 215, 0, 0.3); }
+  50% { border-color: #ffaa00; box-shadow: 0 0 16px rgba(255, 170, 0, 0.5); }
+}
+
+.declare-timer-number {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--card-glow-gold);
+  line-height: 1;
+}
+
+.declare-timer-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.declare-timer-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--card-glow-gold);
 }
 
 /* ===== Modals ===== */

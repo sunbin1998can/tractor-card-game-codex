@@ -47,6 +47,14 @@ export type PublicState = {
 
 type LegalAction = { count: number };
 
+export type Toast = {
+  id: number;
+  text: string;
+  expiresAt: number;
+};
+
+let toastIdCounter = 0;
+
 type StoreState = {
   roomId: string | null;
   youSeat: number | null;
@@ -59,7 +67,8 @@ type StoreState = {
   hand: string[];
   selected: Set<string>;
   legalActions: LegalAction[];
-  toasts: string[];
+  toasts: Toast[];
+  announcements: Toast[];
   chatMessages: { seat: number; name: string; text: string; atMs: number }[];
   kouDiPopup: { cards: string[]; pointSteps: number[]; total: number; multiplier: number } | null;
   roundPopup: string | null;
@@ -76,6 +85,9 @@ type StoreState = {
   clearSelect: () => void;
   setLegalActions: (actions: LegalAction[]) => void;
   pushToast: (msg: string) => void;
+  expireToasts: () => void;
+  pushAnnouncement: (msg: string, durationMs?: number) => void;
+  expireAnnouncements: () => void;
   pushChatMessage: (msg: { seat: number; name: string; text: string; atMs: number }) => void;
   clearChatMessages: () => void;
   setRoundPopup: (msg: string | null) => void;
@@ -96,6 +108,7 @@ export const useStore = create<StoreState>((set, get) => ({
   selected: new Set(),
   legalActions: [],
   toasts: [],
+  announcements: [],
   chatMessages: [],
   kouDiPopup: null,
   roundPopup: null,
@@ -130,8 +143,26 @@ export const useStore = create<StoreState>((set, get) => ({
   clearSelect: () => set({ selected: new Set() }),
   setLegalActions: (actions) => set({ legalActions: actions }),
   pushToast: (msg) => {
-    const next = [...get().toasts, msg].slice(-3);
+    const toast: Toast = { id: ++toastIdCounter, text: msg, expiresAt: Date.now() + 4000 };
+    const now = Date.now();
+    const next = [...get().toasts.filter((t) => t.expiresAt > now), toast].slice(-5);
     set({ toasts: next });
+  },
+  expireToasts: () => {
+    const now = Date.now();
+    const filtered = get().toasts.filter((t) => t.expiresAt > now);
+    if (filtered.length !== get().toasts.length) set({ toasts: filtered });
+  },
+  pushAnnouncement: (msg, durationMs = 3000) => {
+    const a: Toast = { id: ++toastIdCounter, text: msg, expiresAt: Date.now() + durationMs };
+    const now = Date.now();
+    const next = [...get().announcements.filter((t) => t.expiresAt > now), a].slice(-3);
+    set({ announcements: next });
+  },
+  expireAnnouncements: () => {
+    const now = Date.now();
+    const filtered = get().announcements.filter((t) => t.expiresAt > now);
+    if (filtered.length !== get().announcements.length) set({ announcements: filtered });
   },
   pushChatMessage: (msg) => {
     const next = [...get().chatMessages, msg].slice(-50);
@@ -154,6 +185,7 @@ export const useStore = create<StoreState>((set, get) => ({
       selected: new Set(),
       legalActions: [],
       toasts: [],
+      announcements: [],
       chatMessages: [],
       kouDiPopup: null,
       roundPopup: null

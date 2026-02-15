@@ -115,6 +115,8 @@ class WsClient {
 
   private speak(text: string) {
     if (!text) return;
+    // Visual announcement alongside TTS
+    useStore.getState().pushAnnouncement(text);
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     this.bindSpeechLifecycle();
     this.speechQueue.push(text);

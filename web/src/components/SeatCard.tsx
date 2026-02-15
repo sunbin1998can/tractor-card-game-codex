@@ -66,7 +66,7 @@ export default function SeatCard({ seat }: Props) {
       )}
       {marker?.seat === seat.seat && (
         <div className="declare-marker">
-          \u4eae\u4e3b {markerLabel(marker.cardId)}
+          {'亮主'} {markerLabel(marker.cardId)}
         </div>
       )}
       {!isPreDealLobby && (

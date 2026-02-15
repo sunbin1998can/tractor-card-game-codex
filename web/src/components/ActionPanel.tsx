@@ -141,17 +141,20 @@ export default function ActionPanel() {
         </button>
       </div>
       {showDeclareCountdown && (
-        <div className="action-declare-countdown-wrap">
-          <div className="action-declare-countdown">
-            \u6709\u4eba\u53cd\u4e3b\u5417\uff1f\u7b49\u5f85 {remainSeconds} \u79d2
+        <div className="declare-timer-bar">
+          <div className="declare-timer-circle">
+            <span className="declare-timer-number">{remainSeconds}</span>
           </div>
-          <button
-            className="no-snatch-btn"
-            disabled={!!youNoSnatch}
-            onClick={() => wsClient.send({ type: 'NO_SNATCH' })}
-          >
-            {youNoSnatch ? '\u5df2\u9009\u4e0d\u53cd\u4e3b' : '\u4e0d\u53cd\u4e3b'}
-          </button>
+          <div className="declare-timer-info">
+            <span className="declare-timer-label">{'反主倒计时'}</span>
+            <button
+              className="no-snatch-btn"
+              disabled={!!youNoSnatch}
+              onClick={() => wsClient.send({ type: 'NO_SNATCH' })}
+            >
+              {youNoSnatch ? '已选不反主' : '不反主'}
+            </button>
+          </div>
         </div>
       )}
     </div>
