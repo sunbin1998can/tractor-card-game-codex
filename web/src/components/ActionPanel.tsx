@@ -108,36 +108,48 @@ export default function ActionPanel() {
         </button>
       )}
       <div className="action-buttons">
-        <button
-          className="action-btn"
-          onClick={() => {
-            wsClient.send({ type: 'DECLARE', cardIds: declareCardIds });
-          }}
-          disabled={!canDeclareNow}
-        >
-          Declare
-        </button>
-        <button
-          className="action-btn"
-          onClick={() => {
-            if (!canBury) return;
-            const ok = window.confirm(`Bury these ${kittyCount} cards?`);
-            if (!ok) return;
-            wsClient.send({ type: 'BURY', cardIds: Array.from(selected) });
-          }}
-          disabled={!canBury}
-        >
-          Bury {kittyCount > 0 ? `(${kittyCount})` : ''}
-        </button>
-        <button
-          className="action-btn"
-          onClick={() => {
-            wsClient.send({ type: 'PLAY', cardIds: Array.from(selected) });
-          }}
-          disabled={!isYourTurn || !canPlay}
-        >
-          Play
-        </button>
+        {isDeclarePhase && !showLobbyReady && (
+          <button
+            className="action-btn"
+            onClick={() => {
+              wsClient.send({ type: 'DECLARE', cardIds: declareCardIds });
+            }}
+            disabled={!canDeclareNow}
+            title={!canDeclareNow ? 'Select a level-rank card or joker pair to declare' : ''}
+          >
+            Declare
+          </button>
+        )}
+        {publicState?.phase === 'BURY_KITTY' && isBanker && (
+          <button
+            className="action-btn"
+            onClick={() => {
+              if (!canBury) return;
+              const ok = window.confirm(`Bury these ${kittyCount} cards?`);
+              if (!ok) return;
+              wsClient.send({ type: 'BURY', cardIds: Array.from(selected) });
+            }}
+            disabled={!canBury}
+            title={!canBury ? `Select exactly ${kittyCount} cards to bury` : ''}
+          >
+            Bury ({count}/{kittyCount})
+          </button>
+        )}
+        {publicState?.phase === 'BURY_KITTY' && !isBanker && (
+          <div className="action-status">{'等待庄家扣底牌...'}</div>
+        )}
+        {publicState?.phase === 'TRICK_PLAY' && (
+          <button
+            className="action-btn"
+            onClick={() => {
+              wsClient.send({ type: 'PLAY', cardIds: Array.from(selected) });
+            }}
+            disabled={!isYourTurn || !canPlay}
+            title={!isYourTurn ? 'Wait for your turn' : !canPlay ? 'Select cards to play' : ''}
+          >
+            {isYourTurn ? `Play (${count})` : 'Waiting...'}
+          </button>
+        )}
       </div>
       {showDeclareCountdown && (
         <div className="declare-timer-bar">

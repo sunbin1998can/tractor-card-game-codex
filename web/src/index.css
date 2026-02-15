@@ -601,6 +601,23 @@ input::placeholder {
   min-width: 110px;
 }
 
+.action-status {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--card-glow-gold);
+  text-align: center;
+  padding: 6px 12px;
+  background: rgba(255, 215, 0, 0.08);
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  border-radius: 8px;
+  animation: status-pulse 2s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
 /* ===== Chat ===== */
 .chat-panel {
   padding: 6px 8px;
