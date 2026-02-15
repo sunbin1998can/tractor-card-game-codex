@@ -9,19 +9,19 @@ Online Tractor/Shengji (升级拖拉机) card game — 2 decks, 4 or 6 players. 
 ## Commands
 
 ### Server (from `server/`)
-- `npm test` — run all tests (vitest)
-- `npx vitest run src/engine/RulesEngine.test.ts` — run a single test file
-- `npx vitest run -t "test name"` — run a single test by name
-- `npm run dev` — start WebSocket server (tsx)
+- `pnpm test` — run all tests (vitest)
+- `pnpm vitest run src/engine/RulesEngine.test.ts` — run a single test file
+- `pnpm vitest run -t "test name"` — run a single test by name
+- `pnpm dev` — start WebSocket server (tsx)
 
 ### Web client (from `web/`)
-- `npm run dev` — start Vite dev server
-- `npm run build` — production build
+- `pnpm dev` — start Vite dev server
+- `pnpm build` — production build
 - Env: `VITE_WS_URL=ws://localhost:3000/ws`
 
 ## Architecture
 
-Two independent packages (no monorepo tooling — run npm install separately in each):
+Two independent packages (no monorepo tooling — run pnpm install separately in each):
 
 ### `server/src/engine/` — Core game logic (unit tested)
 - **RulesEngine.ts** — Pure functions: `suitGroup()`, `cardKey()`, `pairKey()`, `seqRankForTractor()`, `analyze()` (pattern detection). Determines card ordering, trump membership, and pattern classification (SINGLE/PAIR/TRACTOR/THROW).
