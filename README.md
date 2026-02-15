@@ -10,8 +10,9 @@ Online Tractor/Shengji game:
 - Upgrade thresholds 80(+1), 120(+2), 160(+3)
 - Game ends when reaching/passing A
 
-Rules: see RULES.md  
-Agent constraints: see AGENTS.md
+Rules: see [docs/RULES.md](docs/RULES.md)
+Agent constraints: see [docs/AGENTS.md](docs/AGENTS.md)
+Game guide: see [docs/game-guide.md](docs/game-guide.md)
 
 ## Repo Structure
 - server/
@@ -20,14 +21,14 @@ Agent constraints: see AGENTS.md
 ## Quick Start (Local)
 ```bash
 cd server
-npm install
-npm test
-npm run dev
+pnpm install
+pnpm test
+pnpm dev
 
 # In another terminal:
 cd web
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 ### Env
