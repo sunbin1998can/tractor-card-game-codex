@@ -1,7 +1,7 @@
-import { analyze, analyzeThrow, cardKey, suitGroup } from './RulesEngine';
-import { handleLeaderThrow } from './Throw';
-import { validateFollowPlay } from './Follow';
-import type { Card, Pattern, Rank, Suit, SuitGroup, TrumpSuit } from './types';
+import { analyze, analyzeThrow, cardKey, suitGroup } from './RulesEngine.js';
+import { handleLeaderThrow } from './Throw.js';
+import { validateFollowPlay } from './Follow.js';
+import type { Card, Pattern, Rank, Suit, SuitGroup, TrumpSuit } from './types.js';
 
 export type Phase =
   | 'DEALING'

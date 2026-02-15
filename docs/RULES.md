@@ -80,7 +80,7 @@ SuitGroup(card):
 
 For tractor sequences, cards follow the natural rank order `2, 3, 4, 5, 6, 7, 8, 9, 10, J, Q, K, A` (Ace high), with the **level rank removed** from the sequence.
 
-⚠️ **Gap bridging**: When level=N, ranks N-1 and N+1 should be considered adjacent. For example, when level=7, the sequence is `…5, 6, 8, 9…` and 6→8 is a valid consecutive step. The current implementation returns `null` for the level rank's sequence position but does **not** bridge the gap — ranks on either side of the level rank are treated as non-consecutive.
+✅ **Gap bridging**: When level=N, ranks N-1 and N+1 are treated as adjacent. For example, when level=7, the sequence is `…5, 6, 8, 9…` and 6→8 is a valid consecutive step. `seqRankForTractor()` compresses ranks above the level rank downward (`rv > lv ? rv - 1 : rv`) so that the gap is bridged automatically.
 
 ---
 
@@ -103,7 +103,7 @@ Levels progress through the ranks: **2 → 3 → 4 → 5 → 6 → 7 → 8 → 9
 
 Ace is the cap. Reaching or passing Ace ends the game.
 
-⚠️ **Per-team independent levels**: In standard Shengji, each team maintains its own level independently. The trump rank for a given round equals the **banker's team's** level. The current implementation uses a single shared level for the entire game.
+✅ **Per-team independent levels**: Each team maintains its own level independently via `teamLevels: [Rank, Rank]`. The trump rank for a given round equals the **banker's team's** level.
 
 ### 3.3 Banker (庄家) ✅
 
@@ -137,11 +137,11 @@ The kitty is set aside face-down and given to the banker after trump is declared
 
 ### 4.3 Redeal
 
-⚠️ **Not yet implemented.** In standard rules, a player may request a redeal if their hand contains:
+✅ A player may request a redeal if their hand contains:
 - No trump cards at all, or
 - No point cards (no 5s, 10s, or Ks)
 
-This is an optional rule that varies by house rules.
+Implemented via `canRequestRedeal()` in GameEngine.
 
 ---
 
@@ -171,13 +171,13 @@ Trump declarations have a strength ordering. A new declaration must be **strictl
 
 Players may override (snatch, 抢主) a previous trump declaration by showing a strictly stronger combination per §5.2.
 
-⚠️ **Partner reinforcement restriction**: In standard rules, a player's partner cannot reinforce (strengthen) their bid — only opponents or the original bidder can override. This restriction is not currently enforced.
+✅ **Partner reinforcement restriction**: A player's partner cannot reinforce (strengthen) their bid — only opponents or the original bidder can override. Enforced in `flipTrump()`.
 
-⚠️ **Progressive override**: Standard rules allow the original declarer to "reinforce" their own bid (e.g., upgrade from single to pair of the same suit). This specific mechanic is not explicitly implemented.
+✅ **Progressive self-reinforcement**: The original declarer can reinforce their own bid (e.g., upgrade from single to pair of the same suit). Implemented in `flipTrump()`.
 
 ### 5.4 No-Trump Rounds
 
-⚠️ **Not yet implemented.** In standard rules, declaring a pair of identical jokers (e.g., two Big Jokers or two Small Jokers) establishes a **no-trump round** where there is no trump suit — only jokers and level-rank cards are trump. The current implementation rejects joker-only bids since `trumpSuitFromCards()` returns null for them.
+✅ Declaring a pair of identical jokers (e.g., two Big Jokers or two Small Jokers) establishes a **no-trump round** where there is no trump suit — only jokers and level-rank cards are trump. `trumpSuitFromCards()` returns `null` for joker-only bids, which the engine accepts as a valid no-trump declaration.
 
 ### 5.5 Fairness Window ✅
 
@@ -190,7 +190,7 @@ To prevent bot speed advantage, trump is not locked immediately:
 
 ### 5.6 No Bids Fallback
 
-⚠️ **Not yet implemented.** In standard rules, if no player declares trump during dealing, the first card of the kitty determines the trump suit. The current implementation requires an explicit trump declaration via the game config.
+✅ If no player declares trump during dealing, the first non-joker card of the kitty determines the trump suit. Implemented via `finalizeTrumpFallback()`.
 
 ---
 
@@ -225,7 +225,7 @@ Two cards with the **same pairKey** — identical rank and suit (with suit group
 
 PairKey equivalence: `suitGroup|rank|suit` (jokers use `J` as suit).
 
-### 7.3 TRACTOR (拖拉机) ✅ (partial)
+### 7.3 TRACTOR (拖拉机) ✅
 
 Two or more **consecutive pairs** in the same suit group. Minimum length: 2 pairs (4 cards).
 
@@ -234,14 +234,9 @@ Two or more **consecutive pairs** in the same suit group. Minimum length: 2 pair
 - All cards form valid pairs (each pairKey bucket has exactly 2 cards)
 - Pairs are consecutive by rank sequence (see §2.5)
 
-**Current implementation:**
-- ✅ Non-trump tractors work correctly (e.g., 5♠5♠-6♠6♠ when level≠5,6)
-- ✅ Level-rank cards do not participate in tractor sequences
-- ✅ Jokers do not participate in tractor sequences
+**Trump tractors:**
 
-**Standard rules — trump tractors:**
-
-⚠️ In standard Shengji, jokers and level-rank cards **do** participate in trump tractor sequences. The full trump tractor hierarchy (highest to lowest) is:
+✅ Jokers and level-rank cards participate in trump tractor sequences. `seqRankForTractor()` maps the full trump hierarchy to consecutive sequence ranks. The trump tractor hierarchy (highest to lowest) is:
 
 | Pair | Example (level=7, trump=♣) |
 |------|---------------------------|
@@ -254,13 +249,11 @@ Two or more **consecutive pairs** in the same suit group. Minimum length: 2 pair
 | ... down to ... | |
 | Trump suit 2 pair | 2♣-2♣ |
 
-Valid trump tractors in standard rules include:
+Valid trump tractors include:
 - `BJ-BJ + SJ-SJ` (joker tractor)
 - `SJ-SJ + 7♣-7♣` (joker into trump-suit level-rank)
 - `7♣-7♣ + A♣-A♣` (trump-suit level-rank into highest trump)
 - `Q♣-Q♣ + K♣-K♣` (normal consecutive trump pairs, skipping level rank if adjacent)
-
-The current implementation excludes jokers and level-rank cards from all tractor sequences via `seqRankForTractor()` returning `null`.
 
 ### 7.4 THROW (甩牌) ✅
 
@@ -350,37 +343,18 @@ At round end, sum all points collected by the defender team across all tricks:
 
 **Trigger**: the last trick is won by the **defender team** (team ≠ banker team).
 
-**Current implementation** ✅:
+✅ The kitty points are multiplied and added to the defender's total: `defenderPoints += kittyPoints × multiplier`.
 
-| Last trick lead pattern | Multiplier |
-|------------------------|------------|
-| SINGLE | 2× |
-| PAIR | 4× |
-| TRACTOR | 4× |
-
-The kitty points are multiplied and added to the defender's total: `defenderPoints += kittyPoints × multiplier`.
-
-⚠️ **Standard rules**: The kitty multiplier in standard Shengji is `2 × 2^(number of pairs in winning play)`:
-- Single last trick win: 2× (same)
-- Pair last trick win: 4× (same)
+✅ **Exponential multiplier**: The kitty multiplier follows the standard formula `2 × 2^(number of pairs in winning play)`:
+- Single last trick win: 2×
+- Pair last trick win: 4×
 - 2-pair tractor: 8×
 - 3-pair tractor: 16×
 - Longer tractors: exponentially higher
 
-The current implementation uses a flat 4× for any pair or tractor regardless of tractor length.
-
 ### 9.3 Level-Up Thresholds
 
-**Current implementation** ✅:
-
-| Defender Points | Result |
-|----------------|--------|
-| < 80 | Banker team levels up by 1 (守庄成功) |
-| 80–119 | Defender team levels up by 1 |
-| 120–159 | Defender team levels up by 2 |
-| ≥ 160 | Defender team levels up by 3 |
-
-⚠️ **Standard rules (8 tiers)**: Standard Shengji uses more granular thresholds with higher stakes:
+✅ **Standard 8-tier scoring** is implemented:
 
 | Defender Points | Who levels up | Amount |
 |----------------|--------------|--------|
@@ -392,20 +366,14 @@ The current implementation uses a flat 4× for any pair or tractor regardless of
 | 160–195 | Defender team | +2 |
 | ≥ 200 | Defender team | +3 |
 
-Note: Some variants also have a "below 0" tier (negative points via kitty rules) that gives banker +4.
-
 ### 9.4 Banker Succession
 
-**Current implementation** ✅:
+✅ Banker succession:
 
 | Round outcome | Next banker |
 |--------------|-------------|
 | Banker team levels up | Banker stays (same seat) |
-| Defender team levels up | Last trick winner becomes banker |
-
-⚠️ **Standard rules**: In standard Shengji, banker succession follows a different pattern:
-- If the banker's team **defends successfully**, the banker's **partner** becomes the next banker (rotating within the team)
-- If the **opposing team wins**, the player to the **right of the current banker** (next in dealing order) from the winning team becomes banker
+| Swap / Defender team levels up | Last trick winner becomes banker |
 
 ---
 
@@ -446,20 +414,20 @@ The client **must not** compute legality. It renders state and matches card sele
 
 ## Appendix A: Implementation Status Summary
 
-| # | Feature | Status | Priority | Notes |
-|---|---------|--------|----------|-------|
-| 1 | Rank adjacency across level gap | ⚠️ Bug | High | §2.5 — 6↔8 should be adjacent when level=7 |
-| 2 | Trump tractors with jokers/level-rank | ⚠️ Missing | High | §7.3 — jokers and level-rank should form trump tractors |
-| 3 | Per-team independent levels | ⚠️ Missing | High | §3.2 — each team tracks own level |
-| 4 | No-trump rounds | ⚠️ Missing | Medium | §5.4 — joker pair declares no-trump |
-| 5 | Dealing cadence (one at a time) | ⚠️ Missing | Low | §4.1 — counter-clockwise, one card at a time |
-| 6 | Redeal conditions | ⚠️ Missing | Low | §4.3 — no trump or no points in hand |
-| 7 | Partner reinforcement restriction | ⚠️ Missing | Medium | §5.3 — partners can't reinforce each other's bids |
-| 8 | Progressive override (self-reinforce) | ⚠️ Missing | Medium | §5.3 — original bidder can upgrade own bid |
-| 9 | No bids fallback (kitty determines trump) | ⚠️ Missing | Medium | §5.6 — first kitty card sets trump suit |
-| 10 | Standard kitty multiplier (exponential) | ⚠️ Simplified | Low | §9.2 — should be 2^(pairs+1) for tractors |
-| 11 | Standard scoring thresholds (8 tiers) | ⚠️ Simplified | Medium | §9.3 — 8-tier system vs current 4-tier |
-| 12 | Standard banker succession | ⚠️ Simplified | Medium | §9.4 — partner/right-of-dealer rotation |
+| # | Feature | Status | Notes |
+|---|---------|--------|-------|
+| 1 | Rank adjacency across level gap | ✅ | §2.5 — `seqRankForTractor()` bridges the gap |
+| 2 | Trump tractors with jokers/level-rank | ✅ | §7.3 — full trump hierarchy mapped to sequence ranks |
+| 3 | Per-team independent levels | ✅ | §3.2 — `teamLevels: [Rank, Rank]` |
+| 4 | No-trump rounds | ✅ | §5.4 — joker pair declares no-trump |
+| 5 | Dealing cadence (one at a time) | ⚠️ | §4.1 — cosmetic; cards dealt all at once |
+| 6 | Redeal conditions | ✅ | §4.3 — `canRequestRedeal()` |
+| 7 | Partner reinforcement restriction | ✅ | §5.3 — enforced in `flipTrump()` |
+| 8 | Progressive override (self-reinforce) | ✅ | §5.3 — enforced in `flipTrump()` |
+| 9 | No bids fallback (kitty determines trump) | ✅ | §5.6 — `finalizeTrumpFallback()` |
+| 10 | Standard kitty multiplier (exponential) | ✅ | §9.2 — `2 × 2^pairCount` |
+| 11 | Standard scoring thresholds (8 tiers) | ✅ | §9.3 — 7 branches covering all tiers |
+| 12 | Banker succession | ✅ | §9.4 — stays on levelup, last trick winner on swap |
 
 ---
 

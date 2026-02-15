@@ -1,4 +1,4 @@
-import type { Card, Pattern, PatternKind, Rank, Suit, SuitGroup, TrumpSuit } from './types';
+import type { Card, Pattern, PatternKind, Rank, Suit, SuitGroup, TrumpSuit } from './types.js';
 
 const RANK_VALUE: Record<Rank, number> = {
   '2': 2,
@@ -338,4 +338,4 @@ export function analyzeThrow(cards: Card[], levelRank: Rank, trumpSuit: TrumpSui
   };
 }
 
-export type { Card, Pattern, PatternKind, Rank, Suit, SuitGroup } from './types';
+export type { Card, Pattern, PatternKind, Rank, Suit, SuitGroup } from './types.js';

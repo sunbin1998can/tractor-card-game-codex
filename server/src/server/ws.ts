@@ -1,8 +1,8 @@
 import { WebSocketServer, WebSocket } from 'ws';
-import { GameEngine } from '../engine/GameEngine';
-import { validateFollowPlay } from '../engine/Follow';
-import type { Card } from '../engine/types';
-import { createEngineForRoom, type RulesProfile } from '../rules/factory';
+import { GameEngine } from '../engine/GameEngine.js';
+import { validateFollowPlay } from '../engine/Follow.js';
+import type { Card } from '../engine/types.js';
+
 
 type ClientMessage =
   | { type: 'JOIN_ROOM'; roomId: string; name: string; players: number }
@@ -67,7 +67,6 @@ interface SeatState {
 interface Room {
   id: string;
   players: number;
-  rulesProfile: RulesProfile;
   engine: GameEngine;
   seats: SeatState[];
   kittySize: number;
@@ -220,7 +219,7 @@ function deal(room: Room) {
         room.declareUntilMs = undefined;
         room.engine.finalizeTrump(now());
         flushEngineEvents(room);
-        if (room.engine.phase === 'BURY_KITTY') {
+        if ((room.engine.phase as string) === 'BURY_KITTY') {
           sendHand(room, room.engine.config.bankerSeat);
           broadcastState(room);
           requestAction(room, room.engine.config.bankerSeat);
@@ -474,8 +473,8 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
   let room = rooms.get(roomId);
   if (!room) {
     const kittySize = players === 6 ? 12 : 8;
-    const created = createEngineForRoom({
-      players,
+    const engine = new GameEngine({
+      numPlayers: players,
       bankerSeat: 0,
       levelRank: '2',
       trumpSuit: 'H',
@@ -484,8 +483,7 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
     room = {
       id: roomId,
       players,
-      rulesProfile: created.profile,
-      engine: created.engine,
+      engine,
       seats: [],
       kittySize
     };
@@ -582,21 +580,19 @@ function resetRoomAfterGameOver(room: Room) {
   room.tailDealCount = undefined;
 
   const bankerSeat = room.lastRoundResult?.newBankerSeat ?? room.engine.config.bankerSeat;
-  const created = createEngineForRoom({
-    players: room.players,
+  room.engine = new GameEngine({
+    numPlayers: room.players,
     bankerSeat,
     levelRank: '2',
     trumpSuit: 'H',
     kittySize: room.kittySize
   });
-  room.rulesProfile = created.profile;
-  room.engine = created.engine;
   room.lastRoundResult = undefined;
   room.engine.startTrumpPhase();
 }
 
-export function createWsServer(port: number, path = '/ws') {
-  const wss = new WebSocketServer({ port, path });
+export function createWsServer(server: import('http').Server, path = '/ws') {
+  const wss = new WebSocketServer({ server, path });
 
   wss.on('connection', (ws) => {
     ws.on('message', (data) => {
@@ -737,7 +733,7 @@ export function createWsServer(port: number, path = '/ws') {
           return;
         }
         room.engine.buryKitty(seatState.seat, msg.cardIds);
-        if (room.engine.phase !== 'TRICK_PLAY') {
+        if ((room.engine.phase as string) !== 'TRICK_PLAY') {
           send(ws, { type: 'ACTION_REJECTED', action: 'BURY', reason: 'INVALID_BURY_SELECTION' });
           return;
         }

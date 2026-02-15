@@ -1,5 +1,5 @@
-import { analyze, analyzeThrow, cardKey, pairKey, seqRankForTractor, suitGroup } from './RulesEngine';
-import type { Card, Pattern, Rank, Suit, SuitGroup, TrumpSuit } from './types';
+import { analyze, analyzeThrow, cardKey, pairKey, seqRankForTractor, suitGroup } from './RulesEngine.js';
+import type { Card, Pattern, Rank, Suit, SuitGroup, TrumpSuit } from './types.js';
 
 export interface ThrowState {
   levelRank: Rank;
@@ -285,4 +285,4 @@ export function handleLeaderThrow(
   };
 }
 
-export type { Card, Pattern, Rank, Suit } from './types';
+export type { Card, Pattern, Rank, Suit } from './types.js';
