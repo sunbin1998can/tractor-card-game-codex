@@ -54,6 +54,7 @@ export default function CardFace({
     return (
       <button type="button" className={`${cls} ${isSmall ? 'joker-small' : 'joker-big'}`} onClick={onClick}>
         <span className="joker-inner">
+          <span className="joker-type">{isSmall ? '小' : '大'}</span>
           <span className="joker-star">{isSmall ? '\u2606' : '\u2605'}</span>
           <span className="joker-label">JOKER</span>
         </span>

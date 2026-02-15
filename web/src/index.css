@@ -500,16 +500,22 @@ input::placeholder {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
+}
+
+.joker-type {
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .joker-star {
-  font-size: 28px;
+  font-size: 24px;
   line-height: 1;
 }
 
 .joker-label {
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 800;
   letter-spacing: 1px;
 }
@@ -517,8 +523,9 @@ input::placeholder {
 .card-face.joker-small { color: #1565c0; }
 .card-face.joker-big { color: #c62828; }
 
-.card-face.mini .joker-star { font-size: 18px; }
-.card-face.mini .joker-label { font-size: 7px; }
+.card-face.mini .joker-type { font-size: 10px; }
+.card-face.mini .joker-star { font-size: 14px; }
+.card-face.mini .joker-label { font-size: 6px; }
 
 /* ===== Hand ===== */
 .hand-section {
