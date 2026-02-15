@@ -225,196 +225,216 @@ describe('GameEngine no-bids fallback', () => {
 });
 
 describe('GameEngine round scoring', () => {
-  it('applies kitty kill multiplier 2x', () => {
+  function getRoundResult(engine: GameEngine) {
+    return engine.events.find((e) => e.type === 'ROUND_RESULT') as Extract<
+      (typeof engine.events)[number],
+      { type: 'ROUND_RESULT' }
+    > | undefined;
+  }
+
+  function getGameOver(engine: GameEngine) {
+    return engine.events.find((e) => e.type === 'GAME_OVER') as Extract<
+      (typeof engine.events)[number],
+      { type: 'GAME_OVER' }
+    > | undefined;
+  }
+
+  function makeScoreEngine(opts: {
+    bankerSeat?: number;
+    teamLevels?: [Rank, Rank];
+    defenderPoints: number;
+    lastWinner: number;
+    lastLeadKind?: 'SINGLE' | 'PAIR' | 'TRACTOR';
+    lastLeadPairCount?: number;
+    kittyCards?: Card[];
+  }) {
+    const bankerSeat = opts.bankerSeat ?? 0;
+    const teamLevels = opts.teamLevels ?? ['3', '3'] as [Rank, Rank];
     const engine = new GameEngine({
       numPlayers: 4,
-      bankerSeat: 0,
-      levelRank: '2',
+      bankerSeat,
+      levelRank: teamLevels[bankerSeat % 2],
       trumpSuit: 'H',
-      kittySize: 2
+      kittySize: 0,
+      teamLevels,
     });
+    const bankerTeam = bankerSeat % 2;
+    const defenderTeam = bankerTeam === 0 ? 1 : 0;
+    engine.capturedPoints = [0, 0];
+    engine.capturedPoints[defenderTeam] = opts.defenderPoints;
+    engine.kitty = opts.kittyCards ?? [];
+    engine.lastTrickWinnerSeat = opts.lastWinner;
+    engine.lastTrickLeadKind = opts.lastLeadKind ?? 'SINGLE';
+    engine.lastTrickLeadPairCount = opts.lastLeadPairCount ?? 0;
+    return engine;
+  }
 
-    engine.capturedPoints = [0, 70];
-    engine.kitty = [makeCard('S', '10', 1)];
-    engine.lastTrickWinnerSeat = 1;
-    engine.lastTrickLeadKind = 'SINGLE';
+  // --- Kitty multiplier tests ---
 
+  it('applies kitty kill multiplier 2x for single lead', () => {
+    const engine = makeScoreEngine({ defenderPoints: 70, lastWinner: 1, kittyCards: [makeCard('S', '10', 1)] });
     (engine as any).finishRound();
-    const result = engine.events.find((e) => e.type === 'ROUND_RESULT');
-    expect(result && 'killMultiplier' in result ? result.killMultiplier : 0).toBe(2);
+    expect(getRoundResult(engine)?.killMultiplier).toBe(2);
   });
 
   it('applies kitty kill multiplier 4x for pair lead', () => {
-    const engine = new GameEngine({
-      numPlayers: 4,
-      bankerSeat: 0,
-      levelRank: '2',
-      trumpSuit: 'H',
-      kittySize: 2
+    const engine = makeScoreEngine({
+      defenderPoints: 70, lastWinner: 1, lastLeadKind: 'PAIR', lastLeadPairCount: 1,
+      kittyCards: [makeCard('S', '10', 1)],
     });
-
-    engine.capturedPoints = [0, 70];
-    engine.kitty = [makeCard('S', '10', 1)];
-    engine.lastTrickWinnerSeat = 1;
-    engine.lastTrickLeadKind = 'PAIR';
-    engine.lastTrickLeadPairCount = 1;
-
     (engine as any).finishRound();
-    const result = engine.events.find((e) => e.type === 'ROUND_RESULT');
-    expect(result && 'killMultiplier' in result ? result.killMultiplier : 0).toBe(4);
+    expect(getRoundResult(engine)?.killMultiplier).toBe(4);
   });
 
-  it('applies kitty kill multiplier 8x for 2-pair tractor lead', () => {
-    const engine = new GameEngine({
-      numPlayers: 4,
-      bankerSeat: 0,
-      levelRank: '2',
-      trumpSuit: 'H',
-      kittySize: 2
+  it('applies kitty kill multiplier 8x for 2-pair tractor', () => {
+    const engine = makeScoreEngine({
+      defenderPoints: 70, lastWinner: 1, lastLeadKind: 'TRACTOR', lastLeadPairCount: 2,
+      kittyCards: [makeCard('S', '10', 1)],
     });
-
-    engine.capturedPoints = [0, 70];
-    engine.kitty = [makeCard('S', '10', 1)];
-    engine.lastTrickWinnerSeat = 1;
-    engine.lastTrickLeadKind = 'TRACTOR';
-    engine.lastTrickLeadPairCount = 2;
-
     (engine as any).finishRound();
-    const result = engine.events.find((e) => e.type === 'ROUND_RESULT');
-    expect(result && 'killMultiplier' in result ? result.killMultiplier : 0).toBe(8);
+    expect(getRoundResult(engine)?.killMultiplier).toBe(8);
   });
 
-  it('applies kitty kill multiplier 16x for 3-pair tractor lead', () => {
-    const engine = new GameEngine({
-      numPlayers: 4,
-      bankerSeat: 0,
-      levelRank: '2',
-      trumpSuit: 'H',
-      kittySize: 2
+  it('applies kitty kill multiplier 16x for 3-pair tractor', () => {
+    const engine = makeScoreEngine({
+      defenderPoints: 70, lastWinner: 1, lastLeadKind: 'TRACTOR', lastLeadPairCount: 3,
+      kittyCards: [makeCard('S', '10', 1)],
     });
-
-    engine.capturedPoints = [0, 70];
-    engine.kitty = [makeCard('S', '10', 1)];
-    engine.lastTrickWinnerSeat = 1;
-    engine.lastTrickLeadKind = 'TRACTOR';
-    engine.lastTrickLeadPairCount = 3;
-
     (engine as any).finishRound();
-    const result = engine.events.find((e) => e.type === 'ROUND_RESULT');
-    expect(result && 'killMultiplier' in result ? result.killMultiplier : 0).toBe(16);
-  });
-
-  it('upgrades defenders by +1 when >= 80', () => {
-    const engine = new GameEngine({
-      numPlayers: 4,
-      bankerSeat: 0,
-      levelRank: '3',
-      trumpSuit: 'H',
-      kittySize: 0
-    });
-
-    engine.capturedPoints = [0, 80];
-    engine.kitty = [];
-    engine.lastTrickWinnerSeat = 1;
-    engine.lastTrickLeadKind = 'SINGLE';
-
-    (engine as any).finishRound();
-    const result = engine.events.find((e) => e.type === 'ROUND_RESULT');
-    expect(result && 'levelTo' in result ? result.levelTo : '3').toBe('4');
-  });
-
-  it('upgrades defenders by +2 when >= 120', () => {
-    const engine = new GameEngine({
-      numPlayers: 4,
-      bankerSeat: 0,
-      levelRank: '3',
-      trumpSuit: 'H',
-      kittySize: 0
-    });
-
-    engine.capturedPoints = [0, 120];
-    engine.kitty = [];
-    engine.lastTrickWinnerSeat = 1;
-    engine.lastTrickLeadKind = 'SINGLE';
-
-    (engine as any).finishRound();
-    const result = engine.events.find((e) => e.type === 'ROUND_RESULT');
-    expect(result && 'levelTo' in result ? result.levelTo : '3').toBe('5');
-  });
-
-  it('upgrades defenders by +3 when >= 160', () => {
-    const engine = new GameEngine({
-      numPlayers: 4,
-      bankerSeat: 0,
-      levelRank: '3',
-      trumpSuit: 'H',
-      kittySize: 0
-    });
-
-    engine.capturedPoints = [0, 160];
-    engine.kitty = [];
-    engine.lastTrickWinnerSeat = 1;
-    engine.lastTrickLeadKind = 'SINGLE';
-
-    (engine as any).finishRound();
-    const result = engine.events.find((e) => e.type === 'ROUND_RESULT');
-    expect(result && 'levelTo' in result ? result.levelTo : '3').toBe('6');
-  });
-
-  it('banker upgrades when defenders < 80', () => {
-    const engine = new GameEngine({
-      numPlayers: 4,
-      bankerSeat: 0,
-      levelRank: '3',
-      trumpSuit: 'H',
-      kittySize: 0
-    });
-
-    engine.capturedPoints = [0, 70];
-    engine.kitty = [];
-    engine.lastTrickWinnerSeat = 0;
-    engine.lastTrickLeadKind = 'SINGLE';
-
-    (engine as any).finishRound();
-    const result = engine.events.find((e) => e.type === 'ROUND_RESULT');
-    expect(result && 'levelTo' in result ? result.levelTo : '3').toBe('4');
-  });
-
-  it('game over when reaching A', () => {
-    const engine = new GameEngine({
-      numPlayers: 4,
-      bankerSeat: 0,
-      levelRank: 'K',
-      trumpSuit: 'H',
-      kittySize: 0
-    });
-
-    engine.capturedPoints = [0, 120];
-    engine.kitty = [];
-    engine.lastTrickWinnerSeat = 1;
-    engine.lastTrickLeadKind = 'SINGLE';
-
-    (engine as any).finishRound();
-    const gameOver = engine.events.find((e) => e.type === 'GAME_OVER');
-    expect(gameOver).toBeTruthy();
+    expect(getRoundResult(engine)?.killMultiplier).toBe(16);
   });
 
   it('no kitty kill when defenders do not win last trick', () => {
-    const engine = new GameEngine({
-      numPlayers: 4,
-      bankerSeat: 0,
-      levelRank: '2',
-      trumpSuit: 'H',
-      kittySize: 2
-    });
-
-    engine.capturedPoints = [70, 0];
-    engine.kitty = [makeCard('S', '10', 1)];
-    engine.lastTrickWinnerSeat = 0;
-    engine.lastTrickLeadKind = 'SINGLE';
-
+    const engine = makeScoreEngine({ defenderPoints: 0, lastWinner: 0, kittyCards: [makeCard('S', '10', 1)] });
     (engine as any).finishRound();
-    const result = engine.events.find((e) => e.type === 'ROUND_RESULT');
-    expect(result && 'killMultiplier' in result ? result.killMultiplier : 0).toBe(1);
+    expect(getRoundResult(engine)?.killMultiplier).toBe(1);
+  });
+
+  // --- 8-tier scoring thresholds ---
+
+  it('shutout (0 points): banker +3', () => {
+    const engine = makeScoreEngine({ teamLevels: ['3', '3'], defenderPoints: 0, lastWinner: 0 });
+    (engine as any).finishRound();
+    const r = getRoundResult(engine)!;
+    expect(r.advancingTeam).toBe(0); // banker team
+    expect(r.delta).toBe(3);
+    expect(r.levelTo).toBe('6');
+    expect(engine.teamLevels[0]).toBe('6');
+    expect(engine.teamLevels[1]).toBe('3'); // defender unchanged
+  });
+
+  it('defender 5-35 points: banker +2', () => {
+    const engine = makeScoreEngine({ teamLevels: ['3', '3'], defenderPoints: 30, lastWinner: 0 });
+    (engine as any).finishRound();
+    const r = getRoundResult(engine)!;
+    expect(r.advancingTeam).toBe(0);
+    expect(r.delta).toBe(2);
+    expect(r.levelTo).toBe('5');
+  });
+
+  it('defender 40-75 points: banker +1', () => {
+    const engine = makeScoreEngine({ teamLevels: ['3', '3'], defenderPoints: 70, lastWinner: 0 });
+    (engine as any).finishRound();
+    const r = getRoundResult(engine)!;
+    expect(r.advancingTeam).toBe(0);
+    expect(r.delta).toBe(1);
+    expect(r.levelTo).toBe('4');
+  });
+
+  it('defender 80-115 points: swap banker, no level change', () => {
+    const engine = makeScoreEngine({ teamLevels: ['3', '3'], defenderPoints: 80, lastWinner: 1 });
+    (engine as any).finishRound();
+    const r = getRoundResult(engine)!;
+    expect(r.advancingTeam).toBe(-1);
+    expect(r.delta).toBe(0);
+    expect(r.levelTo).toBe('3');
+    expect(engine.teamLevels[0]).toBe('3');
+    expect(engine.teamLevels[1]).toBe('3');
+    // Banker should swap to last trick winner
+    expect(r.nextBankerSeat).toBe(1);
+  });
+
+  it('defender 120-155 points: defender +1', () => {
+    const engine = makeScoreEngine({ teamLevels: ['3', '3'], defenderPoints: 120, lastWinner: 1 });
+    (engine as any).finishRound();
+    const r = getRoundResult(engine)!;
+    expect(r.advancingTeam).toBe(1); // defender team
+    expect(r.delta).toBe(1);
+    expect(r.levelTo).toBe('4');
+    expect(engine.teamLevels[1]).toBe('4');
+  });
+
+  it('defender 160-195 points: defender +2', () => {
+    const engine = makeScoreEngine({ teamLevels: ['3', '3'], defenderPoints: 160, lastWinner: 1 });
+    (engine as any).finishRound();
+    const r = getRoundResult(engine)!;
+    expect(r.advancingTeam).toBe(1);
+    expect(r.delta).toBe(2);
+    expect(r.levelTo).toBe('5');
+  });
+
+  it('defender >= 200 points: defender +3', () => {
+    const engine = makeScoreEngine({ teamLevels: ['3', '3'], defenderPoints: 200, lastWinner: 1 });
+    (engine as any).finishRound();
+    const r = getRoundResult(engine)!;
+    expect(r.advancingTeam).toBe(1);
+    expect(r.delta).toBe(3);
+    expect(r.levelTo).toBe('6');
+  });
+
+  // --- Per-team levels ---
+
+  it('teams have independent levels', () => {
+    const engine = makeScoreEngine({ teamLevels: ['5', '8'], defenderPoints: 0, lastWinner: 0 });
+    (engine as any).finishRound();
+    expect(engine.teamLevels[0]).toBe('8'); // banker team 0 advanced +3
+    expect(engine.teamLevels[1]).toBe('8'); // defender team 1 unchanged
+  });
+
+  // --- Banker succession ---
+
+  it('banker stays when banker team levels up', () => {
+    const engine = makeScoreEngine({ bankerSeat: 0, defenderPoints: 0, lastWinner: 0 });
+    (engine as any).finishRound();
+    expect(getRoundResult(engine)?.nextBankerSeat).toBe(0);
+    expect(engine.config.bankerSeat).toBe(0);
+  });
+
+  it('last trick winner becomes banker when defender levels up', () => {
+    const engine = makeScoreEngine({ bankerSeat: 0, defenderPoints: 120, lastWinner: 3 });
+    (engine as any).finishRound();
+    expect(getRoundResult(engine)?.nextBankerSeat).toBe(3);
+    expect(engine.config.bankerSeat).toBe(3);
+  });
+
+  it('last trick winner becomes banker on swap (80-115)', () => {
+    const engine = makeScoreEngine({ bankerSeat: 0, defenderPoints: 80, lastWinner: 1 });
+    (engine as any).finishRound();
+    expect(getRoundResult(engine)?.nextBankerSeat).toBe(1);
+    expect(engine.config.bankerSeat).toBe(1);
+  });
+
+  // --- Game over ---
+
+  it('game over when defender team reaches A', () => {
+    const engine = makeScoreEngine({ teamLevels: ['3', 'K'], defenderPoints: 120, lastWinner: 1 });
+    (engine as any).finishRound();
+    const go = getGameOver(engine)!;
+    expect(go).toBeTruthy();
+    expect(go.winnerTeam).toBe(1); // defender team
+  });
+
+  it('game over when banker team reaches A', () => {
+    const engine = makeScoreEngine({ teamLevels: ['K', '3'], defenderPoints: 0, lastWinner: 0 });
+    (engine as any).finishRound();
+    const go = getGameOver(engine)!;
+    expect(go).toBeTruthy();
+    expect(go.winnerTeam).toBe(0); // banker team
+  });
+
+  it('no game over when level does not reach A', () => {
+    const engine = makeScoreEngine({ teamLevels: ['3', '3'], defenderPoints: 120, lastWinner: 1 });
+    (engine as any).finishRound();
+    expect(getGameOver(engine)).toBeUndefined();
   });
 });

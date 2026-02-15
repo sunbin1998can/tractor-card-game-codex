@@ -21,12 +21,14 @@ export type Event =
   | { type: 'THROW_PUNISHED'; seat: number; originalCards: Card[]; punishedCards: Card[]; reason: string }
   | {
       type: 'ROUND_RESULT';
+      advancingTeam: number;
       levelFrom: Rank;
       levelTo: Rank;
       delta: number;
       defenderPoints: number;
       kittyPoints: number;
       killMultiplier: number;
+      nextBankerSeat: number;
     }
   | { type: 'GAME_OVER'; winnerTeam: number };
 
@@ -38,6 +40,7 @@ export interface GameConfig {
   kittySize: number;
   fairnessWindowMs?: number;
   rngSeed?: number;
+  teamLevels?: [Rank, Rank];
 }
 
 export interface TrumpCandidate {
@@ -116,6 +119,7 @@ export class GameEngine {
   lastTrickLeadKind: 'SINGLE' | 'PAIR' | 'TRACTOR' | null = null;
   lastTrickLeadPairCount: number = 0;
   lastTrickWinnerSeat: number | null = null;
+  teamLevels: [Rank, Rank] = ['2', '2'];
 
   trumpCandidate: TrumpCandidate | null = null;
   rngSeed: number;
@@ -124,6 +128,10 @@ export class GameEngine {
     this.config = config;
     this.fairnessWindowMs = config.fairnessWindowMs ?? 2000;
     this.rngSeed = config.rngSeed ?? 1;
+    this.teamLevels = config.teamLevels ? [...config.teamLevels] : ['2', '2'];
+    // Derive levelRank from banker's team level
+    const bankerTeam = teamOfSeat(config.bankerSeat);
+    this.config.levelRank = this.teamLevels[bankerTeam];
     this.hands = Array.from({ length: config.numPlayers }, () => []);
     this.emit({ type: 'ROOM_STATE', phase: this.phase });
   }
@@ -352,35 +360,77 @@ export class GameEngine {
       this.capturedPoints[defenderTeam] = defenderPoints;
     }
 
-    let delta = 0;
-    if (defenderPoints >= 160) delta = 3;
-    else if (defenderPoints >= 120) delta = 2;
-    else if (defenderPoints >= 80) delta = 1;
-    else delta = 1; // banker +1
+    // Standard 8-tier scoring per RULES.md §9.3
+    let advancingTeam: number;
+    let delta: number;
 
-    const oldLevel = this.config.levelRank;
-    const newLevel = nextLevel(oldLevel, delta);
+    if (defenderPoints === 0) {
+      advancingTeam = bankerTeam;
+      delta = 3;
+    } else if (defenderPoints < 40) {
+      advancingTeam = bankerTeam;
+      delta = 2;
+    } else if (defenderPoints < 80) {
+      advancingTeam = bankerTeam;
+      delta = 1;
+    } else if (defenderPoints < 120) {
+      advancingTeam = -1; // swap banker, no level change
+      delta = 0;
+    } else if (defenderPoints < 160) {
+      advancingTeam = defenderTeam;
+      delta = 1;
+    } else if (defenderPoints < 200) {
+      advancingTeam = defenderTeam;
+      delta = 2;
+    } else {
+      advancingTeam = defenderTeam;
+      delta = 3;
+    }
+
+    // Apply level change to the correct team
+    let levelFrom: Rank;
+    let levelTo: Rank;
+    if (advancingTeam >= 0) {
+      levelFrom = this.teamLevels[advancingTeam];
+      levelTo = nextLevel(levelFrom, delta);
+      this.teamLevels[advancingTeam] = levelTo;
+    } else {
+      levelFrom = this.teamLevels[bankerTeam];
+      levelTo = levelFrom;
+    }
+
+    // Banker succession
+    let nextBankerSeat: number;
+    if (advancingTeam === bankerTeam) {
+      nextBankerSeat = this.config.bankerSeat;
+    } else {
+      nextBankerSeat = this.lastTrickWinnerSeat ?? (this.config.bankerSeat + 1) % this.config.numPlayers;
+    }
 
     this.phase = 'ROUND_SCORE';
     this.emit({
       type: 'ROUND_RESULT',
-      levelFrom: oldLevel,
-      levelTo: newLevel,
+      advancingTeam,
+      levelFrom,
+      levelTo,
       delta,
       defenderPoints,
       kittyPoints,
       killMultiplier,
+      nextBankerSeat,
     });
 
-    if (newLevel === 'A') {
-      this.emit({ type: 'GAME_OVER', winnerTeam: defenderTeam });
+    if (levelTo === 'A' && advancingTeam >= 0) {
+      this.emit({ type: 'GAME_OVER', winnerTeam: advancingTeam });
       this.phase = 'GAME_OVER';
       this.emit({ type: 'PHASE', phase: this.phase });
-      this.config.levelRank = newLevel;
       return;
     }
 
-    this.config.levelRank = newLevel;
+    // Set up for next round
+    this.config.bankerSeat = nextBankerSeat;
+    const nextBankerTeam = teamOfSeat(nextBankerSeat);
+    this.config.levelRank = this.teamLevels[nextBankerTeam];
     this.emit({ type: 'PHASE', phase: this.phase });
   }
 }
