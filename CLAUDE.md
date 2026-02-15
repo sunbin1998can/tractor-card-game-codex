@@ -45,6 +45,17 @@ pnpm workspaces monorepo under `packages/`:
 - **src/store.ts** — Zustand store for game state.
 - **src/wsClient.ts** — WebSocket client with auto-reconnect, TTS, and sessionToken.
 
+### `packages/db/` (`@tractor/db`) — Drizzle ORM schema + PostgreSQL connection
+- **src/schema.ts** — Drizzle table definitions: `users`, `matches`, `matchPlayers`, `rounds`, `roundEvents`.
+- **src/client.ts** — `createDb(url)` connection factory using `postgres` driver.
+- **drizzle.config.ts** — Drizzle Kit migration config.
+
+### `packages/models/` (`@tractor/models`) — Domain repository layer
+- **src/users.ts** — User CRUD: guest creation, registration, lookup.
+- **src/matches.ts** — Match/round recording and history queries.
+- **src/events.ts** — Round event stream recording for replay.
+- **src/stats.ts** — Win rate, point aggregation queries.
+
 ### `packages/bot/` (`@tractor/bot`) — Placeholder for bot agent
 ### `packages/analytics/` (`@tractor/analytics`) — Placeholder for analytics
 
@@ -56,7 +67,13 @@ engine (0 deps)     protocol (0 deps)
    ├── server ──────────┤
    ├── bot ─────────────┤
    │                    ├── web
-   │                    └── analytics
+   │                    ├── analytics
+   │                    │
+   │    db (drizzle+pg) │
+   │      ↑             │
+   │    models ─────────┘
+   │      ↑
+   └── server (future integration)
 ```
 
 ## Key Design Rules
