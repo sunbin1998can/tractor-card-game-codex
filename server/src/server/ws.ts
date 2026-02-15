@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
-import { GameEngine } from '../engine/GameEngine';
-import { validateFollowPlay } from '../engine/Follow';
-import type { Card } from '../engine/types';
+import { GameEngine } from '../engine/GameEngine.js';
+import { validateFollowPlay } from '../engine/Follow.js';
+import type { Card } from '../engine/types.js';
 
 
 type ClientMessage =
@@ -219,7 +219,7 @@ function deal(room: Room) {
         room.declareUntilMs = undefined;
         room.engine.finalizeTrump(now());
         flushEngineEvents(room);
-        if (room.engine.phase === 'BURY_KITTY') {
+        if ((room.engine.phase as string) === 'BURY_KITTY') {
           sendHand(room, room.engine.config.bankerSeat);
           broadcastState(room);
           requestAction(room, room.engine.config.bankerSeat);
@@ -591,8 +591,8 @@ function resetRoomAfterGameOver(room: Room) {
   room.engine.startTrumpPhase();
 }
 
-export function createWsServer(port: number, path = '/ws') {
-  const wss = new WebSocketServer({ port, path });
+export function createWsServer(server: import('http').Server, path = '/ws') {
+  const wss = new WebSocketServer({ server, path });
 
   wss.on('connection', (ws) => {
     ws.on('message', (data) => {
@@ -733,7 +733,7 @@ export function createWsServer(port: number, path = '/ws') {
           return;
         }
         room.engine.buryKitty(seatState.seat, msg.cardIds);
-        if (room.engine.phase !== 'TRICK_PLAY') {
+        if ((room.engine.phase as string) !== 'TRICK_PLAY') {
           send(ws, { type: 'ACTION_REJECTED', action: 'BURY', reason: 'INVALID_BURY_SELECTION' });
           return;
         }
