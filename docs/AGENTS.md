@@ -59,8 +59,8 @@ pnpm workspaces monorepo under `packages/`:
 - `packages/web/` (`@tractor/web`) — React + Zustand + Vite
   - Zustand store, GameTable/SeatCard/Hand components, SVG playing cards
   - ws client with auto-reconnect, TTS, and sessionToken
-- `packages/db/` (`@tractor/db`) — Drizzle ORM schema + PostgreSQL connection
-  - `users`, `matches`, `matchPlayers`, `rounds`, `roundEvents`, `userRatings` tables
+- `packages/db/` (`@tractor/db`) — Kysely schema types + PostgreSQL connection
+  - `users`, `matches`, `match_players`, `rounds`, `round_events`, `user_ratings` tables
 - `packages/models/` (`@tractor/models`) — Domain repository layer
   - User CRUD (guest + OAuth), match/round recording, event replay, stats, ratings
 - `packages/bot/` (`@tractor/bot`) — Placeholder for bot agent

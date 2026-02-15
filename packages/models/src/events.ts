@@ -1,25 +1,24 @@
-import { eq } from 'drizzle-orm';
-import type { Db } from '@tractor/db';
-import { roundEvents } from '@tractor/db';
+import type { Db, RoundEvent, NewRoundEvent } from '@tractor/db';
 
-export type RoundEvent = typeof roundEvents.$inferSelect;
-export type RoundEventInsert = typeof roundEvents.$inferInsert;
+export type { RoundEvent, NewRoundEvent } from '@tractor/db';
 
 export async function recordRoundEvents(
   db: Db,
   roundId: string,
-  events: Omit<RoundEventInsert, 'id' | 'roundId'>[],
+  events: Omit<NewRoundEvent, 'id' | 'round_id'>[],
 ): Promise<void> {
   if (events.length === 0) return;
-  await db.insert(roundEvents).values(
-    events.map((e) => ({ ...e, roundId })),
-  );
+  await db
+    .insertInto('round_events')
+    .values(events.map((e) => ({ ...e, round_id: roundId })))
+    .execute();
 }
 
 export async function getRoundEvents(db: Db, roundId: string): Promise<RoundEvent[]> {
   return db
-    .select()
-    .from(roundEvents)
-    .where(eq(roundEvents.roundId, roundId))
-    .orderBy(roundEvents.seq);
+    .selectFrom('round_events')
+    .selectAll()
+    .where('round_id', '=', roundId)
+    .orderBy('seq', 'asc')
+    .execute();
 }

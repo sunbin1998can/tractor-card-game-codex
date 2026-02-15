@@ -1,18 +1,21 @@
-import { eq, and } from 'drizzle-orm';
-import type { Db } from '@tractor/db';
-import { users } from '@tractor/db';
+import type { Db, User } from '@tractor/db';
 
-export type User = typeof users.$inferSelect;
-export type UserInsert = typeof users.$inferInsert;
+export type { User } from '@tractor/db';
 
 export async function findUserByUsername(db: Db, username: string): Promise<User | undefined> {
-  const rows = await db.select().from(users).where(eq(users.username, username)).limit(1);
-  return rows[0];
+  return db
+    .selectFrom('users')
+    .selectAll()
+    .where('username', '=', username)
+    .executeTakeFirst();
 }
 
 export async function findUserByGuestToken(db: Db, guestToken: string): Promise<User | undefined> {
-  const rows = await db.select().from(users).where(eq(users.guestToken, guestToken)).limit(1);
-  return rows[0];
+  return db
+    .selectFrom('users')
+    .selectAll()
+    .where('guest_token', '=', guestToken)
+    .executeTakeFirst();
 }
 
 export async function findUserByOAuth(
@@ -20,23 +23,23 @@ export async function findUserByOAuth(
   provider: string,
   oauthId: string,
 ): Promise<User | undefined> {
-  const rows = await db
-    .select()
-    .from(users)
-    .where(and(eq(users.oauthProvider, provider), eq(users.oauthId, oauthId)))
-    .limit(1);
-  return rows[0];
+  return db
+    .selectFrom('users')
+    .selectAll()
+    .where('oauth_provider', '=', provider)
+    .where('oauth_id', '=', oauthId)
+    .executeTakeFirst();
 }
 
 export async function createGuestUser(db: Db, displayName: string): Promise<User> {
-  const rows = await db
-    .insert(users)
+  return db
+    .insertInto('users')
     .values({
-      displayName,
-      guestToken: crypto.randomUUID(),
+      display_name: displayName,
+      guest_token: crypto.randomUUID(),
     })
-    .returning();
-  return rows[0];
+    .returningAll()
+    .executeTakeFirstOrThrow();
 }
 
 export async function linkOAuth(
@@ -44,34 +47,34 @@ export async function linkOAuth(
   guestToken: string,
   opts: { provider: string; oauthId: string; username?: string },
 ): Promise<User> {
-  const rows = await db
-    .update(users)
+  return db
+    .updateTable('users')
     .set({
-      oauthProvider: opts.provider,
-      oauthId: opts.oauthId,
-      username: opts.username,
-      updatedAt: new Date(),
+      oauth_provider: opts.provider,
+      oauth_id: opts.oauthId,
+      username: opts.username ?? null,
+      updated_at: new Date(),
     })
-    .where(eq(users.guestToken, guestToken))
-    .returning();
-  return rows[0];
+    .where('guest_token', '=', guestToken)
+    .returningAll()
+    .executeTakeFirstOrThrow();
 }
 
 export async function createOAuthUser(
   db: Db,
   opts: { provider: string; oauthId: string; displayName: string; username?: string },
 ): Promise<User> {
-  const rows = await db
-    .insert(users)
+  return db
+    .insertInto('users')
     .values({
-      displayName: opts.displayName,
-      oauthProvider: opts.provider,
-      oauthId: opts.oauthId,
-      username: opts.username,
-      guestToken: crypto.randomUUID(),
+      display_name: opts.displayName,
+      oauth_provider: opts.provider,
+      oauth_id: opts.oauthId,
+      username: opts.username ?? null,
+      guest_token: crypto.randomUUID(),
     })
-    .returning();
-  return rows[0];
+    .returningAll()
+    .executeTakeFirstOrThrow();
 }
 
 export async function updateDisplayName(
@@ -79,10 +82,10 @@ export async function updateDisplayName(
   userId: string,
   displayName: string,
 ): Promise<User> {
-  const rows = await db
-    .update(users)
-    .set({ displayName, updatedAt: new Date() })
-    .where(eq(users.id, userId))
-    .returning();
-  return rows[0];
+  return db
+    .updateTable('users')
+    .set({ display_name: displayName, updated_at: new Date() })
+    .where('id', '=', userId)
+    .returningAll()
+    .executeTakeFirstOrThrow();
 }

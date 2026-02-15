@@ -17,7 +17,7 @@
   "dependencies": {
     "@tractor/db": "workspace:*",
     "@tractor/protocol": "workspace:*",
-    "drizzle-orm": "^0.38.0"
+    "kysely": "^0.27.0"
   },
   "devDependencies": {
     "typescript": "^5.5.0"

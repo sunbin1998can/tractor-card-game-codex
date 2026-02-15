@@ -1,28 +1,29 @@
-import { eq, sql } from 'drizzle-orm';
-import type { Db } from '@tractor/db';
-import { userRatings } from '@tractor/db';
+import { sql } from 'kysely';
+import type { Db, UserRating } from '@tractor/db';
 
-export type UserRating = typeof userRatings.$inferSelect;
-export type UserRatingInsert = typeof userRatings.$inferInsert;
+export type { UserRating } from '@tractor/db';
 
 export async function getUserRating(db: Db, userId: string): Promise<UserRating | undefined> {
-  const rows = await db.select().from(userRatings).where(eq(userRatings.userId, userId)).limit(1);
-  return rows[0];
+  return db
+    .selectFrom('user_ratings')
+    .selectAll()
+    .where('user_id', '=', userId)
+    .executeTakeFirst();
 }
 
 export async function ensureUserRating(db: Db, userId: string): Promise<UserRating> {
   const existing = await getUserRating(db, userId);
   if (existing) return existing;
 
-  const [row] = await db
-    .insert(userRatings)
-    .values({ userId })
-    .onConflictDoNothing()
-    .returning();
-
-  // Race condition: another insert won; re-fetch
-  if (!row) return (await getUserRating(db, userId))!;
-  return row;
+  return db
+    .insertInto('user_ratings')
+    .values({ user_id: userId })
+    .onConflict((oc) => oc.column('user_id').doNothing())
+    .returningAll()
+    .executeTakeFirst()
+    // Race condition: another insert won; re-fetch
+    .then((row) => row ?? getUserRating(db, userId))
+    .then((row) => row!);
 }
 
 export async function updateRating(
@@ -32,17 +33,16 @@ export async function updateRating(
 ): Promise<UserRating> {
   await ensureUserRating(db, userId);
 
-  const [row] = await db
-    .update(userRatings)
+  return db
+    .updateTable('user_ratings')
     .set({
       rating: opts.newRating,
       deviation: opts.newDeviation,
-      matchesRated: sql`${userRatings.matchesRated} + 1`,
-      peakRating: sql`greatest(${userRatings.peakRating}, ${opts.newRating})`,
-      updatedAt: new Date(),
+      matches_rated: sql`matches_rated + 1`,
+      peak_rating: sql`greatest(peak_rating, ${opts.newRating})`,
+      updated_at: new Date(),
     })
-    .where(eq(userRatings.userId, userId))
-    .returning();
-
-  return row;
+    .where('user_id', '=', userId)
+    .returningAll()
+    .executeTakeFirstOrThrow();
 }

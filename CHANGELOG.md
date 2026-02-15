@@ -5,8 +5,9 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added — Database & Persistence Layer (#9)
-- `@tractor/db` package: Drizzle ORM schema with PostgreSQL tables for `users`, `matches`, `match_players`, `rounds`, `round_events`, `user_ratings`
+- `@tractor/db` package: Kysely type-safe query builder with PostgreSQL tables for `users`, `matches`, `match_players`, `rounds`, `round_events`, `user_ratings`
 - `@tractor/models` package: repository layer with user CRUD (guest + OAuth), match/round recording, event stream capture, stats/aggregation queries, and ELO ratings
+- TypeScript migrations with `up`/`down` exports (run via `tsx src/migrate.ts`)
 - OAuth-ready auth model (`oauth_provider` + `oauth_id` on users) for future social login (WeChat, Google, etc.)
 - `round_events` table with hybrid design: `payload` jsonb for full replay data + `cards text[]` column with GIN index for queryable card analysis
 - `user_ratings` table with ELO rating, deviation, match count, and peak tracking

@@ -45,10 +45,11 @@ pnpm workspaces monorepo under `packages/`:
 - **src/store.ts** — Zustand store for game state.
 - **src/wsClient.ts** — WebSocket client with auto-reconnect, TTS, and sessionToken.
 
-### `packages/db/` (`@tractor/db`) — Drizzle ORM schema + PostgreSQL connection
-- **src/schema.ts** — Drizzle table definitions: `users`, `matches`, `matchPlayers`, `rounds`, `roundEvents`, `userRatings`.
-- **src/client.ts** — `createDb(url)` connection factory using `postgres` driver.
-- **drizzle.config.ts** — Drizzle Kit migration config.
+### `packages/db/` (`@tractor/db`) — Kysely schema + PostgreSQL connection
+- **src/schema.ts** — Kysely `Database` type interface: `users`, `matches`, `match_players`, `rounds`, `round_events`, `user_ratings`.
+- **src/client.ts** — `createDb(url)` connection factory using `pg` Pool.
+- **src/migrate.ts** — Kysely `FileMigrationProvider` runner (run via `tsx`).
+- **migrations/** — TypeScript migration files with `up`/`down` exports.
 
 ### `packages/models/` (`@tractor/models`) — Domain repository layer
 - **src/users.ts** — User CRUD: guest creation, OAuth linking, lookup by username/guestToken/OAuth.

@@ -1,12 +1,6 @@
-import { eq, desc } from 'drizzle-orm';
-import type { Db } from '@tractor/db';
-import { matches, matchPlayers, rounds } from '@tractor/db';
+import type { Db, Match, MatchPlayer, Round, NewRound } from '@tractor/db';
 
-export type Match = typeof matches.$inferSelect;
-export type MatchInsert = typeof matches.$inferInsert;
-export type MatchPlayer = typeof matchPlayers.$inferSelect;
-export type Round = typeof rounds.$inferSelect;
-export type RoundInsert = typeof rounds.$inferInsert;
+export type { Match, MatchPlayer, Round, NewRound } from '@tractor/db';
 
 export interface CreateMatchOpts {
   roomId: string;
@@ -21,25 +15,29 @@ export interface CreateMatchOpts {
 }
 
 export async function createMatch(db: Db, opts: CreateMatchOpts): Promise<Match> {
-  const [match] = await db
-    .insert(matches)
+  const match = await db
+    .insertInto('matches')
     .values({
-      roomId: opts.roomId,
-      playerCount: opts.playerCount,
-      teamLevelsStart: opts.teamLevelsStart,
+      room_id: opts.roomId,
+      player_count: opts.playerCount,
+      team_levels_start: JSON.stringify(opts.teamLevelsStart),
     })
-    .returning();
+    .returningAll()
+    .executeTakeFirstOrThrow();
 
   if (opts.players.length > 0) {
-    await db.insert(matchPlayers).values(
-      opts.players.map((p) => ({
-        matchId: match.id,
-        userId: p.userId ?? null,
-        seat: p.seat,
-        team: p.team,
-        displayName: p.displayName,
-      })),
-    );
+    await db
+      .insertInto('match_players')
+      .values(
+        opts.players.map((p) => ({
+          match_id: match.id,
+          user_id: p.userId ?? null,
+          seat: p.seat,
+          team: p.team,
+          display_name: p.displayName,
+        })),
+      )
+      .execute();
   }
 
   return match;
@@ -51,41 +49,52 @@ export async function finalizeMatch(
   opts: { winningTeam: number; teamLevelsEnd: [string, string] },
 ): Promise<void> {
   await db
-    .update(matches)
+    .updateTable('matches')
     .set({
-      winningTeam: opts.winningTeam,
-      teamLevelsEnd: opts.teamLevelsEnd,
-      endedAt: new Date(),
+      winning_team: opts.winningTeam,
+      team_levels_end: JSON.stringify(opts.teamLevelsEnd),
+      ended_at: new Date(),
     })
-    .where(eq(matches.id, matchId));
+    .where('id', '=', matchId)
+    .execute();
 }
 
 export async function recordRound(
   db: Db,
   matchId: string,
-  roundData: Omit<RoundInsert, 'id' | 'matchId'>,
+  roundData: Omit<NewRound, 'id' | 'match_id'>,
 ): Promise<Round> {
-  const [row] = await db
-    .insert(rounds)
-    .values({ ...roundData, matchId })
-    .returning();
-  return row;
+  return db
+    .insertInto('rounds')
+    .values({ ...roundData, match_id: matchId })
+    .returningAll()
+    .executeTakeFirstOrThrow();
 }
 
 export async function getMatchWithRounds(
   db: Db,
   matchId: string,
 ): Promise<{ match: Match; players: MatchPlayer[]; rounds: Round[] } | undefined> {
-  const [match] = await db.select().from(matches).where(eq(matches.id, matchId)).limit(1);
+  const match = await db
+    .selectFrom('matches')
+    .selectAll()
+    .where('id', '=', matchId)
+    .executeTakeFirst();
+
   if (!match) return undefined;
 
   const [players, matchRounds] = await Promise.all([
-    db.select().from(matchPlayers).where(eq(matchPlayers.matchId, matchId)),
     db
-      .select()
-      .from(rounds)
-      .where(eq(rounds.matchId, matchId))
-      .orderBy(rounds.roundNumber),
+      .selectFrom('match_players')
+      .selectAll()
+      .where('match_id', '=', matchId)
+      .execute(),
+    db
+      .selectFrom('rounds')
+      .selectAll()
+      .where('match_id', '=', matchId)
+      .orderBy('round_number', 'asc')
+      .execute(),
   ]);
 
   return { match, players, rounds: matchRounds };
@@ -100,17 +109,38 @@ export async function getUserMatches(
   const offset = opts?.offset ?? 0;
 
   const rows = await db
-    .select({
-      match: matches,
-      seat: matchPlayers.seat,
-      team: matchPlayers.team,
-    })
-    .from(matchPlayers)
-    .innerJoin(matches, eq(matchPlayers.matchId, matches.id))
-    .where(eq(matchPlayers.userId, userId))
-    .orderBy(desc(matches.startedAt))
+    .selectFrom('match_players')
+    .innerJoin('matches', 'matches.id', 'match_players.match_id')
+    .select([
+      'matches.id',
+      'matches.room_id',
+      'matches.player_count',
+      'matches.winning_team',
+      'matches.team_levels_start',
+      'matches.team_levels_end',
+      'matches.started_at',
+      'matches.ended_at',
+      'match_players.seat',
+      'match_players.team',
+    ])
+    .where('match_players.user_id', '=', userId)
+    .orderBy('matches.started_at', 'desc')
     .limit(limit)
-    .offset(offset);
+    .offset(offset)
+    .execute();
 
-  return rows;
+  return rows.map((r) => ({
+    match: {
+      id: r.id,
+      room_id: r.room_id,
+      player_count: r.player_count,
+      winning_team: r.winning_team,
+      team_levels_start: r.team_levels_start,
+      team_levels_end: r.team_levels_end,
+      started_at: r.started_at,
+      ended_at: r.ended_at,
+    },
+    seat: r.seat,
+    team: r.team,
+  }));
 }

@@ -1,10 +1,13 @@
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
-import * as schema from './schema.js';
+import { Kysely, PostgresDialect } from 'kysely';
+import pg from 'pg';
+import type { Database } from './schema.js';
 
-export function createDb(url: string) {
-  const client = postgres(url);
-  return drizzle(client, { schema });
+export function createDb(url: string): Kysely<Database> {
+  return new Kysely<Database>({
+    dialect: new PostgresDialect({
+      pool: new pg.Pool({ connectionString: url }),
+    }),
+  });
 }
 
-export type Db = ReturnType<typeof createDb>;
+export type Db = Kysely<Database>;

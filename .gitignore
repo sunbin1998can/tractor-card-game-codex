@@ -13,8 +13,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Drizzle migration output (generated)
-packages/db/drizzle/
 
 # OS
 .DS_Store
