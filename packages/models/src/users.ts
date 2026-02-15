@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import type { Db } from '@tractor/db';
 import { users } from '@tractor/db';
 
@@ -15,6 +15,19 @@ export async function findUserByGuestToken(db: Db, guestToken: string): Promise<
   return rows[0];
 }
 
+export async function findUserByOAuth(
+  db: Db,
+  provider: string,
+  oauthId: string,
+): Promise<User | undefined> {
+  const rows = await db
+    .select()
+    .from(users)
+    .where(and(eq(users.oauthProvider, provider), eq(users.oauthId, oauthId)))
+    .limit(1);
+  return rows[0];
+}
+
 export async function createGuestUser(db: Db, displayName: string): Promise<User> {
   const rows = await db
     .insert(users)
@@ -26,16 +39,37 @@ export async function createGuestUser(db: Db, displayName: string): Promise<User
   return rows[0];
 }
 
-export async function registerUser(
+export async function linkOAuth(
   db: Db,
   guestToken: string,
-  username: string,
-  passwordHash: string,
+  opts: { provider: string; oauthId: string; username?: string },
 ): Promise<User> {
   const rows = await db
     .update(users)
-    .set({ username, passwordHash, updatedAt: new Date() })
+    .set({
+      oauthProvider: opts.provider,
+      oauthId: opts.oauthId,
+      username: opts.username,
+      updatedAt: new Date(),
+    })
     .where(eq(users.guestToken, guestToken))
+    .returning();
+  return rows[0];
+}
+
+export async function createOAuthUser(
+  db: Db,
+  opts: { provider: string; oauthId: string; displayName: string; username?: string },
+): Promise<User> {
+  const rows = await db
+    .insert(users)
+    .values({
+      displayName: opts.displayName,
+      oauthProvider: opts.provider,
+      oauthId: opts.oauthId,
+      username: opts.username,
+      guestToken: crypto.randomUUID(),
+    })
     .returning();
   return rows[0];
 }

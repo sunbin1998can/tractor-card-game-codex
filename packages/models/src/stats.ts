@@ -9,6 +9,8 @@ export interface UserStats {
   roundsPlayed: number;
   avgPointsAsAttacker: number;
   avgPointsAsDefender: number;
+  totalLevelUps: number;
+  biggestLevelJump: number;
 }
 
 export async function getUserStats(db: Db, userId: string): Promise<UserStats> {
@@ -22,15 +24,23 @@ export async function getUserStats(db: Db, userId: string): Promise<UserStats> {
     .innerJoin(matches, eq(matchPlayers.matchId, matches.id))
     .where(and(eq(matchPlayers.userId, userId), isNotNull(matches.winningTeam)));
 
-  // Round-level stats: points as attacker vs defender
+  // Round-level stats: use team to determine attacker/defender role
+  // In Tractor, the banker's entire team defends. We join match_players
+  // for both the queried user and the banker to compare teams.
   const [roundStats] = await db
     .select({
       roundsPlayed: sql<number>`count(*)::int`,
-      avgPointsAsAttacker: sql<number>`coalesce(avg(case when ${matchPlayers.seat} != ${rounds.bankerSeat} then ${rounds.attackerPoints} end), 0)::float`,
-      avgPointsAsDefender: sql<number>`coalesce(avg(case when ${matchPlayers.seat} = ${rounds.bankerSeat} then ${rounds.defenderPoints} end), 0)::float`,
+      avgPointsAsAttacker: sql<number>`coalesce(avg(case when ${matchPlayers.team} != banker_mp.team then ${rounds.attackerPoints} end), 0)::float`,
+      avgPointsAsDefender: sql<number>`coalesce(avg(case when ${matchPlayers.team} = banker_mp.team then ${rounds.defenderPoints} end), 0)::float`,
+      totalLevelUps: sql<number>`coalesce(sum(case when ${rounds.winnerTeam} = ${matchPlayers.team} then ${rounds.levelDelta} else 0 end), 0)::int`,
+      biggestLevelJump: sql<number>`coalesce(max(case when ${rounds.winnerTeam} = ${matchPlayers.team} then ${rounds.levelDelta} end), 0)::int`,
     })
     .from(matchPlayers)
     .innerJoin(rounds, eq(matchPlayers.matchId, rounds.matchId))
+    .innerJoin(
+      sql`${matchPlayers} as banker_mp`,
+      sql`banker_mp.match_id = ${rounds.matchId} and banker_mp.seat = ${rounds.bankerSeat}`,
+    )
     .where(eq(matchPlayers.userId, userId));
 
   const totalMatches = matchStats?.totalMatches ?? 0;
@@ -43,6 +53,8 @@ export async function getUserStats(db: Db, userId: string): Promise<UserStats> {
     roundsPlayed: roundStats?.roundsPlayed ?? 0,
     avgPointsAsAttacker: roundStats?.avgPointsAsAttacker ?? 0,
     avgPointsAsDefender: roundStats?.avgPointsAsDefender ?? 0,
+    totalLevelUps: roundStats?.totalLevelUps ?? 0,
+    biggestLevelJump: roundStats?.biggestLevelJump ?? 0,
   };
 }
 

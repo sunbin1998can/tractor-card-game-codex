@@ -46,15 +46,16 @@ pnpm workspaces monorepo under `packages/`:
 - **src/wsClient.ts** — WebSocket client with auto-reconnect, TTS, and sessionToken.
 
 ### `packages/db/` (`@tractor/db`) — Drizzle ORM schema + PostgreSQL connection
-- **src/schema.ts** — Drizzle table definitions: `users`, `matches`, `matchPlayers`, `rounds`, `roundEvents`.
+- **src/schema.ts** — Drizzle table definitions: `users`, `matches`, `matchPlayers`, `rounds`, `roundEvents`, `userRatings`.
 - **src/client.ts** — `createDb(url)` connection factory using `postgres` driver.
 - **drizzle.config.ts** — Drizzle Kit migration config.
 
 ### `packages/models/` (`@tractor/models`) — Domain repository layer
-- **src/users.ts** — User CRUD: guest creation, registration, lookup.
+- **src/users.ts** — User CRUD: guest creation, OAuth linking, lookup by username/guestToken/OAuth.
 - **src/matches.ts** — Match/round recording and history queries.
-- **src/events.ts** — Round event stream recording for replay.
-- **src/stats.ts** — Win rate, point aggregation queries.
+- **src/events.ts** — Round event stream recording for replay (with `cards text[]` for queryable card data).
+- **src/stats.ts** — Win rate, point aggregations, level progression stats.
+- **src/ratings.ts** — ELO/Glicko rating CRUD with peak tracking.
 
 ### `packages/bot/` (`@tractor/bot`) — Placeholder for bot agent
 ### `packages/analytics/` (`@tractor/analytics`) — Placeholder for analytics

@@ -9,21 +9,29 @@ import {
   boolean,
   integer,
   bigint,
+  text,
   uniqueIndex,
   index,
 } from 'drizzle-orm/pg-core';
 
 // ── users ──
 
-export const users = pgTable('users', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  username: varchar('username', { length: 50 }).unique(),
-  passwordHash: varchar('password_hash', { length: 255 }),
-  displayName: varchar('display_name', { length: 50 }).notNull(),
-  guestToken: uuid('guest_token').unique(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+export const users = pgTable(
+  'users',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    username: varchar('username', { length: 50 }).unique(),
+    displayName: varchar('display_name', { length: 50 }).notNull(),
+    guestToken: uuid('guest_token').unique(),
+    oauthProvider: varchar('oauth_provider', { length: 30 }),
+    oauthId: varchar('oauth_id', { length: 255 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex('users_oauth_idx').on(t.oauthProvider, t.oauthId),
+  ],
+);
 
 // ── matches ──
 
@@ -72,7 +80,6 @@ export const rounds = pgTable(
     levelRank: varchar('level_rank', { length: 2 }).notNull(),
     trumpSuit: varchar('trump_suit', { length: 5 }).notNull(),
     kittyCards: jsonb('kitty_cards').notNull().$type<string[]>(),
-    playedBySeat: jsonb('played_by_seat').notNull().$type<string[][]>(),
     defenderPoints: smallint('defender_points').notNull(),
     attackerPoints: smallint('attacker_points').notNull(),
     kittyPoints: smallint('kitty_points').notNull(),
@@ -104,11 +111,28 @@ export const roundEvents = pgTable(
     seq: integer('seq').notNull(),
     eventType: varchar('event_type', { length: 30 }).notNull(),
     seat: smallint('seat'),
+    cards: text('cards').array(),
     payload: jsonb('payload').notNull(),
     atMs: bigint('at_ms', { mode: 'number' }).notNull(),
   },
   (t) => [
     uniqueIndex('round_events_round_seq_idx').on(t.roundId, t.seq),
     index('round_events_type_idx').on(t.eventType),
+    index('round_events_cards_idx').using('gin', t.cards),
   ],
 );
+
+// ── user_ratings ──
+
+export const userRatings = pgTable('user_ratings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id)
+    .unique(),
+  rating: integer('rating').notNull().default(1500),
+  deviation: integer('deviation').notNull().default(350),
+  matchesRated: integer('matches_rated').notNull().default(0),
+  peakRating: integer('peak_rating').notNull().default(1500),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
