@@ -1,6 +1,13 @@
 # Node
 node_modules/
 
+# Build output
+server/dist/
+web/dist/
+
+# Nix / direnv
+.direnv/
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

@@ -1,5 +1,5 @@
-import { analyze, cardKey, pairKey, seqRankForTractor, suitGroup } from './RulesEngine';
-import type { Card, Pattern, Rank, Suit, SuitGroup, TrumpSuit } from './types';
+import { analyze, cardKey, pairKey, seqRankForTractor, suitGroup } from './RulesEngine.js';
+import type { Card, Pattern, Rank, Suit, SuitGroup, TrumpSuit } from './types.js';
 
 export interface FollowState {
   levelRank: Rank;

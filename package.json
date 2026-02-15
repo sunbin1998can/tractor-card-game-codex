@@ -1,0 +1,8 @@
+{
+  "name": "tractor-card-game",
+  "private": true,
+  "scripts": {
+    "build": "cd web && pnpm install && pnpm build && cd ../server && pnpm install && pnpm build",
+    "start": "cd server && node dist/index.js"
+  }
+}

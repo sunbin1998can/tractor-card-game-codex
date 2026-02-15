@@ -816,5 +816,6 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
   }
 }
 
-const url = import.meta.env.VITE_WS_URL || 'ws://localhost:3000/ws';
+const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const url = import.meta.env.VITE_WS_URL || `${protocol}//${window.location.host}/ws`;
 export const wsClient = new WsClient(url);
