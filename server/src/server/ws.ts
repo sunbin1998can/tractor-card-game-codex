@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { GameEngine } from '../engine/GameEngine';
 import { validateFollowPlay } from '../engine/Follow';
 import type { Card } from '../engine/types';
-import { createEngineForRoom, type RulesProfile } from '../rules/factory';
+
 
 type ClientMessage =
   | { type: 'JOIN_ROOM'; roomId: string; name: string; players: number }
@@ -67,7 +67,6 @@ interface SeatState {
 interface Room {
   id: string;
   players: number;
-  rulesProfile: RulesProfile;
   engine: GameEngine;
   seats: SeatState[];
   kittySize: number;
@@ -474,8 +473,8 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
   let room = rooms.get(roomId);
   if (!room) {
     const kittySize = players === 6 ? 12 : 8;
-    const created = createEngineForRoom({
-      players,
+    const engine = new GameEngine({
+      numPlayers: players,
       bankerSeat: 0,
       levelRank: '2',
       trumpSuit: 'H',
@@ -484,8 +483,7 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
     room = {
       id: roomId,
       players,
-      rulesProfile: created.profile,
-      engine: created.engine,
+      engine,
       seats: [],
       kittySize
     };
@@ -582,15 +580,13 @@ function resetRoomAfterGameOver(room: Room) {
   room.tailDealCount = undefined;
 
   const bankerSeat = room.lastRoundResult?.newBankerSeat ?? room.engine.config.bankerSeat;
-  const created = createEngineForRoom({
-    players: room.players,
+  room.engine = new GameEngine({
+    numPlayers: room.players,
     bankerSeat,
     levelRank: '2',
     trumpSuit: 'H',
     kittySize: room.kittySize
   });
-  room.rulesProfile = created.profile;
-  room.engine = created.engine;
   room.lastRoundResult = undefined;
   room.engine.startTrumpPhase();
 }
