@@ -632,6 +632,15 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
         this.forceFreshJoin = false;
       } else if (this.lastJoin) {
         this.sendJoinWithFallback(this.lastJoin);
+      } else {
+        // Page refresh: lastJoin lost but sessionStorage may have room info
+        const token = sessionStorage.getItem('sessionToken');
+        const roomId = sessionStorage.getItem('lastRoomId') || sessionStorage.getItem('roomId');
+        if (token && roomId) {
+          const nickname = sessionStorage.getItem('nickname') || 'Player';
+          this.lastJoin = { roomId, name: nickname, players: 4 };
+          this.sendJoinWithFallback(this.lastJoin);
+        }
       }
       this.reconnectDelay = 500;
     };
