@@ -1,51 +1,10 @@
 import { create } from 'zustand';
+import type { PublicRoomState, PublicSeat } from '@tractor/protocol';
+
+export type { PublicSeat };
+export type PublicState = PublicRoomState;
 
 export type Lang = 'en' | 'zh';
-
-export type PublicSeat = {
-  seat: number;
-  name: string;
-  team: number;
-  connected: boolean;
-  ready: boolean;
-  cardsLeft: number;
-};
-
-export type PublicState = {
-  id: string;
-  players: number;
-  seats: PublicSeat[];
-  phase: string;
-  bankerSeat: number;
-  leaderSeat?: number;
-  turnSeat?: number;
-  trumpSuit: string;
-  levelRank: string;
-  scores: [number, number];
-  capturedPointCards: [string[], string[]];
-  kittyCount: number;
-  declareSeat?: number;
-  declareUntilMs?: number;
-  declareEnabled?: boolean;
-  noSnatchSeats?: number[];
-  trick?: { seat: number; cards: string[] }[];
-  lastRoundResult?: {
-    seq: number;
-    levelFrom: string;
-    levelTo: string;
-    delta: number;
-    defenderPoints: number;
-    attackerPoints: number;
-    kittyPoints: number;
-    killMultiplier: number;
-    winnerTeam: number;
-    winnerSide: 'DEFENDER' | 'ATTACKER';
-    rolesSwapped: boolean;
-    newBankerSeat: number;
-    playedBySeat: string[][];
-    kittyCards: string[];
-  };
-};
 
 type LegalAction = { count: number };
 

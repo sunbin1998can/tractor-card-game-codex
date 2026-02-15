@@ -2,7 +2,12 @@
   "name": "tractor-card-game",
   "private": true,
   "scripts": {
-    "build": "cd web && pnpm install && pnpm build && cd ../server && pnpm install && pnpm build",
-    "start": "cd server && node dist/index.js"
+    "build": "pnpm -r build",
+    "build:server": "pnpm --filter @tractor/engine build && pnpm --filter @tractor/protocol build && pnpm --filter @tractor/server build",
+    "build:web": "pnpm --filter @tractor/protocol build && pnpm --filter @tractor/web build",
+    "start": "node packages/server/dist/index.js",
+    "test": "pnpm --filter @tractor/engine test",
+    "dev:server": "pnpm --filter @tractor/server dev",
+    "dev:web": "pnpm --filter @tractor/web dev"
   }
 }
