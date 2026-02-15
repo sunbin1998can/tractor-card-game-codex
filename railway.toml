@@ -1,6 +1,5 @@
 [build]
-builder = "nixpacks"
-buildCommand = "pnpm install && pnpm build"
+builder = "dockerfile"
 
 [deploy]
-startCommand = "pnpm start"
+healthcheckPath = "/"
