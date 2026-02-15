@@ -1,4 +1,5 @@
 import { useStore } from '../store';
+import { wsClient } from '../wsClient';
 
 function suitSymbol(suit: string) {
   if (suit === 'S') return '\u2660';
@@ -15,13 +16,11 @@ function parsePointCard(id: string): { rank: string; suitSymbol: string; isRed: 
   const suit = parts[1];
   const rank = parts[2];
   if (rank !== '5' && rank !== '10' && rank !== 'K') return null;
-
   const symbol =
     suit === 'S' ? '\u2660' :
     suit === 'H' ? '\u2665' :
     suit === 'D' ? '\u2666' :
-    suit === 'C' ? '\u2663' :
-    '?';
+    suit === 'C' ? '\u2663' : '?';
   if (symbol === '?') return null;
   return { rank, suitSymbol: symbol, isRed: suit === 'H' || suit === 'D' };
 }
@@ -34,6 +33,8 @@ type Props = {
 
 export default function ScoreBoard({ playerLabel, seatLabel, roomId }: Props) {
   const state = useStore((s) => s.publicState);
+  const leaveRoom = useStore((s) => s.leaveRoom);
+
   if (!state) return null;
 
   const symbol = suitSymbol(state.trumpSuit);
@@ -47,12 +48,12 @@ export default function ScoreBoard({ playerLabel, seatLabel, roomId }: Props) {
     .filter((c): c is { rank: string; suitSymbol: string; isRed: boolean } => c !== null);
   const declarePrompt =
     state.phase === 'FLIP_TRUMP' && state.declareSeat !== undefined
-      ? `Declare now: Seat ${state.declareSeat + 1}`
+      ? `Declare: Seat ${state.declareSeat + 1}`
       : null;
 
   return (
-    <div className="panel row">
-      {playerLabel && <span className="identity-chip">You: {playerLabel}</span>}
+    <div className="panel scoreboard">
+      {playerLabel && <span className="identity-chip">{playerLabel}</span>}
       {seatLabel && <span className="identity-chip">{seatLabel}</span>}
       {roomId && <span className="identity-chip">Room: {roomId}</span>}
       <div className="trump-wrap">
@@ -63,8 +64,7 @@ export default function ScoreBoard({ playerLabel, seatLabel, roomId }: Props) {
         </span>
       </div>
       <div className="score-captured-row">
-        <span>Scores: Defender {defenderScore} / Attacker {attackerScore}</span>
-        <span>Captured by Attacker:</span>
+        <span>Def {defenderScore} / Atk {attackerScore}</span>
         <span className="captured-cards">
           {attackerPointCards.length === 0 ? (
             <span className="captured-empty">none</span>
@@ -81,8 +81,18 @@ export default function ScoreBoard({ playerLabel, seatLabel, roomId }: Props) {
           )}
         </span>
       </div>
-      <div>Kitty: {state.kittyCount}</div>
-      {declarePrompt && <div>{declarePrompt}</div>}
+      <span className="identity-chip">Kitty: {state.kittyCount}</span>
+      {declarePrompt && <span className="identity-chip">{declarePrompt}</span>}
+      <button
+        className="leave-btn"
+        onClick={() => {
+          wsClient.leave();
+          leaveRoom();
+          wsClient.connect();
+        }}
+      >
+        Leave
+      </button>
     </div>
   );
 }

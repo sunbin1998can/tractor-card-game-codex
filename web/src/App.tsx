@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useStore } from './store';
 import { wsClient } from './wsClient';
-import PlayersBar from './components/PlayersBar';
-import TableCenter from './components/TableCenter';
+import GameTable from './components/GameTable';
 import Hand from './components/Hand';
 import ActionPanel from './components/ActionPanel';
 import ScoreBoard from './components/ScoreBoard';
@@ -41,8 +40,8 @@ export default function App() {
 
   if (!roomId) {
     return (
-      <div className="app">
-        <div className="panel">
+      <div className="app lobby-screen">
+        <div className="panel lobby-card">
           <h2>Tractor Online</h2>
           <div className="identity-bar">
             <span className="identity-chip">This tab: {playerLabel}</span>
@@ -80,10 +79,9 @@ export default function App() {
   }
 
   return (
-    <div className="app">
+    <div className="game-layout">
       <ScoreBoard playerLabel={playerLabel} seatLabel={seatLabel} roomId={roomId} />
-      <PlayersBar />
-      <TableCenter />
+      <GameTable />
       <Hand />
       <ActionPanel />
       <ChatBox />

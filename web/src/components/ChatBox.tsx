@@ -5,6 +5,7 @@ import { wsClient } from '../wsClient';
 export default function ChatBox() {
   const messages = useStore((s) => s.chatMessages);
   const [text, setText] = useState('');
+  const [collapsed, setCollapsed] = useState(true);
   const logRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -20,7 +21,10 @@ export default function ChatBox() {
   };
 
   return (
-    <div className="panel chat-panel compact">
+    <div className={`panel chat-panel compact ${collapsed ? 'collapsed' : ''}`}>
+      <button className="chat-toggle" onClick={() => setCollapsed(!collapsed)}>
+        {collapsed ? `Chat (${messages.length})` : 'Hide Chat'}
+      </button>
       <div className="chat-log compact" role="log" aria-live="polite" ref={logRef}>
         {messages.length === 0 ? (
           <div className="chat-empty">No messages</div>

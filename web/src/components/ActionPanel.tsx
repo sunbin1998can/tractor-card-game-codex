@@ -17,7 +17,6 @@ function canDeclareWith(cardIds: string[], levelRank?: string): boolean {
 
   const [r1, r2] = ranks as string[];
   if (cardIds.length === 1) {
-    // Engine currently only accepts single level-card declare (single jokers are ignored).
     return r1 === levelRank;
   }
 
@@ -51,7 +50,6 @@ function bestDeclareCardIds(hand: string[], levelRank?: string): string[] {
 
 export default function ActionPanel() {
   const selected = useStore((s) => s.selected);
-  const leaveRoom = useStore((s) => s.leaveRoom);
   const legalActions = useStore((s) => s.legalActions);
   const publicState = useStore((s) => s.publicState);
   const youSeat = useStore((s) => s.youSeat);
@@ -145,27 +143,17 @@ export default function ActionPanel() {
       {showDeclareCountdown && (
         <div className="action-declare-countdown-wrap">
           <div className="action-declare-countdown">
-            有人反主吗？等待 {remainSeconds} 秒
+            \u6709\u4eba\u53cd\u4e3b\u5417\uff1f\u7b49\u5f85 {remainSeconds} \u79d2
           </div>
           <button
             className="no-snatch-btn"
             disabled={!!youNoSnatch}
             onClick={() => wsClient.send({ type: 'NO_SNATCH' })}
           >
-            {youNoSnatch ? '已选不反主' : '不反主'}
+            {youNoSnatch ? '\u5df2\u9009\u4e0d\u53cd\u4e3b' : '\u4e0d\u53cd\u4e3b'}
           </button>
         </div>
       )}
-      <button
-        className="leave-room-btn"
-        onClick={() => {
-          wsClient.leave();
-          leaveRoom();
-          wsClient.connect();
-        }}
-      >
-        Leave Room
-      </button>
     </div>
   );
 }

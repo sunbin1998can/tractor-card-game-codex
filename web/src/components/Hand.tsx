@@ -1,4 +1,6 @@
+import { useCallback, useMemo } from 'react';
 import { useStore } from '../store';
+import { motion, AnimatePresence } from 'motion/react';
 import CardFace from './CardFace';
 
 type Rank = '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A' | 'SJ' | 'BJ';
@@ -6,21 +8,8 @@ type Suit = 'S' | 'H' | 'D' | 'C' | 'N';
 type SuitGroup = Suit | 'TRUMP';
 
 const RANK_VALUE: Record<Rank, number> = {
-  '2': 2,
-  '3': 3,
-  '4': 4,
-  '5': 5,
-  '6': 6,
-  '7': 7,
-  '8': 8,
-  '9': 9,
-  '10': 10,
-  J: 11,
-  Q: 12,
-  K: 13,
-  A: 14,
-  SJ: 15,
-  BJ: 16
+  '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7,
+  '8': 8, '9': 9, '10': 10, J: 11, Q: 12, K: 13, A: 14, SJ: 15, BJ: 16
 };
 
 function parseCardId(id: string): { rank: Rank; suit: Suit | 'J' } | null {
@@ -36,24 +25,6 @@ function parseCardId(id: string): { rank: Rank; suit: Suit | 'J' } | null {
     }
   }
   return null;
-}
-
-function cardKey(id: string, levelRank: Rank, trumpSuit: Suit): number {
-  const parsed = parseCardId(id);
-  if (!parsed) return -1;
-
-  if (parsed.rank === 'BJ') return 1000;
-  if (parsed.rank === 'SJ') return 900;
-
-  const rv = RANK_VALUE[parsed.rank];
-  const isLevel = parsed.rank === levelRank;
-  const isTrumpSuit = parsed.suit === trumpSuit;
-  const isTrump = isLevel || isTrumpSuit;
-
-  if (!isTrump) return rv;
-  if (isLevel) return 800 + (isTrumpSuit ? 50 : 0) + rv;
-  if (isTrumpSuit) return 700 + rv;
-  return 600 + rv;
 }
 
 function suitGroupForCard(id: string, levelRank: Rank, trumpSuit: Suit): SuitGroup | null {
@@ -73,14 +44,7 @@ function pairKeyForCard(id: string, levelRank: Rank, trumpSuit: Suit): string | 
   return `${group}|${parsed.rank}|${suitForPair}`;
 }
 
-const SUIT_ORDER: Record<Suit | 'J', number> = {
-  S: 0,
-  H: 1,
-  D: 2,
-  C: 3,
-  N: 4,
-  J: 5
-};
+const SUIT_ORDER: Record<Suit | 'J', number> = { S: 0, H: 1, D: 2, C: 3, N: 4, J: 5 };
 
 function cardGroupKey(id: string, levelRank: Rank, trumpSuit: Suit): [number, number, number, string] {
   const parsed = parseCardId(id);
@@ -91,17 +55,21 @@ function cardGroupKey(id: string, levelRank: Rank, trumpSuit: Suit): [number, nu
   const isLevel = parsed.rank === levelRank;
   const isTrumpSuit = parsed.suit === trumpSuit;
 
-  // Priority bands:
-  // 0 BJ, 1 SJ, 2 trump-level card, 3 other level cards, 4 trump suit, 5 other suits.
   const band =
     parsed.rank === 'BJ' ? 0 :
     parsed.rank === 'SJ' ? 1 :
     (isLevel && isTrumpSuit) ? 2 :
     isLevel ? 3 :
-    isTrumpSuit ? 4 :
-    5;
+    isTrumpSuit ? 4 : 5;
 
   return [band, suitOrder, -rv, id];
+}
+
+function useIsMobile() {
+  // Simple check — could use matchMedia listener for reactivity, but
+  // the component re-renders on hand changes anyway.
+  if (typeof window === 'undefined') return false;
+  return window.innerWidth <= 600;
 }
 
 export default function Hand() {
@@ -114,95 +82,138 @@ export default function Hand() {
   const trumpSuit = publicState?.trumpSuit;
   const levelRank = publicState?.levelRank;
 
-  if (!hand.length) return <div className="panel">No cards dealt yet.</div>;
+  const isMobile = useIsMobile();
+
+  const sorted = useMemo(() => {
+    const hasTrumpContext = !!trumpSuit && !!levelRank;
+    return [...hand].sort((a, b) => {
+      if (!hasTrumpContext) return a.localeCompare(b);
+      const ak = cardGroupKey(a, levelRank as Rank, trumpSuit as Suit);
+      const bk = cardGroupKey(b, levelRank as Rank, trumpSuit as Suit);
+      if (ak[0] !== bk[0]) return ak[0] - bk[0];
+      if (ak[1] !== bk[1]) return ak[1] - bk[1];
+      if (ak[2] !== bk[2]) return ak[2] - bk[2];
+      return ak[3].localeCompare(bk[3]);
+    });
+  }, [hand, trumpSuit, levelRank]);
 
   const hasTrumpContext = !!trumpSuit && !!levelRank;
-  const sorted = [...hand].sort((a, b) => {
-    if (!hasTrumpContext) return a.localeCompare(b);
-    const ak = cardGroupKey(a, levelRank as Rank, trumpSuit as Suit);
-    const bk = cardGroupKey(b, levelRank as Rank, trumpSuit as Suit);
-    if (ak[0] !== bk[0]) return ak[0] - bk[0];
-    if (ak[1] !== bk[1]) return ak[1] - bk[1];
-    if (ak[2] !== bk[2]) return ak[2] - bk[2];
-    return ak[3].localeCompare(bk[3]);
-  });
-
   const isYourTurn = publicState?.turnSeat === youSeat;
   const inPlayablePhase = publicState?.phase === 'TRICK_PLAY' || publicState?.phase === 'BURY_KITTY';
-  let hintedIds = new Set<string>();
-  let pairHintedIds = new Set<string>();
 
-  if (publicState?.phase === 'FLIP_TRUMP' && hasTrumpContext) {
-    const levelCards = hand.filter((id) => parseCardId(id)?.rank === (levelRank as Rank));
-    hintedIds = new Set(levelCards);
+  const { hintedIds, pairHintedIds } = useMemo(() => {
+    let hinted = new Set<string>();
+    let pairHinted = new Set<string>();
 
-    if (levelCards.length >= 2) {
-      pairHintedIds = new Set(levelCards);
-    }
+    if (publicState?.phase === 'FLIP_TRUMP' && hasTrumpContext) {
+      const levelCards = hand.filter((id) => parseCardId(id)?.rank === (levelRank as Rank));
+      hinted = new Set(levelCards);
+      if (levelCards.length >= 2) pairHinted = new Set(levelCards);
 
-    const smallJokers = hand.filter((id) => parseCardId(id)?.rank === 'SJ');
-    if (smallJokers.length >= 2) {
-      for (const id of smallJokers) pairHintedIds.add(id);
-    }
+      const smallJokers = hand.filter((id) => parseCardId(id)?.rank === 'SJ');
+      if (smallJokers.length >= 2) for (const id of smallJokers) pairHinted.add(id);
 
-    const bigJokers = hand.filter((id) => parseCardId(id)?.rank === 'BJ');
-    if (bigJokers.length >= 2) {
-      for (const id of bigJokers) pairHintedIds.add(id);
-    }
-  } else if (isYourTurn && inPlayablePhase && hasTrumpContext) {
-    if (publicState?.phase === 'BURY_KITTY') {
-      hintedIds = new Set(hand);
-    } else {
-      const requiredCount = legalActions[0]?.count ?? 0;
-      const trick = publicState?.trick ?? [];
-      if (trick.length === 0 || requiredCount <= 0) {
-        hintedIds = new Set(hand);
+      const bigJokers = hand.filter((id) => parseCardId(id)?.rank === 'BJ');
+      if (bigJokers.length >= 2) for (const id of bigJokers) pairHinted.add(id);
+    } else if (isYourTurn && inPlayablePhase && hasTrumpContext) {
+      if (publicState?.phase === 'BURY_KITTY') {
+        hinted = new Set(hand);
       } else {
-        const leadCardId = trick[0]?.cards?.[0];
-        const leadGroup = leadCardId
-          ? suitGroupForCard(leadCardId, levelRank as Rank, trumpSuit as Suit)
-          : null;
-        if (!leadGroup) {
-          hintedIds = new Set(hand);
+        const requiredCount = legalActions[0]?.count ?? 0;
+        const trick = publicState?.trick ?? [];
+        if (trick.length === 0 || requiredCount <= 0) {
+          hinted = new Set(hand);
         } else {
-          const matching = hand.filter(
-            (id) => suitGroupForCard(id, levelRank as Rank, trumpSuit as Suit) === leadGroup
-          );
-          hintedIds = matching.length >= requiredCount ? new Set(matching) : new Set(hand);
+          const leadCardId = trick[0]?.cards?.[0];
+          const leadGroup = leadCardId
+            ? suitGroupForCard(leadCardId, levelRank as Rank, trumpSuit as Suit)
+            : null;
+          if (!leadGroup) {
+            hinted = new Set(hand);
+          } else {
+            const matching = hand.filter(
+              (id) => suitGroupForCard(id, levelRank as Rank, trumpSuit as Suit) === leadGroup
+            );
+            hinted = matching.length >= requiredCount ? new Set(matching) : new Set(hand);
 
-          const leadIsPair = requiredCount === 2 && (trick[0]?.cards?.length ?? 0) === 2;
-          if (leadIsPair) {
-            const pairCounts = new Map<string, number>();
-            for (const id of hintedIds) {
-              const key = pairKeyForCard(id, levelRank as Rank, trumpSuit as Suit);
-              if (!key) continue;
-              pairCounts.set(key, (pairCounts.get(key) ?? 0) + 1);
+            const leadIsPair = requiredCount === 2 && (trick[0]?.cards?.length ?? 0) === 2;
+            if (leadIsPair) {
+              const pairCounts = new Map<string, number>();
+              for (const id of hinted) {
+                const key = pairKeyForCard(id, levelRank as Rank, trumpSuit as Suit);
+                if (!key) continue;
+                pairCounts.set(key, (pairCounts.get(key) ?? 0) + 1);
+              }
+              const withPairs = [...hinted].filter((id) => {
+                const key = pairKeyForCard(id, levelRank as Rank, trumpSuit as Suit);
+                return !!key && (pairCounts.get(key) ?? 0) >= 2;
+              });
+              pairHinted = new Set(withPairs);
             }
-            const withPairs = [...hintedIds].filter((id) => {
-              const key = pairKeyForCard(id, levelRank as Rank, trumpSuit as Suit);
-              return !!key && (pairCounts.get(key) ?? 0) >= 2;
-            });
-            pairHintedIds = new Set(withPairs);
           }
         }
       }
     }
+
+    return { hintedIds: hinted, pairHintedIds: pairHinted };
+  }, [hand, publicState?.phase, publicState?.trick, isYourTurn, inPlayablePhase, hasTrumpContext, levelRank, trumpSuit, legalActions]);
+
+  const handleToggle = useCallback((id: string) => () => toggle(id), [toggle]);
+
+  if (!hand.length) {
+    return (
+      <div className="hand-section">
+        <div className="hand-label">Your hand</div>
+        <div className="hand-container">
+          <span className="no-trick-msg">No cards dealt yet.</span>
+        </div>
+      </div>
+    );
   }
 
+  const totalCards = sorted.length;
+  const maxArc = isMobile ? 0 : Math.min(40, totalCards * 2);
+  const arcPerCard = totalCards > 1 ? maxArc / (totalCards - 1) : 0;
+  const overlap = isMobile ? -16 : Math.max(-24, -600 / totalCards);
+
   return (
-    <div className="panel">
-      <div>Your hand</div>
-      <div>
-        {sorted.map((id) => (
-          <CardFace
-            key={id}
-            id={id}
-            selected={selected.has(id)}
-            hinted={hintedIds.has(id)}
-            pairHinted={pairHintedIds.has(id)}
-            onClick={() => toggle(id)}
-          />
-        ))}
+    <div className="hand-section">
+      <div className="hand-label">Your hand ({totalCards})</div>
+      <div className="hand-container">
+        <AnimatePresence initial={false}>
+          {sorted.map((id, i) => {
+            const angle = isMobile ? 0 : -maxArc / 2 + i * arcPerCard;
+            const yOffset = isMobile ? 0 : Math.abs(angle) * 0.4;
+            const isSelected = selected.has(id);
+
+            return (
+              <motion.div
+                key={id}
+                className="hand-card-wrap"
+                style={{
+                  marginLeft: i === 0 ? 0 : overlap,
+                  zIndex: i,
+                  transform: `rotate(${angle}deg) translateY(${yOffset - (isSelected ? 12 : 0)}px)`,
+                  transformOrigin: 'bottom center',
+                }}
+                layout
+                initial={{ y: -60, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -40, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30, delay: i * 0.02 }}
+                whileHover={isMobile ? undefined : { y: -10, zIndex: 100 }}
+              >
+                <CardFace
+                  id={id}
+                  selected={isSelected}
+                  hinted={hintedIds.has(id)}
+                  pairHinted={pairHintedIds.has(id)}
+                  onClick={handleToggle(id)}
+                />
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
       </div>
     </div>
   );
