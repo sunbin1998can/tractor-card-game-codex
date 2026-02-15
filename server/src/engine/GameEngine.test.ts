@@ -257,6 +257,73 @@ describe('GameEngine no-bids fallback', () => {
   });
 });
 
+describe('GameEngine redeal conditions', () => {
+  it('allows redeal when hand has no trump cards', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 8,
+    });
+    engine.phase = 'FLIP_TRUMP';
+    // Hand with no hearts, no 2s, no jokers → no trump
+    engine.hands[1] = [
+      makeCard('S', '3', 1),
+      makeCard('S', '4', 1),
+      makeCard('D', '5', 1),
+    ];
+    expect(engine.canRequestRedeal(1)).toBe(true);
+  });
+
+  it('allows redeal when hand has no point cards', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 8,
+    });
+    engine.phase = 'FLIP_TRUMP';
+    // Hand with trump but no 5/10/K
+    engine.hands[1] = [
+      makeCard('H', '3', 1),
+      makeCard('H', '4', 1),
+      makeCard('S', '6', 1),
+    ];
+    expect(engine.canRequestRedeal(1)).toBe(true);
+  });
+
+  it('rejects redeal when hand has both trump and points', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 8,
+    });
+    engine.phase = 'FLIP_TRUMP';
+    engine.hands[1] = [
+      makeCard('H', '5', 1),  // trump + point card
+      makeCard('S', '3', 1),
+    ];
+    expect(engine.canRequestRedeal(1)).toBe(false);
+  });
+
+  it('rejects redeal outside dealing/flip phase', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 8,
+    });
+    engine.phase = 'TRICK_PLAY';
+    engine.hands[1] = [makeCard('S', '3', 1)]; // no trump
+    expect(engine.canRequestRedeal(1)).toBe(false);
+  });
+});
+
 describe('GameEngine round scoring', () => {
   function getRoundResult(engine: GameEngine) {
     return engine.events.find((e) => e.type === 'ROUND_RESULT') as Extract<

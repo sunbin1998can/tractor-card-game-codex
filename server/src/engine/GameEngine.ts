@@ -150,6 +150,20 @@ export class GameEngine {
     this.emit({ type: 'PHASE', phase: this.phase });
   }
 
+  canRequestRedeal(seat: number): boolean {
+    if (this.phase !== 'FLIP_TRUMP' && this.phase !== 'DEALING') return false;
+    const hand = this.hands[seat];
+    if (!hand || hand.length === 0) return false;
+
+    const hasTrump = hand.some((c) => suitGroup(c, this.config.levelRank, this.config.trumpSuit) === 'TRUMP');
+    if (!hasTrump) return true;
+
+    const hasPoints = hand.some((c) => c.rank === '5' || c.rank === '10' || c.rank === 'K');
+    if (!hasPoints) return true;
+
+    return false;
+  }
+
   flipTrump(seat: number, cards: Card[], nowMs: number) {
     if (this.phase !== 'FLIP_TRUMP') return;
 
