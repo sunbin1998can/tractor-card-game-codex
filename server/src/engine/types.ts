@@ -1,4 +1,4 @@
-export type Suit = 'S' | 'H' | 'D' | 'C';
+export type Suit = 'S' | 'H' | 'D' | 'C' | 'N';
 export type SuitGroup = Suit | 'TRUMP';
 export type Rank =
   | '2'

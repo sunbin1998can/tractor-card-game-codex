@@ -6,10 +6,14 @@ import TableCenter from './components/TableCenter';
 import Hand from './components/Hand';
 import ActionPanel from './components/ActionPanel';
 import ScoreBoard from './components/ScoreBoard';
-import Toasts from './components/Toasts';
+import RoundPopup from './components/RoundPopup';
+import KouDiPopup from './components/KouDiPopup';
+import ChatBox from './components/ChatBox';
 
 export default function App() {
   const roomId = useStore((s) => s.roomId);
+  const youSeat = useStore((s) => s.youSeat);
+  const publicState = useStore((s) => s.publicState);
   const nickname = useStore((s) => s.nickname);
   const setNickname = useStore((s) => s.setNickname);
   const setRoomId = useStore((s) => s.setRoomId);
@@ -22,11 +26,28 @@ export default function App() {
     wsClient.connect();
   }, []);
 
+  const seatName =
+    youSeat === null ? null : publicState?.seats.find((s) => s.seat === youSeat)?.name ?? null;
+  const playerLabel = nickname.trim() || seatName || 'Player';
+  const seatLabel = youSeat === null ? 'Unseated' : `Seat ${youSeat + 1}`;
+
+  useEffect(() => {
+    if (!roomId) {
+      document.title = `Tractor | ${playerLabel} | Lobby`;
+      return;
+    }
+    document.title = `${seatLabel} | ${playerLabel} | Tractor | ${roomId}`;
+  }, [playerLabel, roomId, seatLabel]);
+
   if (!roomId) {
     return (
       <div className="app">
         <div className="panel">
           <h2>Tractor Online</h2>
+          <div className="identity-bar">
+            <span className="identity-chip">This tab: {playerLabel}</span>
+            <span className="identity-chip">Status: Lobby</span>
+          </div>
           <div className="row">
             <input
               placeholder="Nickname"
@@ -47,8 +68,7 @@ export default function App() {
                 const room = roomInput.trim();
                 if (!room) return;
                 setRoomId(room);
-                wsClient.lastJoin = { roomId: room, name: nickname || 'Player', players };
-                wsClient.send({ type: 'JOIN_ROOM', roomId: room, name: nickname || 'Player', players });
+                wsClient.joinRoom({ roomId: room, name: nickname || 'Player', players });
               }}
             >
               Join
@@ -61,12 +81,14 @@ export default function App() {
 
   return (
     <div className="app">
-      <ScoreBoard />
+      <ScoreBoard playerLabel={playerLabel} seatLabel={seatLabel} roomId={roomId} />
       <PlayersBar />
       <TableCenter />
       <Hand />
       <ActionPanel />
-      <Toasts />
+      <ChatBox />
+      <KouDiPopup />
+      <RoundPopup />
     </div>
   );
 }
