@@ -41,12 +41,40 @@ export function cardKey(card: Card, levelRank: Rank, trumpSuit: TrumpSuit): numb
   return 600 + rv;
 }
 
-export function seqRankForTractor(rank: Rank, levelRank: Rank): number | null {
-  if (rank === 'BJ' || rank === 'SJ') return null;
-  if (rank === levelRank) return null;
-  const rv = RANK_VALUE[rank];
+/**
+ * Returns the sequence rank for tractor detection. Cards with the same seqRank
+ * can form pairs; consecutive seqRanks can form tractors.
+ *
+ * For non-trump cards: jokers and level-rank are excluded (null).
+ * Ranks above levelRank are compressed down by 1 to bridge the gap.
+ *
+ * For trump cards: the full trump hierarchy is mapped to consecutive seqRanks:
+ *   regular trump → off-suit level-rank → trump-suit level-rank → SJ → BJ
+ */
+export function seqRankForTractor(card: Card, levelRank: Rank, trumpSuit: TrumpSuit): number | null {
+  const group = suitGroup(card, levelRank, trumpSuit);
   const lv = RANK_VALUE[levelRank];
-  // Compress: ranks above the level rank shift down by 1 to bridge the gap
+  // Max adjusted regular rank: A(14) adjusted = (14 > lv) ? 13 : 14
+  // When levelRank=A: max regular is K(13), no adjustment → 13
+  // Otherwise: A adjusted = 14-1 = 13
+  // So max regular is always 13.
+  const maxRegular = 13;
+
+  if (group === 'TRUMP') {
+    if (card.rank === 'BJ') return maxRegular + 4;  // 17
+    if (card.rank === 'SJ') return maxRegular + 3;  // 16
+    if (card.rank === levelRank) {
+      return trumpSuit !== null && card.suit === trumpSuit
+        ? maxRegular + 2  // 15: trump-suit level-rank
+        : maxRegular + 1; // 14: off-suit level-rank
+    }
+    // Regular trump suit card
+    const rv = RANK_VALUE[card.rank];
+    return rv > lv ? rv - 1 : rv;
+  }
+
+  // Non-trump cards
+  const rv = RANK_VALUE[card.rank];
   return rv > lv ? rv - 1 : rv;
 }
 
@@ -125,7 +153,7 @@ export function analyze(cards: Card[], levelRank: Rank, trumpSuit: TrumpSuit): P
   const pairRanks: number[] = [];
   for (const list of byPairKey.values()) {
     if (list.length !== 2) return invalidPattern('NOT_ALL_PAIRS');
-    const sr = seqRankForTractor(list[0].rank, levelRank);
+    const sr = seqRankForTractor(list[0], levelRank, trumpSuit);
     if (sr === null) return invalidPattern('TRACTOR_HAS_LEVEL_OR_JOKER');
     pairRanks.push(sr);
   }
@@ -170,13 +198,13 @@ export function bestDecomposition(cards: Card[], levelRank: Rank, trumpSuit: Tru
   const seqRankToPairKey = new Map<number, string>();
   for (const [key, list] of byPairKey.entries()) {
     if (list.length === 0) continue;
-    const sr = seqRankForTractor(list[0].rank, levelRank);
+    const sr = seqRankForTractor(list[0], levelRank, trumpSuit);
     if (sr === null) continue;
     if (seqRankToPairKey.has(sr)) {
-      const existing = seqRankToPairKey.get(sr);
-      if (existing !== key) {
-        throw new Error('Ambiguous pair keys for sequence rank');
-      }
+      // Multiple pairKeys at the same seqRank (e.g., off-suit level-rank from
+      // different suits). Only one pair per seqRank slot can participate in a
+      // tractor; keep the first one encountered.
+      continue;
     } else {
       seqRankToPairKey.set(sr, key);
     }

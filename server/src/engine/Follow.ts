@@ -33,10 +33,10 @@ function sortCardsAsc(cards: Card[], levelRank: Rank, trumpSuit: TrumpSuit): Car
   });
 }
 
-function maxTractorLen(cards: Card[], levelRank: Rank): number {
+function maxTractorLen(cards: Card[], levelRank: Rank, trumpSuit: TrumpSuit): number {
   const counts = new Map<number, number>();
   for (const card of cards) {
-    const sr = seqRankForTractor(card.rank, levelRank);
+    const sr = seqRankForTractor(card, levelRank, trumpSuit);
     if (sr === null) continue;
     counts.set(sr, (counts.get(sr) ?? 0) + 1);
   }
@@ -98,7 +98,7 @@ function selectLongestRun(ranks: number[]): number[] {
 function buildExpectedInsufficient(
   cardsInGroup: Card[],
   levelRank: Rank,
-  trumpSuit: Suit,
+  trumpSuit: TrumpSuit,
   leadPairs: number,
   requiredCount: number
 ): Card[] {
@@ -106,7 +106,7 @@ function buildExpectedInsufficient(
   const byPair = new Map<string, Card[]>();
 
   for (const card of cardsInGroup) {
-    const sr = seqRankForTractor(card.rank, levelRank);
+    const sr = seqRankForTractor(card, levelRank, trumpSuit);
     if (sr !== null) {
       const list = byRank.get(sr) ?? [];
       list.push(card);
@@ -261,7 +261,7 @@ export function validateFollowPlay(
   }
 
   const leadPairs = leadPat.length ?? leadPat.size / 2;
-  const maxLen = maxTractorLen(groupCards, levelRank);
+  const maxLen = maxTractorLen(groupCards, levelRank, trumpSuit);
 
   if (maxLen >= 2 && leadPairs <= maxLen) {
     const pat = analyze(playedGroup, levelRank, trumpSuit);

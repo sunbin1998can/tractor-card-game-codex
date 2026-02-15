@@ -53,10 +53,10 @@ function bestPairTopKey(cards: Card[], levelRank: Rank, trumpSuit: TrumpSuit): n
   return best;
 }
 
-function bestTractorTopKey(cards: Card[], levelRank: Rank, trumpSuit: Suit, length: number): number | null {
+function bestTractorTopKey(cards: Card[], levelRank: Rank, trumpSuit: TrumpSuit, length: number): number | null {
   const byRank = new Map<number, Card[]>();
   for (const card of cards) {
-    const sr = seqRankForTractor(card.rank, levelRank);
+    const sr = seqRankForTractor(card, levelRank, trumpSuit);
     if (sr === null) continue;
     const list = byRank.get(sr) ?? [];
     list.push(card);
