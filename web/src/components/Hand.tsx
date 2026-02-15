@@ -210,6 +210,7 @@ export default function Hand() {
                   selected={isSelected}
                   hinted={hintedIds.has(id)}
                   pairHinted={pairHintedIds.has(id)}
+                  dimmed={isYourTurn && inPlayablePhase && hintedIds.size < hand.length && !hintedIds.has(id)}
                   onClick={handleToggle(id)}
                 />
               </motion.div>

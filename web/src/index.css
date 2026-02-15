@@ -212,6 +212,36 @@ input::placeholder {
 .captured-mini-card.black { color: #e8e0d0; }
 .captured-empty { color: var(--text-muted); font-size: 12px; }
 
+/* ===== Event Log ===== */
+.event-log {
+  display: flex;
+  gap: 6px;
+  padding: 2px 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  align-items: center;
+  min-height: 22px;
+}
+
+.event-log::-webkit-scrollbar { display: none; }
+
+.event-log-item {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 1px 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.event-log-item:last-child {
+  color: var(--card-glow-gold);
+  background: rgba(255, 215, 0, 0.1);
+}
+
 /* ===== Game Table ===== */
 .game-table {
   position: relative;
@@ -420,6 +450,16 @@ input::placeholder {
   white-space: nowrap;
 }
 
+.trick-player-label.winning {
+  color: var(--card-glow-gold);
+  text-shadow: 0 0 6px rgba(255, 215, 0, 0.5);
+}
+
+.trick-play.trick-winning .card-face {
+  box-shadow: 0 0 8px rgba(255, 215, 0, 0.4);
+  border-color: rgba(255, 215, 0, 0.5);
+}
+
 .no-trick-msg {
   color: rgba(255, 255, 255, 0.3);
   font-size: 13px;
@@ -488,6 +528,11 @@ input::placeholder {
 .card-face.pair-hinted:not(.selected) {
   border-color: var(--card-glow-blue);
   box-shadow: 0 0 8px var(--card-glow-blue);
+}
+
+.card-face.dimmed:not(.selected) {
+  opacity: 0.4;
+  filter: grayscale(60%);
 }
 
 /* Joker cards (custom rendered) */

@@ -6,6 +6,7 @@ type CardFaceProps = {
   selected?: boolean;
   hinted?: boolean;
   pairHinted?: boolean;
+  dimmed?: boolean;
   mini?: boolean;
   onClick?: () => void;
 };
@@ -37,6 +38,7 @@ export default function CardFace({
   selected = false,
   hinted = false,
   pairHinted = false,
+  dimmed = false,
   mini = false,
   onClick
 }: CardFaceProps) {
@@ -47,6 +49,7 @@ export default function CardFace({
     selected ? 'selected' : '',
     hinted ? 'hinted' : '',
     pairHinted ? 'pair-hinted' : '',
+    dimmed ? 'dimmed' : '',
     onClick ? 'clickable' : ''
   ].filter(Boolean).join(' ');
 

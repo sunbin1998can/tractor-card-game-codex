@@ -59,6 +59,8 @@ let toastIdCounter = 0;
 
 type StoreState = {
   lang: Lang;
+  muted: boolean;
+  eventLog: Toast[];
   roomId: string | null;
   youSeat: number | null;
   sessionToken: string | null;
@@ -93,6 +95,8 @@ type StoreState = {
   expireAnnouncements: () => void;
   setLang: (lang: Lang) => void;
   toggleLang: () => void;
+  toggleMuted: () => void;
+  pushEvent: (msg: string) => void;
   pushChatMessage: (msg: { seat: number; name: string; text: string; atMs: number }) => void;
   clearChatMessages: () => void;
   setRoundPopup: (msg: string | null) => void;
@@ -102,6 +106,8 @@ type StoreState = {
 
 export const useStore = create<StoreState>((set, get) => ({
   lang: (sessionStorage.getItem('lang') as Lang) || 'zh',
+  muted: sessionStorage.getItem('muted') === 'true',
+  eventLog: [],
   roomId: sessionStorage.getItem('roomId'),
   youSeat: null,
   sessionToken: null,
@@ -179,6 +185,19 @@ export const useStore = create<StoreState>((set, get) => ({
     sessionStorage.setItem('lang', next);
     set({ lang: next });
   },
+  toggleMuted: () => {
+    const next = !get().muted;
+    sessionStorage.setItem('muted', String(next));
+    set({ muted: next });
+    if (next) {
+      try { window.speechSynthesis.cancel(); } catch {}
+    }
+  },
+  pushEvent: (msg) => {
+    const evt: Toast = { id: ++toastIdCounter, text: msg, expiresAt: Date.now() + 30000 };
+    const next = [...get().eventLog, evt].slice(-20);
+    set({ eventLog: next });
+  },
   pushChatMessage: (msg) => {
     const next = [...get().chatMessages, msg].slice(-50);
     set({ chatMessages: next });
@@ -201,6 +220,7 @@ export const useStore = create<StoreState>((set, get) => ({
       legalActions: [],
       toasts: [],
       announcements: [],
+      eventLog: [],
       chatMessages: [],
       kouDiPopup: null,
       roundPopup: null

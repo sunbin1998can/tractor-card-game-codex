@@ -116,8 +116,11 @@ class WsClient {
 
   private speak(text: string) {
     if (!text) return;
-    // Visual announcement alongside TTS
-    useStore.getState().pushAnnouncement(text);
+    const store = useStore.getState();
+    // Visual announcement + event log alongside TTS
+    store.pushAnnouncement(text);
+    store.pushEvent(text);
+    if (store.muted) return;
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     this.bindSpeechLifecycle();
     this.speechQueue.push(text);

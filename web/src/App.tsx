@@ -10,6 +10,7 @@ import RoundPopup from './components/RoundPopup';
 import KouDiPopup from './components/KouDiPopup';
 import ChatBox from './components/ChatBox';
 import Toasts from './components/Toasts';
+import EventLog from './components/EventLog';
 
 export default function App() {
   const roomId = useStore((s) => s.roomId);
@@ -88,6 +89,7 @@ export default function App() {
   return (
     <div className="game-layout">
       <ScoreBoard playerLabel={playerLabel} seatLabel={seatLabel} roomId={roomId} />
+      <EventLog />
       <GameTable />
       <Hand />
       <ActionPanel />

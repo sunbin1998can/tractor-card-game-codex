@@ -36,6 +36,8 @@ export default function ScoreBoard({ playerLabel, seatLabel, roomId }: Props) {
   const state = useStore((s) => s.publicState);
   const leaveRoom = useStore((s) => s.leaveRoom);
   const toggleLang = useStore((s) => s.toggleLang);
+  const muted = useStore((s) => s.muted);
+  const toggleMuted = useStore((s) => s.toggleMuted);
   const t = useT();
 
   if (!state) return null;
@@ -86,6 +88,9 @@ export default function ScoreBoard({ playerLabel, seatLabel, roomId }: Props) {
       </div>
       <span className="identity-chip">{t('score.kitty')}: {state.kittyCount}</span>
       {declarePrompt && <span className="identity-chip">{declarePrompt}</span>}
+      <button className="lang-toggle" onClick={toggleMuted} title={muted ? 'Unmute' : 'Mute'}>
+        {muted ? '\uD83D\uDD07' : '\uD83D\uDD0A'}
+      </button>
       <button className="lang-toggle" onClick={toggleLang}>{t('lang.toggle')}</button>
       <button
         className="leave-btn"
