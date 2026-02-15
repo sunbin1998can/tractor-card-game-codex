@@ -1,10 +1,13 @@
-import { createHmac, randomBytes } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 export interface AuthPayload {
   userId: string;
   guestToken: string;
 }
 
+if (!process.env.AUTH_SECRET) {
+  console.warn('[auth] AUTH_SECRET not set — generating ephemeral secret (tokens will not survive restart)');
+}
 const secret =
   process.env.AUTH_SECRET || randomBytes(32).toString('hex');
 
@@ -20,8 +23,10 @@ export function verifyAuthToken(token: string): AuthPayload | null {
   if (dot < 0) return null;
   const data = token.slice(0, dot);
   const sig = token.slice(dot + 1);
-  const expected = createHmac('sha256', secret).update(data).digest('base64url');
-  if (sig !== expected) return null;
+  const expectedSig = createHmac('sha256', secret).update(data).digest('base64url');
+  const sigBuf = Buffer.from(sig, 'base64url');
+  const expectedBuf = Buffer.from(expectedSig, 'base64url');
+  if (sigBuf.length !== expectedBuf.length || !timingSafeEqual(sigBuf, expectedBuf)) return null;
   try {
     const json = Buffer.from(data, 'base64url').toString();
     const obj = JSON.parse(json);
