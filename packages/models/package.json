@@ -1,0 +1,25 @@
+{
+  "name": "@tractor/models",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@tractor/db": "workspace:*",
+    "@tractor/protocol": "workspace:*",
+    "kysely": "^0.27.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}

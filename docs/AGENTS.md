@@ -46,13 +46,25 @@ Agents MUST follow the rules in RULES.md and the engineering constraints below.
    - Game ends when reaching/passing A.
 
 ## 2) Repo Structure
-- `server/` Node.js + TypeScript:
-  - `src/engine/` rules + game engine (unit tested)
-  - `src/server/` WebSocket room server
-- `web/` React + TypeScript (Vite):
-  - zustand store
-  - Room UI: Hand / TableCenter / ActionPanel / ScoreBoard / PlayersBar / Toasts
-  - ws client with auto-reconnect and sessionToken
+
+pnpm workspaces monorepo under `packages/`:
+
+- `packages/engine/` (`@tractor/engine`) — Pure game rules, zero deps, unit tested
+  - `types.ts`, `RulesEngine.ts`, `Follow.ts`, `Throw.ts`, `GameEngine.ts`
+- `packages/protocol/` (`@tractor/protocol`) — Shared message/state types, zero deps
+  - `ClientMessage`, `ServerMessage`, `PublicRoomState`, `PublicSeat`, `RoundResult`
+- `packages/server/` (`@tractor/server`) — WebSocket + HTTP server
+  - `src/server/ws.ts` — WebSocket room server
+  - `src/index.ts` — HTTP static file server + WS bootstrap
+- `packages/web/` (`@tractor/web`) — React + Zustand + Vite
+  - Zustand store, GameTable/SeatCard/Hand components, SVG playing cards
+  - ws client with auto-reconnect, TTS, and sessionToken
+- `packages/db/` (`@tractor/db`) — Kysely schema types + PostgreSQL connection
+  - `users`, `matches`, `match_players`, `rounds`, `round_events`, `user_ratings` tables
+- `packages/models/` (`@tractor/models`) — Domain repository layer
+  - User CRUD (guest + OAuth), match/round recording, event replay, stats, ratings
+- `packages/bot/` (`@tractor/bot`) — Placeholder for bot agent
+- `packages/analytics/` (`@tractor/analytics`) — Placeholder for analytics
 
 ## 3) Event Protocol Requirements
 ...

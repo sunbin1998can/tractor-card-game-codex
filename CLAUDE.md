@@ -45,6 +45,19 @@ pnpm workspaces monorepo under `packages/`:
 - **src/store.ts** — Zustand store for game state.
 - **src/wsClient.ts** — WebSocket client with auto-reconnect, TTS, and sessionToken.
 
+### `packages/db/` (`@tractor/db`) — Kysely schema + PostgreSQL connection
+- **src/schema.ts** — Kysely `Database` type interface: `users`, `matches`, `match_players`, `rounds`, `round_events`, `user_ratings`.
+- **src/client.ts** — `createDb(url)` connection factory using `pg` Pool.
+- **src/migrate.ts** — Kysely `FileMigrationProvider` runner (run via `tsx`).
+- **migrations/** — TypeScript migration files with `up`/`down` exports.
+
+### `packages/models/` (`@tractor/models`) — Domain repository layer
+- **src/users.ts** — User CRUD: guest creation, OAuth linking, lookup by username/guestToken/OAuth.
+- **src/matches.ts** — Match/round recording and history queries.
+- **src/events.ts** — Round event stream recording for replay (with `cards text[]` for queryable card data).
+- **src/stats.ts** — Win rate, point aggregations, level progression stats.
+- **src/ratings.ts** — ELO/Glicko rating CRUD with peak tracking.
+
 ### `packages/bot/` (`@tractor/bot`) — Placeholder for bot agent
 ### `packages/analytics/` (`@tractor/analytics`) — Placeholder for analytics
 
@@ -56,7 +69,13 @@ engine (0 deps)     protocol (0 deps)
    ├── server ──────────┤
    ├── bot ─────────────┤
    │                    ├── web
-   │                    └── analytics
+   │                    ├── analytics
+   │                    │
+   │    db (drizzle+pg) │
+   │      ↑             │
+   │    models ─────────┘
+   │      ↑
+   └── server (future integration)
 ```
 
 ## Key Design Rules
