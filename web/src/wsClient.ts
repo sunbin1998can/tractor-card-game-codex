@@ -7,6 +7,7 @@ type ClientMessage =
   | { type: 'NEXT_ROUND' }
   | { type: 'CHAT_SEND'; text: string }
   | { type: 'READY' }
+  | { type: 'UNREADY' }
   | { type: 'DECLARE'; cardIds: string[] }
   | { type: 'SNATCH'; cardIds: string[] }
   | { type: 'NO_SNATCH' }
@@ -115,6 +116,11 @@ class WsClient {
 
   private speak(text: string) {
     if (!text) return;
+    const store = useStore.getState();
+    // Visual announcement + event log alongside TTS
+    store.pushAnnouncement(text);
+    store.pushEvent(text);
+    if (store.muted) return;
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     this.bindSpeechLifecycle();
     this.speechQueue.push(text);
@@ -632,6 +638,15 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
         this.forceFreshJoin = false;
       } else if (this.lastJoin) {
         this.sendJoinWithFallback(this.lastJoin);
+      } else {
+        // Page refresh: lastJoin lost but sessionStorage may have room info
+        const token = sessionStorage.getItem('sessionToken');
+        const roomId = sessionStorage.getItem('lastRoomId') || sessionStorage.getItem('roomId');
+        if (token && roomId) {
+          const nickname = sessionStorage.getItem('nickname') || 'Player';
+          this.lastJoin = { roomId, name: nickname, players: 4 };
+          this.sendJoinWithFallback(this.lastJoin);
+        }
       }
       this.reconnectDelay = 500;
     };

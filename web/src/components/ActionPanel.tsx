@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../store';
+import { useT } from '../i18n';
 import { wsClient } from '../wsClient';
 
 function parseCardRank(id: string): string | null {
@@ -17,7 +18,6 @@ function canDeclareWith(cardIds: string[], levelRank?: string): boolean {
 
   const [r1, r2] = ranks as string[];
   if (cardIds.length === 1) {
-    // Engine currently only accepts single level-card declare (single jokers are ignored).
     return r1 === levelRank;
   }
 
@@ -51,11 +51,13 @@ function bestDeclareCardIds(hand: string[], levelRank?: string): string[] {
 
 export default function ActionPanel() {
   const selected = useStore((s) => s.selected);
-  const leaveRoom = useStore((s) => s.leaveRoom);
   const legalActions = useStore((s) => s.legalActions);
   const publicState = useStore((s) => s.publicState);
   const youSeat = useStore((s) => s.youSeat);
   const hand = useStore((s) => s.hand);
+  const t = useT();
+
+  const [buryConfirm, setBuryConfirm] = useState(false);
 
   const count = selected.size;
   const canPlay = count > 0;
@@ -99,73 +101,97 @@ export default function ActionPanel() {
     return () => window.clearInterval(timer);
   }, [showDeclareCountdown, declareUntilMs]);
 
+  // Reset bury confirmation when phase changes
+  useEffect(() => {
+    setBuryConfirm(false);
+  }, [publicState?.phase]);
+
   return (
     <div className="panel action-panel">
       {showLobbyReady && (
         <button
-          className="lobby-ready-btn"
-          onClick={() => wsClient.send({ type: 'READY' })}
-          disabled={youReady}
+          className={`lobby-ready-btn ${youReady ? 'is-ready' : ''}`}
+          onClick={() => wsClient.send({ type: youReady ? 'UNREADY' : 'READY' })}
         >
-          {youReady ? 'Ready' : 'Ready Up'}
+          {youReady ? t('seat.cancelReady') : t('seat.readyUp')}
         </button>
       )}
       <div className="action-buttons">
-        <button
-          className="action-btn"
-          onClick={() => {
-            wsClient.send({ type: 'DECLARE', cardIds: declareCardIds });
-          }}
-          disabled={!canDeclareNow}
-        >
-          Declare
-        </button>
-        <button
-          className="action-btn"
-          onClick={() => {
-            if (!canBury) return;
-            const ok = window.confirm(`Bury these ${kittyCount} cards?`);
-            if (!ok) return;
-            wsClient.send({ type: 'BURY', cardIds: Array.from(selected) });
-          }}
-          disabled={!canBury}
-        >
-          Bury {kittyCount > 0 ? `(${kittyCount})` : ''}
-        </button>
-        <button
-          className="action-btn"
-          onClick={() => {
-            wsClient.send({ type: 'PLAY', cardIds: Array.from(selected) });
-          }}
-          disabled={!isYourTurn || !canPlay}
-        >
-          Play
-        </button>
+        {isDeclarePhase && !showLobbyReady && (
+          <button
+            className="action-btn"
+            onClick={() => {
+              wsClient.send({ type: 'DECLARE', cardIds: declareCardIds });
+            }}
+            disabled={!canDeclareNow}
+            title={!canDeclareNow ? t('action.declareHint') : ''}
+          >
+            {t('action.declare')}
+          </button>
+        )}
+        {publicState?.phase === 'BURY_KITTY' && isBanker && !buryConfirm && (
+          <button
+            className="action-btn"
+            onClick={() => setBuryConfirm(true)}
+            disabled={!canBury}
+            title={!canBury ? t('action.buryHint').replace('{n}', String(kittyCount)) : ''}
+          >
+            {t('action.bury')} ({count}/{kittyCount})
+          </button>
+        )}
+        {publicState?.phase === 'BURY_KITTY' && isBanker && buryConfirm && (
+          <div className="bury-confirm-bar">
+            <span className="bury-confirm-text">{t('action.buryConfirm')}</span>
+            <button
+              className="action-btn bury-yes"
+              onClick={() => {
+                wsClient.send({ type: 'BURY', cardIds: Array.from(selected) });
+                setBuryConfirm(false);
+              }}
+            >
+              {t('round.ok')}
+            </button>
+            <button
+              className="action-btn bury-no"
+              onClick={() => setBuryConfirm(false)}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+        {publicState?.phase === 'BURY_KITTY' && !isBanker && (
+          <div className="action-status">{t('action.waitBury')}</div>
+        )}
+        {publicState?.phase === 'TRICK_PLAY' && (
+          <button
+            className="action-btn"
+            onClick={() => {
+              wsClient.send({ type: 'PLAY', cardIds: Array.from(selected) });
+            }}
+            disabled={!isYourTurn || !canPlay}
+            title={!isYourTurn ? t('action.waitTurn') : !canPlay ? t('action.selectCards') : ''}
+          >
+            {isYourTurn ? `${t('action.play')} (${count})` : t('action.waiting')}
+          </button>
+        )}
       </div>
       {showDeclareCountdown && (
-        <div className="action-declare-countdown-wrap">
-          <div className="action-declare-countdown">
-            有人反主吗？等待 {remainSeconds} 秒
+        <div className="declare-timer-bar">
+          <div className="declare-timer-circle">
+            <span className="declare-timer-number">{remainSeconds}</span>
           </div>
-          <button
-            className="no-snatch-btn"
-            disabled={!!youNoSnatch}
-            onClick={() => wsClient.send({ type: 'NO_SNATCH' })}
-          >
-            {youNoSnatch ? '已选不反主' : '不反主'}
-          </button>
+          <div className="declare-timer-info">
+            <span className="declare-timer-label">{t('action.snatchCountdown')}</span>
+            <button
+              className="no-snatch-btn"
+              disabled={!!youNoSnatch}
+              onClick={() => wsClient.send({ type: 'NO_SNATCH' })}
+            >
+              {youNoSnatch ? t('action.noSnatched') : t('action.noSnatch')}
+            </button>
+          </div>
         </div>
       )}
-      <button
-        className="leave-room-btn"
-        onClick={() => {
-          wsClient.leave();
-          leaveRoom();
-          wsClient.connect();
-        }}
-      >
-        Leave Room
-      </button>
     </div>
   );
 }

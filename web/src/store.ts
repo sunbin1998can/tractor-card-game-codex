@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+export type Lang = 'en' | 'zh';
+
 export type PublicSeat = {
   seat: number;
   name: string;
@@ -47,7 +49,18 @@ export type PublicState = {
 
 type LegalAction = { count: number };
 
+export type Toast = {
+  id: number;
+  text: string;
+  expiresAt: number;
+};
+
+let toastIdCounter = 0;
+
 type StoreState = {
+  lang: Lang;
+  muted: boolean;
+  eventLog: Toast[];
   roomId: string | null;
   youSeat: number | null;
   sessionToken: string | null;
@@ -59,7 +72,8 @@ type StoreState = {
   hand: string[];
   selected: Set<string>;
   legalActions: LegalAction[];
-  toasts: string[];
+  toasts: Toast[];
+  announcements: Toast[];
   chatMessages: { seat: number; name: string; text: string; atMs: number }[];
   kouDiPopup: { cards: string[]; pointSteps: number[]; total: number; multiplier: number } | null;
   roundPopup: string | null;
@@ -76,6 +90,13 @@ type StoreState = {
   clearSelect: () => void;
   setLegalActions: (actions: LegalAction[]) => void;
   pushToast: (msg: string) => void;
+  expireToasts: () => void;
+  pushAnnouncement: (msg: string, durationMs?: number) => void;
+  expireAnnouncements: () => void;
+  setLang: (lang: Lang) => void;
+  toggleLang: () => void;
+  toggleMuted: () => void;
+  pushEvent: (msg: string) => void;
   pushChatMessage: (msg: { seat: number; name: string; text: string; atMs: number }) => void;
   clearChatMessages: () => void;
   setRoundPopup: (msg: string | null) => void;
@@ -84,6 +105,9 @@ type StoreState = {
 };
 
 export const useStore = create<StoreState>((set, get) => ({
+  lang: (sessionStorage.getItem('lang') as Lang) || 'zh',
+  muted: sessionStorage.getItem('muted') === 'true',
+  eventLog: [],
   roomId: sessionStorage.getItem('roomId'),
   youSeat: null,
   sessionToken: null,
@@ -96,6 +120,7 @@ export const useStore = create<StoreState>((set, get) => ({
   selected: new Set(),
   legalActions: [],
   toasts: [],
+  announcements: [],
   chatMessages: [],
   kouDiPopup: null,
   roundPopup: null,
@@ -130,8 +155,48 @@ export const useStore = create<StoreState>((set, get) => ({
   clearSelect: () => set({ selected: new Set() }),
   setLegalActions: (actions) => set({ legalActions: actions }),
   pushToast: (msg) => {
-    const next = [...get().toasts, msg].slice(-3);
+    const toast: Toast = { id: ++toastIdCounter, text: msg, expiresAt: Date.now() + 4000 };
+    const now = Date.now();
+    const next = [...get().toasts.filter((t) => t.expiresAt > now), toast].slice(-5);
     set({ toasts: next });
+  },
+  expireToasts: () => {
+    const now = Date.now();
+    const filtered = get().toasts.filter((t) => t.expiresAt > now);
+    if (filtered.length !== get().toasts.length) set({ toasts: filtered });
+  },
+  pushAnnouncement: (msg, durationMs = 3000) => {
+    const a: Toast = { id: ++toastIdCounter, text: msg, expiresAt: Date.now() + durationMs };
+    const now = Date.now();
+    const next = [...get().announcements.filter((t) => t.expiresAt > now), a].slice(-3);
+    set({ announcements: next });
+  },
+  expireAnnouncements: () => {
+    const now = Date.now();
+    const filtered = get().announcements.filter((t) => t.expiresAt > now);
+    if (filtered.length !== get().announcements.length) set({ announcements: filtered });
+  },
+  setLang: (lang) => {
+    sessionStorage.setItem('lang', lang);
+    set({ lang });
+  },
+  toggleLang: () => {
+    const next = get().lang === 'en' ? 'zh' : 'en';
+    sessionStorage.setItem('lang', next);
+    set({ lang: next });
+  },
+  toggleMuted: () => {
+    const next = !get().muted;
+    sessionStorage.setItem('muted', String(next));
+    set({ muted: next });
+    if (next) {
+      try { window.speechSynthesis.cancel(); } catch {}
+    }
+  },
+  pushEvent: (msg) => {
+    const evt: Toast = { id: ++toastIdCounter, text: msg, expiresAt: Date.now() + 30000 };
+    const next = [...get().eventLog, evt].slice(-20);
+    set({ eventLog: next });
   },
   pushChatMessage: (msg) => {
     const next = [...get().chatMessages, msg].slice(-50);
@@ -154,6 +219,8 @@ export const useStore = create<StoreState>((set, get) => ({
       selected: new Set(),
       legalActions: [],
       toasts: [],
+      announcements: [],
+      eventLog: [],
       chatMessages: [],
       kouDiPopup: null,
       roundPopup: null
