@@ -3,45 +3,635 @@ import { useStore } from './store';
 type ClientMessage =
   | { type: 'JOIN_ROOM'; roomId: string; name: string; players: number }
   | { type: 'REJOIN_ROOM'; roomId: string; sessionToken: string }
+  | { type: 'LEAVE_ROOM' }
+  | { type: 'NEXT_ROUND' }
+  | { type: 'CHAT_SEND'; text: string }
   | { type: 'READY' }
-  | { type: 'FLIP'; cardIds: string[] }
+  | { type: 'DECLARE'; cardIds: string[] }
   | { type: 'SNATCH'; cardIds: string[] }
+  | { type: 'NO_SNATCH' }
   | { type: 'BURY'; cardIds: string[] }
-  | { type: 'PLAY'; cardIds: string[] };
+  | { type: 'PLAY'; cardIds: string[] }
+  | { type: 'FORCE_END_ROUND' };
 
 type ServerMessage =
   | { type: 'SESSION'; seat: number; sessionToken: string }
   | { type: 'DEAL'; hand: string[] }
   | { type: 'REQUEST_ACTION'; legalActions: { count: number }[] }
+  | { type: 'CHAT'; seat: number; name: string; text: string; atMs: number }
+  | { type: 'KOU_DI'; cards: string[]; pointSteps: number[]; total: number; multiplier: number }
+  | { type: 'ACTION_REJECTED'; action: 'PLAY' | 'BURY' | 'DECLARE' | 'SNATCH'; reason: string; expectedIds?: string[] }
+  | { type: 'TRUMP_DECLARED'; seat: number; trumpSuit: string; cardIds: string[] }
+  | { type: 'TRUMP_LED'; seat: number }
+  | { type: 'LEAD_PATTERN'; seat: number; kind: 'PAIR' | 'TRACTOR' }
   | { type: 'ROOM_STATE'; state: any }
   | { type: 'PHASE'; phase: string }
   | { type: 'TRICK_UPDATE'; seat: number; cards: string[] }
   | { type: 'TRICK_END'; winnerSeat: number; cards: string[] }
   | { type: 'THROW_PUNISHED'; seat: number; originalCards: string[]; punishedCards: string[]; reason: string }
-  | { type: 'ROUND_RESULT'; levelFrom: string; levelTo: string; delta: number; defenderPoints: number; kittyPoints: number; killMultiplier: number }
+  | {
+      type: 'ROUND_RESULT';
+      levelFrom: string;
+      levelTo: string;
+      delta: number;
+      defenderPoints: number;
+      attackerPoints: number;
+      kittyPoints: number;
+      killMultiplier: number;
+      winnerTeam: number;
+      winnerSide: 'DEFENDER' | 'ATTACKER';
+      rolesSwapped: boolean;
+      newBankerSeat: number;
+      playedBySeat: string[][];
+      kittyCards: string[];
+    }
   | { type: 'GAME_OVER'; winnerTeam: number };
 
 class WsClient {
   ws: WebSocket | null = null;
   url: string;
   reconnectDelay = 500;
+  shouldReconnect = true;
   lastJoin: { roomId: string; name: string; players: number } | null = null;
+  forceFreshJoin = false;
+  pendingJoinFallback: number | null = null;
+  lastRoundResultKey: string | null = null;
+  pendingRoundResultText: string | null = null;
+  waitingKouDiAck = false;
+  trickClearTimer: number | null = null;
+  speechLifecycleBound = false;
+  speechQueue: string[] = [];
+  speaking = false;
 
   constructor(url: string) {
     this.url = url;
   }
 
+  private bindSpeechLifecycle() {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    if (this.speechLifecycleBound) return;
+    this.speechLifecycleBound = true;
+    const resumeAndFlush = () => {
+      try {
+        window.speechSynthesis.resume();
+      } catch {
+        // ignore
+      }
+      this.flushSpeechQueue();
+    };
+    window.addEventListener('focus', resumeAndFlush);
+    document.addEventListener('visibilitychange', resumeAndFlush);
+    window.addEventListener('pointerdown', resumeAndFlush);
+    window.addEventListener('keydown', resumeAndFlush);
+  }
+
+  private flushSpeechQueue() {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    if (this.speaking) return;
+    const text = this.speechQueue.shift();
+    if (!text) return;
+    try {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'zh-CN';
+      utterance.volume = 0.75;
+      utterance.rate = 0.85;
+      utterance.pitch = 1;
+      utterance.onend = () => {
+        this.speaking = false;
+        this.flushSpeechQueue();
+      };
+      utterance.onerror = () => {
+        this.speaking = false;
+        this.flushSpeechQueue();
+      };
+      this.speaking = true;
+      window.speechSynthesis.resume();
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      this.speaking = false;
+      // ignore speech errors
+    }
+  }
+
+  private speak(text: string) {
+    if (!text) return;
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    this.bindSpeechLifecycle();
+    this.speechQueue.push(text);
+    this.flushSpeechQueue();
+  }
+
+  announceNextRound() {
+    this.speak('下一局开始');
+  }
+
+  private attackerScore(state: any): number {
+    const defenderTeam = state.bankerSeat % 2;
+    const attackerTeam = defenderTeam === 0 ? 1 : 0;
+    return state.scores?.[attackerTeam] ?? 0;
+  }
+
+  private suitLabel(suit: string): string {
+    if (suit === 'S') return '黑桃';
+    if (suit === 'H') return '红桃';
+    if (suit === 'D') return '方块';
+    if (suit === 'C') return '梅花';
+    return '';
+  }
+
+  private rankFromCardId(cardId: string): string {
+    const parts = cardId.split('_');
+    if (parts.length === 2 && (parts[1] === 'SJ' || parts[1] === 'BJ')) return parts[1];
+    if (parts.length === 3) return parts[2];
+    return '';
+  }
+
+  private chooseDeclareMarkerCard(cardIds: string[]): string | null {
+    if (!Array.isArray(cardIds) || cardIds.length === 0) return null;
+    const value = (id: string) => {
+      const r = this.rankFromCardId(id);
+      if (r === 'BJ') return 16;
+      if (r === 'SJ') return 15;
+      if (r === 'A') return 14;
+      if (r === 'K') return 13;
+      if (r === 'Q') return 12;
+      if (r === 'J') return 11;
+      const n = Number(r);
+      return Number.isFinite(n) ? n : 99;
+    };
+    return [...cardIds].sort((a, b) => value(a) - value(b) || a.localeCompare(b))[0];
+  }
+
+  private parsedCard(cardId: string): { suit: string; rank: string } | null {
+    const parts = cardId.split('_');
+    if (parts.length === 2 && (parts[1] === 'SJ' || parts[1] === 'BJ')) {
+      return { suit: 'J', rank: parts[1] };
+    }
+    if (parts.length === 3) {
+      return { suit: parts[1], rank: parts[2] };
+    }
+    return null;
+  }
+
+  private rankValue(rank: string): number {
+    if (rank === '2') return 2;
+    if (rank === '3') return 3;
+    if (rank === '4') return 4;
+    if (rank === '5') return 5;
+    if (rank === '6') return 6;
+    if (rank === '7') return 7;
+    if (rank === '8') return 8;
+    if (rank === '9') return 9;
+    if (rank === '10') return 10;
+    if (rank === 'J') return 11;
+    if (rank === 'Q') return 12;
+    if (rank === 'K') return 13;
+    if (rank === 'A') return 14;
+    if (rank === 'SJ') return 15;
+    if (rank === 'BJ') return 16;
+    return 0;
+  }
+
+  private trumpCardKey(cardId: string, levelRank: string, trumpSuit: string): number | null {
+    const card = this.parsedCard(cardId);
+    if (!card) return null;
+    const group = this.cardSuitGroup(cardId, levelRank, trumpSuit);
+    if (group !== 'TRUMP') return null;
+
+    const rv = this.rankValue(card.rank);
+    if (card.rank === 'BJ') return 1000;
+    if (card.rank === 'SJ') return 900;
+
+    const isLevel = card.rank === levelRank;
+    const isTrumpSuit = card.suit === trumpSuit;
+    if (isLevel) return 800 + (isTrumpSuit ? 50 : 0) + rv;
+    if (isTrumpSuit) return 700 + rv;
+    return 600 + rv;
+  }
+
+  private isPair(cards: string[]): boolean {
+    if (!Array.isArray(cards) || cards.length !== 2) return false;
+    const a = this.parsedCard(cards[0]);
+    const b = this.parsedCard(cards[1]);
+    if (!a || !b) return false;
+    const suitA = a.rank === 'BJ' || a.rank === 'SJ' ? 'J' : a.suit;
+    const suitB = b.rank === 'BJ' || b.rank === 'SJ' ? 'J' : b.suit;
+    return a.rank === b.rank && suitA === suitB;
+  }
+
+  private trumpPlayTopKey(cards: string[], levelRank: string, trumpSuit: string): number | null {
+    if (cards.length !== 1 && cards.length !== 2) return null;
+    if (!cards.every((id) => this.cardSuitGroup(id, levelRank, trumpSuit) === 'TRUMP')) return null;
+    if (cards.length === 2 && !this.isPair(cards)) return null;
+    const keys = cards.map((id) => this.trumpCardKey(id, levelRank, trumpSuit));
+    if (keys.some((k) => k === null)) return null;
+    return Math.max(...(keys as number[]));
+  }
+
+  private isConsecutive(values: number[]): boolean {
+    if (values.length <= 1) return true;
+    const sorted = [...values].sort((a, b) => a - b);
+    for (let i = 1; i < sorted.length; i += 1) {
+      if (sorted[i] !== sorted[i - 1] + 1) return false;
+    }
+    return true;
+  }
+
+  private isStandardLeadPattern(cards: string[], levelRank: string, trumpSuit: string): boolean {
+    if (!Array.isArray(cards) || cards.length === 0) return false;
+    if (cards.length === 1) return true;
+
+    const groups = cards.map((id) => this.cardSuitGroup(id, levelRank, trumpSuit));
+    if (groups.some((g) => !g) || groups.some((g) => g !== groups[0])) return false;
+
+    if (cards.length === 2) return this.isPair(cards);
+    if (cards.length % 2 !== 0) return false;
+
+    const counts = new Map<string, number>();
+    const seqValues: number[] = [];
+    for (const id of cards) {
+      const c = this.parsedCard(id);
+      if (!c) return false;
+      const suit = c.rank === 'BJ' || c.rank === 'SJ' ? 'J' : c.suit;
+      const key = `${c.rank}|${suit}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    for (const [key, count] of counts.entries()) {
+      if (count !== 2) return false;
+      const rank = key.split('|')[0];
+      if (rank === 'BJ' || rank === 'SJ' || rank === levelRank) return false;
+      const rv = this.rankValue(rank);
+      if (!rv) return false;
+      seqValues.push(rv);
+    }
+    return this.isConsecutive(seqValues);
+  }
+
+  private isThrowLead(
+    msg: { seat: number; cards: string[] },
+    state: any,
+    trickSoFar: { seat: number; cards: string[] }[]
+  ): boolean {
+    if (!state?.levelRank || !state?.trumpSuit) return false;
+    if (!Array.isArray(trickSoFar) || trickSoFar.length !== 0) return false;
+    if (msg.seat !== state?.leaderSeat) return false;
+    if (msg.cards.length < 2 || msg.cards.length > 8) return false;
+    return !this.isStandardLeadPattern(msg.cards, state.levelRank, state.trumpSuit);
+  }
+
+  private cardSpokenName(cardId: string): string {
+    const card = this.parsedCard(cardId);
+    if (!card) return cardId;
+    if (card.rank === 'BJ') return '大王';
+    if (card.rank === 'SJ') return '小王';
+    const spokenRank =
+      card.rank === 'Q' ? '嘎哒' :
+      card.rank === 'J' ? '勾子' :
+      card.rank === 'A' ? '腰' :
+      card.rank;
+    return `${this.suitLabel(card.suit)}${spokenRank}`;
+  }
+
+  private maybeSpeakPlayedCards(
+    msg: { seat: number; cards: string[] },
+    state: any,
+    trickSoFar: { seat: number; cards: string[] }[]
+  ) {
+    if (!Array.isArray(msg.cards) || msg.cards.length === 0) return;
+    const levelRank = `${state?.levelRank ?? ''}`.trim();
+    const trumpSuit = `${state?.trumpSuit ?? ''}`.trim();
+    if (!levelRank || !trumpSuit) return;
+
+    if (this.isThrowLead(msg, state, trickSoFar)) {
+      this.speak(`甩牌，${msg.cards.map((id) => this.cardSpokenName(id)).join('，')}`);
+      return;
+    }
+
+    if (msg.cards.length === 1) {
+      const singleRank = this.rankFromCardId(msg.cards[0]);
+      if (singleRank === 'BJ' || singleRank === 'SJ') return;
+      this.speak(this.cardSpokenName(msg.cards[0]));
+      return;
+    }
+
+    if (msg.cards.length === 2 && this.isPair(msg.cards)) {
+      this.speak(this.cardSpokenName(msg.cards[0]));
+      return;
+    }
+
+    if (msg.cards.length >= 4 && msg.cards.length % 2 === 0 && this.isStandardLeadPattern(msg.cards, levelRank, trumpSuit)) {
+      const groups = new Map<string, string>();
+      for (const id of msg.cards) {
+        const card = this.parsedCard(id);
+        if (!card) continue;
+        const suit = card.rank === 'BJ' || card.rank === 'SJ' ? 'J' : card.suit;
+        const key = `${card.rank}|${suit}`;
+        if (!groups.has(key)) groups.set(key, this.cardSpokenName(id));
+      }
+      const labels = [...groups.entries()]
+        .sort((a, b) => this.rankValue(a[0].split('|')[0]) - this.rankValue(b[0].split('|')[0]))
+        .map((x) => `对${x[1]}`);
+      if (labels.length >= 2) {
+        this.speak(`拖拉机，${labels.join('，')}`);
+        return;
+      }
+    }
+
+    this.speak(msg.cards.map((id) => this.cardSpokenName(id)).join('，'));
+  }
+
+  private cardSuitGroup(cardId: string, levelRank: string, trumpSuit: string): string | null {
+    const card = this.parsedCard(cardId);
+    if (!card) return null;
+    if (card.suit === 'J') return 'TRUMP';
+    if (card.rank === levelRank) return 'TRUMP';
+    if (card.suit === trumpSuit) return 'TRUMP';
+    return card.suit;
+  }
+
+  private maybeSpeakTrumpKill(
+    msg: { seat: number; cards: string[] },
+    state: any,
+    trickSoFar: { seat: number; cards: string[] }[]
+  ) {
+    if (!state?.trumpSuit || !state?.levelRank) return;
+    const trick = Array.isArray(trickSoFar) ? trickSoFar : [];
+    if (trick.length === 0) return;
+    const leaderSeat = trick[0]?.seat;
+    const leadFirstCard = trick[0]?.cards?.[0];
+    if (leaderSeat === undefined || !leadFirstCard) return;
+    if (msg.seat === leaderSeat) return;
+    if (msg.cards.length !== 1 && msg.cards.length !== 2) return;
+
+    const leadGroup = this.cardSuitGroup(leadFirstCard, state.levelRank, state.trumpSuit);
+    if (!leadGroup || leadGroup === 'TRUMP') return;
+
+    const allTrump = msg.cards.every(
+      (id) => this.cardSuitGroup(id, state.levelRank, state.trumpSuit) === 'TRUMP'
+    );
+    if (!allTrump) return;
+
+    const leadCardCount = Array.isArray(trick[0]?.cards) ? trick[0].cards.length : 0;
+    if (leadCardCount === 2 && msg.cards.length !== 2) return;
+    const incomingKey = this.trumpPlayTopKey(msg.cards, state.levelRank, state.trumpSuit);
+    if (incomingKey === null) return;
+
+    let priorBestKey: number | null = null;
+    for (const p of trick.slice(1)) {
+      if (!Array.isArray(p?.cards)) continue;
+      if (leadCardCount === 2 && p.cards.length !== 2) continue;
+      const k = this.trumpPlayTopKey(p.cards, state.levelRank, state.trumpSuit);
+      if (k === null) continue;
+      if (priorBestKey === null || k > priorBestKey) priorBestKey = k;
+    }
+
+    if (priorBestKey !== null && incomingKey > priorBestKey) {
+      this.speak('大毙');
+      return;
+    }
+    this.speak('毙了');
+  }
+
+  private maybeSpeakJokers(msg: { cards: string[] }) {
+    if (!Array.isArray(msg.cards) || msg.cards.length === 0) return;
+    const ranks = msg.cards.map((id) => this.rankFromCardId(id)).filter(Boolean);
+    if (ranks.length !== msg.cards.length) return;
+    if (ranks.every((r) => r === 'BJ')) {
+      this.speak('大王');
+      return;
+    }
+    if (ranks.every((r) => r === 'SJ')) {
+      this.speak('小王');
+    }
+  }
+
+  private maybeSpeakLevelTrump(msg: { cards: string[] }, state: any) {
+    const levelRank = `${state?.levelRank ?? ''}`.trim();
+    const trumpSuit = `${state?.trumpSuit ?? ''}`.trim();
+    if (!levelRank) return;
+    if (!trumpSuit || trumpSuit === 'N') return;
+    if (!Array.isArray(msg.cards) || msg.cards.length === 0) return;
+    const hasDeclaredSuitLevel = msg.cards.some((id) => {
+      const card = this.parsedCard(id);
+      return !!card && card.rank === levelRank && card.suit === trumpSuit;
+    });
+    if (!hasDeclaredSuitLevel) return;
+    this.speak(`主${levelRank}`);
+  }
+
+  private trumpDeclaredSpeech(msg: { trumpSuit: string; cardIds: string[] }): string {
+    const cardIds = msg.cardIds ?? [];
+    if (cardIds.length === 2) {
+      const r0 = this.rankFromCardId(cardIds[0]);
+      const r1 = this.rankFromCardId(cardIds[1]);
+      if (r0 === 'BJ' && r1 === 'BJ') return '对大王，无将';
+      if (r0 === 'SJ' && r1 === 'SJ') return '对小王，无将';
+    }
+
+    const rank = cardIds.length > 0 ? this.rankFromCardId(cardIds[0]) : '';
+    const suit = this.suitLabel(msg.trumpSuit);
+    if (!rank || !suit) return '亮主';
+    if (cardIds.length === 2) return `亮主对${suit}${rank}`;
+    return `亮主${suit}${rank}`;
+  }
+
+  private roundResultText(
+    msg: Pick<
+      Extract<ServerMessage, { type: 'ROUND_RESULT' }>,
+      | 'winnerSide'
+      | 'winnerTeam'
+      | 'defenderPoints'
+      | 'attackerPoints'
+      | 'levelFrom'
+      | 'levelTo'
+      | 'delta'
+      | 'rolesSwapped'
+      | 'newBankerSeat'
+    >,
+    state: any
+  ): string {
+    const winnerNames = state
+      ? state.seats
+          .filter((s: any) => s.team === msg.winnerTeam)
+          .map((s: any) => s.name || `Seat ${s.seat + 1}`)
+          .join(' & ')
+      : '';
+    const winnerLabel =
+      msg.winnerSide === 'DEFENDER'
+        ? winnerNames || "Banker's team"
+        : winnerNames || "Attacker's team";
+    const swapLine = msg.rolesSwapped
+      ? `\nRoles swapped. New banker: Seat ${msg.newBankerSeat + 1}.`
+      : '';
+    const finalLine =
+      msg.levelTo === 'A'
+        ? `\nFinal winners: ${winnerLabel}\nGame over.`
+        : '';
+    return `${winnerLabel} won.
+Defender points: ${msg.defenderPoints}
+Attacker points: ${msg.attackerPoints}
+Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}`;
+  }
+
+  private maybeShowRoundPopupFromState(state: any) {
+    const rr = state?.lastRoundResult;
+    if (!rr) return;
+    const key = `${state?.id ?? ''}:${rr.seq}`;
+    if (this.lastRoundResultKey === key) return;
+    this.lastRoundResultKey = key;
+    const store = useStore.getState();
+    const text = this.roundResultText(rr, state);
+    if (this.waitingKouDiAck) {
+      this.pendingRoundResultText = text;
+      return;
+    }
+    store.setRoundPopup(text);
+    store.pushToast(text.replace(/\n/g, ' '));
+  }
+
+  private speakPhasePrompts(prevState: any, nextState: any) {
+    if (!nextState) return;
+    if (!prevState || prevState.id !== nextState.id) return;
+
+    const prevCards =
+      Array.isArray(prevState.seats)
+        ? prevState.seats.reduce((sum: number, s: any) => sum + (s.cardsLeft ?? 0), 0)
+        : 0;
+    const nextCards =
+      Array.isArray(nextState.seats)
+        ? nextState.seats.reduce((sum: number, s: any) => sum + (s.cardsLeft ?? 0), 0)
+        : 0;
+
+    // Speak once when trump-declare window effectively starts: first dealt cards appear.
+    if (nextState.phase === 'FLIP_TRUMP' && prevCards === 0 && nextCards > 0) {
+      useStore.getState().setTrumpDeclareMarker(null);
+      const rank = `${nextState.levelRank ?? ''}`.trim();
+      if (rank) this.speak(`打${rank}`);
+      this.speak('等待亮主');
+    }
+
+    const prevDeclareUntil = Number(prevState?.declareUntilMs ?? 0);
+    const nextDeclareUntil = Number(nextState?.declareUntilMs ?? 0);
+    const enteredOrExtendedDeclareWindow =
+      nextState.phase === 'FLIP_TRUMP' &&
+      nextDeclareUntil > Date.now() &&
+      nextDeclareUntil > prevDeclareUntil;
+    if (enteredOrExtendedDeclareWindow) {
+      this.speak('有人反主吗？');
+    }
+
+    if (prevState.phase !== 'BURY_KITTY' && nextState.phase === 'BURY_KITTY') {
+      this.speak('等待扣底牌');
+    }
+
+    if (prevState.phase === 'BURY_KITTY' && nextState.phase === 'TRICK_PLAY') {
+      this.speak('扣底牌完毕');
+    }
+  }
+
+  private speakKouDi(pointSteps: number[], total: number) {
+    const steps = Array.isArray(pointSteps) && pointSteps.length > 0 ? pointSteps : [total];
+    this.speak(`抠底${steps.join('，')}`);
+  }
+
+  onKouDiAcknowledged() {
+    this.waitingKouDiAck = false;
+    if (!this.pendingRoundResultText) return;
+    const store = useStore.getState();
+    const text = this.pendingRoundResultText;
+    this.pendingRoundResultText = null;
+    this.speak('凯旋');
+    store.setRoundPopup(text);
+    store.pushToast(text.replace(/\n/g, ' '));
+  }
+
+  private speakPlayersReady(prevState: any, nextState: any) {
+    if (!prevState || prevState.id !== nextState?.id) return;
+    const prevBySeat = new Map<number, any>(
+      Array.isArray(prevState.seats) ? prevState.seats.map((s: any) => [s.seat, s]) : []
+    );
+    const nextSeats = Array.isArray(nextState?.seats) ? nextState.seats : [];
+    for (const seat of nextSeats) {
+      const prevSeat = prevBySeat.get(seat.seat);
+      const wasReady = !!prevSeat?.ready;
+      const isReady = !!seat?.ready;
+      if (!wasReady && isReady) {
+        const name = (seat?.name || '').trim();
+        if (name) this.speak(`${name}准备好了`);
+      }
+    }
+  }
+
+  private speakLeftPlayers(prevState: any, nextState: any) {
+    if (!prevState || prevState.id !== nextState?.id) return;
+    const nextBySeat = new Map<number, any>(
+      Array.isArray(nextState.seats) ? nextState.seats.map((s: any) => [s.seat, s]) : []
+    );
+    const prevSeats = Array.isArray(prevState?.seats) ? prevState.seats : [];
+    for (const seat of prevSeats) {
+      const nextSeat = nextBySeat.get(seat.seat);
+      const wasConnected = !!seat?.connected;
+      const isConnected = !!nextSeat?.connected;
+      if (wasConnected && !isConnected) {
+        const name = (seat?.name || '').trim();
+        if (name) this.speak(`${name}走了`);
+      }
+    }
+  }
+
+  private clearPendingJoinFallback() {
+    if (this.pendingJoinFallback !== null) {
+      window.clearTimeout(this.pendingJoinFallback);
+      this.pendingJoinFallback = null;
+    }
+  }
+
+  private clearTrickClearTimer() {
+    if (this.trickClearTimer !== null) {
+      window.clearTimeout(this.trickClearTimer);
+      this.trickClearTimer = null;
+    }
+  }
+
+  sendChat(text: string) {
+    const payload = text.trim();
+    if (!payload) return;
+    this.send({ type: 'CHAT_SEND', text: payload });
+  }
+
+  private sendJoinWithFallback(join: { roomId: string; name: string; players: number }) {
+    const token = sessionStorage.getItem('sessionToken');
+    const lastRoomId = sessionStorage.getItem('lastRoomId');
+    this.clearPendingJoinFallback();
+    if (token && lastRoomId === join.roomId) {
+      this.send({ type: 'REJOIN_ROOM', roomId: join.roomId, sessionToken: token });
+      this.pendingJoinFallback = window.setTimeout(() => {
+        this.pendingJoinFallback = null;
+        this.send({ type: 'JOIN_ROOM', ...join });
+      }, 900);
+      return;
+    }
+    this.send({ type: 'JOIN_ROOM', ...join });
+  }
+
   connect() {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
+    if (
+      this.ws &&
+      (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)
+    ) {
+      return;
+    }
+
+    this.shouldReconnect = true;
+    this.bindSpeechLifecycle();
     this.ws = new WebSocket(this.url);
 
     this.ws.onopen = () => {
-      const store = useStore.getState();
-      const token = store.sessionToken || localStorage.getItem('sessionToken');
-      if (store.roomId && token) {
-        this.send({ type: 'REJOIN_ROOM', roomId: store.roomId, sessionToken: token });
+      if (this.forceFreshJoin && this.lastJoin) {
+        this.sendJoinWithFallback(this.lastJoin);
+        this.forceFreshJoin = false;
       } else if (this.lastJoin) {
-        this.send({ type: 'JOIN_ROOM', ...this.lastJoin });
+        this.sendJoinWithFallback(this.lastJoin);
       }
       this.reconnectDelay = 500;
     };
@@ -49,24 +639,175 @@ class WsClient {
     this.ws.onmessage = (event) => {
       const msg = JSON.parse(event.data) as ServerMessage;
       const store = useStore.getState();
+      if (msg.type === 'SESSION' || msg.type === 'ROOM_STATE') {
+        this.clearPendingJoinFallback();
+      }
 
       if (msg.type === 'SESSION') {
         store.setSession(msg.seat, msg.sessionToken);
       } else if (msg.type === 'ROOM_STATE') {
+        const prevState = store.publicState;
         store.setPublicState(msg.state);
+        if (Array.isArray(msg.state?.trick) && msg.state.trick.length > 0) {
+          this.clearTrickClearTimer();
+          store.setTrickDisplay(msg.state.trick);
+        }
+        this.maybeShowRoundPopupFromState(msg.state);
+        this.speakPhasePrompts(prevState, msg.state);
+        this.speakPlayersReady(prevState, msg.state);
+        if (
+          prevState &&
+          prevState.id === msg.state.id &&
+          prevState.phase === 'TRICK_PLAY' &&
+          msg.state.phase === 'TRICK_PLAY'
+        ) {
+          const prevAttacker = this.attackerScore(prevState);
+          const nextAttacker = this.attackerScore(msg.state);
+          if (nextAttacker > prevAttacker) {
+            this.speak(`得分${nextAttacker}`);
+          }
+        }
       } else if (msg.type === 'DEAL') {
         store.setHand(msg.hand);
       } else if (msg.type === 'REQUEST_ACTION') {
         store.setLegalActions(msg.legalActions);
+      } else if (msg.type === 'CHAT') {
+        store.pushChatMessage({ seat: msg.seat, name: msg.name, text: msg.text, atMs: msg.atMs });
+      } else if (msg.type === 'KOU_DI') {
+        this.waitingKouDiAck = true;
+        this.pendingRoundResultText = null;
+        store.setKouDiPopup({
+          cards: msg.cards,
+          pointSteps: msg.pointSteps,
+          total: msg.total,
+          multiplier: msg.multiplier
+        });
+        this.speakKouDi(msg.pointSteps, msg.total);
+      } else if (msg.type === 'ACTION_REJECTED') {
+        const expected = msg.expectedIds?.length
+          ? ` Expected: ${msg.expectedIds.join(', ')}`
+          : '';
+        store.pushToast(`${msg.action} rejected: ${msg.reason}.${expected}`);
+      } else if (msg.type === 'TRUMP_DECLARED') {
+        const speakerName =
+          store.publicState?.seats.find((s) => s.seat === msg.seat)?.name || `Seat ${msg.seat + 1}`;
+        store.pushToast(`${speakerName} 亮主`);
+        const markerCard = this.chooseDeclareMarkerCard(msg.cardIds);
+        if (markerCard) {
+          store.setTrumpDeclareMarker({ seat: msg.seat, cardId: markerCard });
+        }
+        this.speak(this.trumpDeclaredSpeech(msg));
+      } else if (msg.type === 'TRUMP_LED') {
+        const speakerName =
+          store.publicState?.seats.find((s) => s.seat === msg.seat)?.name || `Seat ${msg.seat + 1}`;
+        store.pushToast(`${speakerName} 调主`);
+        this.speak('调主');
+      } else if (msg.type === 'LEAD_PATTERN') {
+        const speakerName =
+          store.publicState?.seats.find((s) => s.seat === msg.seat)?.name || `Seat ${msg.seat + 1}`;
+        if (msg.kind === 'PAIR') {
+          store.pushToast(`${speakerName} 对`);
+          this.speak('对');
+        } else {
+          store.pushToast(`${speakerName} 拖拉机`);
+          this.speak('拖拉机');
+        }
       } else if (msg.type === 'THROW_PUNISHED') {
         store.pushToast(`Throw punished: ${msg.reason}`);
+        this.speak('捡小的出');
+      } else if (msg.type === 'TRICK_UPDATE') {
+        this.clearTrickClearTimer();
+        const current = useStore.getState().trickDisplay;
+        const next = [...current];
+        const idx = next.findIndex((p) => p.seat === msg.seat);
+        if (idx >= 0) next[idx] = { seat: msg.seat, cards: msg.cards };
+        else next.push({ seat: msg.seat, cards: msg.cards });
+        store.setTrickDisplay(next);
+        this.maybeSpeakJokers(msg);
+        this.maybeSpeakLevelTrump(msg, store.publicState);
+        this.maybeSpeakTrumpKill(msg, store.publicState, current);
+        this.maybeSpeakPlayedCards(msg, store.publicState, current);
+      } else if (msg.type === 'TRICK_END') {
+        this.clearTrickClearTimer();
+        this.trickClearTimer = window.setTimeout(() => {
+          useStore.getState().clearTrickDisplay();
+          this.trickClearTimer = null;
+        }, 2000);
+      } else if (msg.type === 'ROUND_RESULT') {
+        const text = this.roundResultText(msg, store.publicState);
+        if (this.waitingKouDiAck || store.kouDiPopup) {
+          this.pendingRoundResultText = text;
+        } else {
+          store.setRoundPopup(text);
+          store.pushToast(text.replace(/\n/g, ' '));
+        }
       }
     };
 
     this.ws.onclose = () => {
+      this.clearPendingJoinFallback();
+      this.ws = null;
+      const store = useStore.getState();
+      if (store.roomId) {
+        sessionStorage.removeItem('lastRoomId');
+        store.leaveRoom();
+        store.pushToast('Disconnected. Returned to lobby.');
+      }
+      this.waitingKouDiAck = false;
+      this.pendingRoundResultText = null;
+      this.clearTrickClearTimer();
+      store.clearTrickDisplay();
+      this.speechQueue = [];
+      this.speaking = false;
+      try {
+        window.speechSynthesis.cancel();
+      } catch {
+        // ignore
+      }
+      this.lastRoundResultKey = null;
+      if (!this.shouldReconnect) return;
       setTimeout(() => this.connect(), this.reconnectDelay);
       this.reconnectDelay = Math.min(this.reconnectDelay * 2, 8000);
     };
+  }
+
+  joinRoom(join: { roomId: string; name: string; players: number }) {
+    this.lastJoin = join;
+    this.forceFreshJoin = true;
+    this.shouldReconnect = true;
+    if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
+      this.connect();
+      return;
+    }
+    if (this.ws.readyState === WebSocket.OPEN) {
+      this.sendJoinWithFallback(join);
+    }
+  }
+
+  leave() {
+    this.clearPendingJoinFallback();
+    this.lastJoin = null;
+    this.forceFreshJoin = false;
+    this.shouldReconnect = false;
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.send({ type: 'LEAVE_ROOM' });
+    }
+    if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
+      this.ws.close();
+    }
+    this.waitingKouDiAck = false;
+    this.pendingRoundResultText = null;
+    this.clearTrickClearTimer();
+    useStore.getState().clearTrickDisplay();
+    this.speechQueue = [];
+    this.speaking = false;
+    try {
+      window.speechSynthesis.cancel();
+    } catch {
+      // ignore
+    }
+    this.lastRoundResultKey = null;
+    this.ws = null;
   }
 
   send(msg: ClientMessage) {

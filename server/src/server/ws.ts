@@ -1,20 +1,33 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { GameEngine } from '../engine/GameEngine';
+import { validateFollowPlay } from '../engine/Follow';
 import type { Card } from '../engine/types';
+import { createEngineForRoom, type RulesProfile } from '../rules/factory';
 
 type ClientMessage =
   | { type: 'JOIN_ROOM'; roomId: string; name: string; players: number }
   | { type: 'REJOIN_ROOM'; roomId: string; sessionToken: string }
+  | { type: 'LEAVE_ROOM' }
+  | { type: 'NEXT_ROUND' }
+  | { type: 'CHAT_SEND'; text: string }
   | { type: 'READY' }
-  | { type: 'FLIP'; cardIds: string[] }
+  | { type: 'DECLARE'; cardIds: string[] }
   | { type: 'SNATCH'; cardIds: string[] }
+  | { type: 'NO_SNATCH' }
   | { type: 'BURY'; cardIds: string[] }
-  | { type: 'PLAY'; cardIds: string[] };
+  | { type: 'PLAY'; cardIds: string[] }
+  | { type: 'FORCE_END_ROUND' };
 
 type ServerMessage =
   | { type: 'SESSION'; seat: number; sessionToken: string }
   | { type: 'DEAL'; hand: string[] }
   | { type: 'REQUEST_ACTION'; legalActions: { count: number }[] }
+  | { type: 'CHAT'; seat: number; name: string; text: string; atMs: number }
+  | { type: 'KOU_DI'; cards: string[]; pointSteps: number[]; total: number; multiplier: number }
+  | { type: 'ACTION_REJECTED'; action: 'PLAY' | 'BURY' | 'DECLARE' | 'SNATCH'; reason: string; expectedIds?: string[] }
+  | { type: 'TRUMP_DECLARED'; seat: number; trumpSuit: string; cardIds: string[] }
+  | { type: 'TRUMP_LED'; seat: number }
+  | { type: 'LEAD_PATTERN'; seat: number; kind: 'PAIR' | 'TRACTOR' }
   | { type: 'ROOM_STATE'; state: PublicRoomState }
   | { type: 'PHASE'; phase: string }
   | { type: 'TRICK_UPDATE'; seat: number; cards: string[] }
@@ -26,8 +39,15 @@ type ServerMessage =
       levelTo: string;
       delta: number;
       defenderPoints: number;
+      attackerPoints: number;
       kittyPoints: number;
       killMultiplier: number;
+      winnerTeam: number;
+      winnerSide: 'DEFENDER' | 'ATTACKER';
+      rolesSwapped: boolean;
+      newBankerSeat: number;
+      playedBySeat: string[][];
+      kittyCards: string[];
     }
   | { type: 'GAME_OVER'; winnerTeam: number };
 
@@ -45,16 +65,42 @@ interface SeatState {
 interface Room {
   id: string;
   players: number;
+  rulesProfile: RulesProfile;
   engine: GameEngine;
   seats: SeatState[];
   kittySize: number;
+  dealingInProgress?: boolean;
+  dealingTimer?: NodeJS.Timeout;
+  declareSeat?: number;
+  declareUntilMs?: number;
+  declareEnabled?: boolean;
+  noSnatchSeats?: Set<number>;
+  resumeTailDeal?: (() => void) | null;
+  finalDeclarePauseDone?: boolean;
+  tailDealCount?: number;
   fairnessTimer?: NodeJS.Timeout;
+  lastRoundResult?: {
+    seq: number;
+    levelFrom: string;
+    levelTo: string;
+    delta: number;
+    defenderPoints: number;
+    attackerPoints: number;
+    kittyPoints: number;
+    killMultiplier: number;
+    winnerTeam: number;
+    winnerSide: 'DEFENDER' | 'ATTACKER';
+    rolesSwapped: boolean;
+    newBankerSeat: number;
+    playedBySeat: string[][];
+    kittyCards: string[];
+  };
 }
 
 interface PublicRoomState {
   id: string;
   players: number;
-  seats: { seat: number; name: string; team: number; connected: boolean; cardsLeft: number }[];
+  seats: { seat: number; name: string; team: number; connected: boolean; ready: boolean; cardsLeft: number }[];
   phase: string;
   bankerSeat: number;
   leaderSeat?: number;
@@ -62,12 +108,35 @@ interface PublicRoomState {
   trumpSuit: string;
   levelRank: string;
   scores: [number, number];
+  capturedPointCards: [string[], string[]];
   kittyCount: number;
+  declareSeat?: number;
+  declareUntilMs?: number;
+  declareEnabled?: boolean;
+  noSnatchSeats?: number[];
   trick?: { seat: number; cards: string[] }[];
+  lastRoundResult?: {
+    seq: number;
+    levelFrom: string;
+    levelTo: string;
+    delta: number;
+    defenderPoints: number;
+    attackerPoints: number;
+    kittyPoints: number;
+    killMultiplier: number;
+    winnerTeam: number;
+    winnerSide: 'DEFENDER' | 'ATTACKER';
+    rolesSwapped: boolean;
+    newBankerSeat: number;
+    playedBySeat: string[][];
+    kittyCards: string[];
+  };
 }
 
 const rooms = new Map<string, Room>();
 const DISCONNECT_GRACE_MS = 120_000;
+const DEAL_STEP_MS = 80;
+const FINAL_DECLARE_PAUSE_MS = 3000;
 
 function now() {
   return Date.now();
@@ -86,6 +155,11 @@ function sendPrivate(room: Room, seat: number, msg: ServerMessage) {
   const s = room.seats.find((x) => x.seat === seat);
   if (!s) return;
   send(s.ws, msg);
+}
+
+function sendHand(room: Room, seat: number) {
+  const hand = room.engine.hands[seat]?.map((c) => c.id) ?? [];
+  sendPrivate(room, seat, { type: 'DEAL', hand });
 }
 
 function makeSessionToken() {
@@ -124,16 +198,128 @@ function deal(room: Room) {
   const kitty = deck.slice(0, room.kittySize);
   const rest = deck.slice(room.kittySize);
 
-  const hands: Card[][] = Array.from({ length: room.players }, () => []);
-  for (let i = 0; i < rest.length; i += 1) {
-    hands[i % room.players].push(rest[i]);
-  }
+  room.engine.setHands(Array.from({ length: room.players }, () => []), kitty);
+  room.dealingInProgress = true;
+  room.declareEnabled = true;
+  room.noSnatchSeats = new Set<number>();
+  room.resumeTailDeal = null;
+  room.finalDeclarePauseDone = false;
+  room.tailDealCount = room.kittySize;
 
-  room.engine.setHands(hands, kitty);
+  const finishDealing = () => {
+    room.dealingInProgress = false;
+    room.dealingTimer = undefined;
+    room.declareEnabled = true;
+    room.resumeTailDeal = null;
+    if (room.engine.phase === 'FLIP_TRUMP' && room.engine.trumpCandidate) {
+      if (room.finalDeclarePauseDone) {
+        room.declareSeat = undefined;
+        room.declareUntilMs = undefined;
+        room.engine.finalizeTrump(now());
+        flushEngineEvents(room);
+        if (room.engine.phase === 'BURY_KITTY') {
+          sendHand(room, room.engine.config.bankerSeat);
+          broadcastState(room);
+          requestAction(room, room.engine.config.bankerSeat);
+          return;
+        }
+        broadcastState(room);
+        return;
+      }
+      const holdUntil = now() + FINAL_DECLARE_PAUSE_MS;
+      if (room.engine.trumpCandidate.expiresAt < holdUntil) {
+        room.engine.trumpCandidate.expiresAt = holdUntil;
+      }
+      room.declareSeat = room.engine.trumpCandidate.seat;
+      room.declareUntilMs = room.engine.trumpCandidate.expiresAt;
+      broadcastState(room);
+      ensureFairnessTimer(room);
+      return;
+    }
+    room.declareSeat = undefined;
+    room.declareUntilMs = undefined;
+
+    room.engine.finalizeTrump(now());
+    flushEngineEvents(room);
+    if (room.engine.phase === 'BURY_KITTY') {
+      sendHand(room, room.engine.config.bankerSeat);
+      broadcastState(room);
+      requestAction(room, room.engine.config.bankerSeat);
+      return;
+    }
+    broadcastState(room);
+  };
+
+  const startFinalDeclarePause = (resumeIndex: number) => {
+    const candidate = room.engine.trumpCandidate;
+    if (!candidate) return false;
+    room.finalDeclarePauseDone = true;
+    room.noSnatchSeats = new Set<number>();
+
+    const holdUntil = now() + FINAL_DECLARE_PAUSE_MS;
+    if (candidate.expiresAt < holdUntil) {
+      candidate.expiresAt = holdUntil;
+    }
+    room.declareSeat = candidate.seat;
+    room.declareUntilMs = candidate.expiresAt;
+    room.declareEnabled = true;
+    broadcastState(room);
+    ensureFairnessTimer(room);
+
+    room.resumeTailDeal = () => {
+      if (!room.resumeTailDeal) return;
+      room.resumeTailDeal = null;
+      if (room.dealingTimer) {
+        clearTimeout(room.dealingTimer);
+        room.dealingTimer = undefined;
+      }
+      room.declareSeat = undefined;
+      room.declareUntilMs = undefined;
+      room.declareEnabled = false;
+      broadcastState(room);
+      step(resumeIndex);
+    };
+
+    room.dealingTimer = setTimeout(() => {
+      room.resumeTailDeal?.();
+    }, FINAL_DECLARE_PAUSE_MS);
+    return true;
+  };
+
+  const step = (index: number) => {
+    if (index >= rest.length) {
+      finishDealing();
+      return;
+    }
+
+    const remaining = rest.length - index;
+    const tailDealCount = room.tailDealCount ?? room.kittySize;
+    const shouldPauseForFinalDeclare =
+      room.engine.phase === 'FLIP_TRUMP' &&
+      !!room.engine.trumpCandidate &&
+      !room.finalDeclarePauseDone &&
+      remaining <= tailDealCount;
+    if (shouldPauseForFinalDeclare && startFinalDeclarePause(index)) {
+      return;
+    }
+
+    room.declareSeat = undefined;
+    room.declareUntilMs = undefined;
+    room.declareEnabled = !(room.finalDeclarePauseDone && remaining <= tailDealCount);
+
+    const seat = index % room.players;
+    const card = rest[index];
+    room.engine.hands[seat].push(card);
+    sendHand(room, seat);
+    broadcastState(room);
+    room.dealingTimer = setTimeout(() => step(index + 1), DEAL_STEP_MS);
+  };
+
   for (let i = 0; i < room.players; i += 1) {
-    const hand = room.engine.hands[i].map((c) => c.id);
-    sendPrivate(room, i, { type: 'DEAL', hand });
+    sendHand(room, i);
   }
+  broadcastState(room);
+  step(0);
 }
 
 function publicState(room: Room): PublicRoomState {
@@ -146,6 +332,7 @@ function publicState(room: Room): PublicRoomState {
       name: s.name,
       team: s.team,
       connected: s.isConnected,
+      ready: s.ready,
       cardsLeft: room.engine.hands[s.seat]?.length ?? 0
     })),
     phase: room.engine.phase,
@@ -155,8 +342,17 @@ function publicState(room: Room): PublicRoomState {
     trumpSuit: room.engine.config.trumpSuit,
     levelRank: room.engine.config.levelRank,
     scores: room.engine.capturedPoints,
+    capturedPointCards: [
+      room.engine.capturedPointCards[0].map((c) => c.id),
+      room.engine.capturedPointCards[1].map((c) => c.id)
+    ],
     kittyCount: room.engine.kitty.length,
-    trick
+    declareSeat: room.declareSeat,
+    declareUntilMs: room.declareUntilMs,
+    declareEnabled: room.declareEnabled ?? room.engine.phase === 'FLIP_TRUMP',
+    noSnatchSeats: room.noSnatchSeats ? [...room.noSnatchSeats] : [],
+    trick,
+    lastRoundResult: room.lastRoundResult
   };
 }
 
@@ -183,6 +379,18 @@ function flushEngineEvents(room: Room) {
   for (const ev of room.engine.events) {
     if (ev.type === 'TRICK_UPDATE') {
       broadcast(room, { type: 'TRICK_UPDATE', seat: ev.seat, cards: ev.cards.map((c) => c.id) });
+    } else if (ev.type === 'KOU_DI') {
+      broadcast(room, {
+        type: 'KOU_DI',
+        cards: ev.cards.map((c) => c.id),
+        pointSteps: ev.pointSteps,
+        total: ev.total,
+        multiplier: ev.multiplier
+      });
+    } else if (ev.type === 'TRUMP_LED') {
+      broadcast(room, { type: 'TRUMP_LED', seat: ev.seat });
+    } else if (ev.type === 'LEAD_PATTERN') {
+      broadcast(room, { type: 'LEAD_PATTERN', seat: ev.seat, kind: ev.kind });
     } else if (ev.type === 'TRICK_END') {
       broadcast(room, { type: 'TRICK_END', winnerSeat: ev.winnerSeat, cards: ev.cards.map((c) => c.id) });
     } else if (ev.type === 'THROW_PUNISHED') {
@@ -194,14 +402,37 @@ function flushEngineEvents(room: Room) {
         reason: ev.reason
       });
     } else if (ev.type === 'ROUND_RESULT') {
+      room.lastRoundResult = {
+        seq: (room.lastRoundResult?.seq ?? 0) + 1,
+        levelFrom: ev.levelFrom,
+        levelTo: ev.levelTo,
+        delta: ev.delta,
+        defenderPoints: ev.defenderPoints,
+        attackerPoints: ev.attackerPoints,
+        kittyPoints: ev.kittyPoints,
+        killMultiplier: ev.killMultiplier,
+        winnerTeam: ev.winnerTeam,
+        winnerSide: ev.winnerSide,
+        rolesSwapped: ev.rolesSwapped,
+        newBankerSeat: ev.newBankerSeat,
+        playedBySeat: ev.playedBySeat.map((cards) => cards.map((c) => c.id)),
+        kittyCards: ev.kittyCards.map((c) => c.id)
+      };
       broadcast(room, {
         type: 'ROUND_RESULT',
         levelFrom: ev.levelFrom,
         levelTo: ev.levelTo,
         delta: ev.delta,
         defenderPoints: ev.defenderPoints,
+        attackerPoints: ev.attackerPoints,
         kittyPoints: ev.kittyPoints,
-        killMultiplier: ev.killMultiplier
+        killMultiplier: ev.killMultiplier,
+        winnerTeam: ev.winnerTeam,
+        winnerSide: ev.winnerSide,
+        rolesSwapped: ev.rolesSwapped,
+        newBankerSeat: ev.newBankerSeat,
+        playedBySeat: ev.playedBySeat.map((cards) => cards.map((c) => c.id)),
+        kittyCards: ev.kittyCards.map((c) => c.id)
       });
     } else if (ev.type === 'GAME_OVER') {
       broadcast(room, { type: 'GAME_OVER', winnerTeam: ev.winnerTeam });
@@ -215,9 +446,13 @@ function flushEngineEvents(room: Room) {
 function ensureFairnessTimer(room: Room) {
   if (room.fairnessTimer) return;
   room.fairnessTimer = setInterval(() => {
+    if (room.dealingInProgress) return;
     room.engine.finalizeTrump(now());
     flushEngineEvents(room);
     if (room.engine.phase === 'BURY_KITTY') {
+      room.declareSeat = undefined;
+      room.declareUntilMs = undefined;
+      sendHand(room, room.engine.config.bankerSeat);
       broadcastState(room);
       requestAction(room, room.engine.config.bankerSeat);
       clearInterval(room.fairnessTimer);
@@ -233,16 +468,18 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
   let room = rooms.get(roomId);
   if (!room) {
     const kittySize = players === 6 ? 12 : 8;
+    const created = createEngineForRoom({
+      players,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize
+    });
     room = {
       id: roomId,
       players,
-      engine: new GameEngine({
-        numPlayers: players,
-        bankerSeat: 0,
-        levelRank: '2',
-        trumpSuit: 'H',
-        kittySize
-      }),
+      rulesProfile: created.profile,
+      engine: created.engine,
       seats: [],
       kittySize
     };
@@ -250,9 +487,14 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
     rooms.set(roomId, room);
   }
 
-  const seatReuse = room.seats.find(
-    (s) => !s.isConnected && now() - s.lastSeen > DISCONNECT_GRACE_MS
-  );
+  // In lobby, let new joiners immediately take disconnected seats so games can start.
+  const canImmediateReuseDisconnectedSeat =
+    room.engine.phase === 'FLIP_TRUMP' && !room.dealingInProgress;
+  const seatReuse = room.seats.find((s) => {
+    if (s.isConnected) return false;
+    if (canImmediateReuseDisconnectedSeat) return true;
+    return now() - s.lastSeen > DISCONNECT_GRACE_MS;
+  });
 
   let seat = seatReuse?.seat ?? room.seats.length;
   if (seat >= room.players) return;
@@ -279,6 +521,7 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
 
   send(ws, { type: 'SESSION', seat, sessionToken });
   send(ws, { type: 'ROOM_STATE', state: publicState(room) });
+  maybeStartRound(room);
 }
 
 function rejoinRoom(ws: WebSocket, msg: { roomId: string; sessionToken: string }) {
@@ -295,21 +538,55 @@ function rejoinRoom(ws: WebSocket, msg: { roomId: string; sessionToken: string }
   send(ws, { type: 'SESSION', seat: seat.seat, sessionToken: seat.sessionToken });
   send(ws, { type: 'ROOM_STATE', state: publicState(room) });
 
-  const hand = room.engine.hands[seat.seat]?.map((c) => c.id) ?? [];
-  send(ws, { type: 'DEAL', hand });
+  sendHand(room, seat.seat);
 
   if (room.engine.trick?.turnSeat === seat.seat) {
     requestAction(room, seat.seat);
   }
+  maybeStartRound(room);
 }
 
 function maybeStartRound(room: Room) {
+  if (room.dealingInProgress) return;
   if (room.seats.length !== room.players) return;
+  if (!room.seats.every((s) => s.isConnected)) return;
   if (!room.seats.every((s) => s.ready)) return;
   if (room.engine.phase !== 'FLIP_TRUMP') return;
 
   deal(room);
   broadcastState(room);
+}
+
+function resetRoomAfterGameOver(room: Room) {
+  if (room.dealingTimer) {
+    clearTimeout(room.dealingTimer);
+    room.dealingTimer = undefined;
+  }
+  if (room.fairnessTimer) {
+    clearInterval(room.fairnessTimer);
+    room.fairnessTimer = undefined;
+  }
+  room.dealingInProgress = false;
+  room.declareSeat = undefined;
+  room.declareUntilMs = undefined;
+  room.declareEnabled = true;
+  room.noSnatchSeats = new Set<number>();
+  room.resumeTailDeal = null;
+  room.finalDeclarePauseDone = false;
+  room.tailDealCount = undefined;
+
+  const bankerSeat = room.lastRoundResult?.newBankerSeat ?? room.engine.config.bankerSeat;
+  const created = createEngineForRoom({
+    players: room.players,
+    bankerSeat,
+    levelRank: '2',
+    trumpSuit: 'H',
+    kittySize: room.kittySize
+  });
+  room.rulesProfile = created.profile;
+  room.engine = created.engine;
+  room.lastRoundResult = undefined;
+  room.engine.startTrumpPhase();
 }
 
 export function createWsServer(port: number, path = '/ws') {
@@ -338,23 +615,127 @@ export function createWsServer(port: number, path = '/ws') {
       const seatState = room.seats.find((s) => s.ws === ws);
       if (!seatState) return;
 
+      if (msg.type === 'LEAVE_ROOM') {
+        seatState.isConnected = false;
+        seatState.ws = undefined;
+        seatState.lastSeen = now();
+        broadcastState(room);
+        return;
+      }
+
+      if (msg.type === 'CHAT_SEND') {
+        const text = msg.text.trim().slice(0, 200);
+        if (!text) return;
+        broadcast(room, {
+          type: 'CHAT',
+          seat: seatState.seat,
+          name: seatState.name || `Seat ${seatState.seat + 1}`,
+          text,
+          atMs: now()
+        });
+        return;
+      }
+
       if (msg.type === 'READY') {
         seatState.ready = true;
+        broadcastState(room);
         maybeStartRound(room);
         return;
       }
 
-      if (msg.type === 'FLIP' || msg.type === 'SNATCH') {
+      if (msg.type === 'DECLARE' || msg.type === 'SNATCH') {
+        if (room.engine.phase !== 'FLIP_TRUMP') {
+          send(ws, { type: 'ACTION_REJECTED', action: msg.type, reason: 'NOT_IN_DECLARE_PHASE' });
+          return;
+        }
+        if (room.dealingInProgress && room.declareEnabled === false) {
+          send(ws, { type: 'ACTION_REJECTED', action: msg.type, reason: 'DECLARE_LOCKED' });
+          return;
+        }
         const cards = msg.cardIds
           .map((id) => room.engine.hands[seatState.seat].find((c) => c.id === id))
           .filter(Boolean) as Card[];
+        const before = room.engine.trumpCandidate
+          ? {
+              seat: room.engine.trumpCandidate.seat,
+              strength: room.engine.trumpCandidate.strength,
+              trumpSuit: room.engine.trumpCandidate.trumpSuit,
+              expiresAt: room.engine.trumpCandidate.expiresAt
+            }
+          : null;
         room.engine.flipTrump(seatState.seat, cards, now());
+        const after = room.engine.trumpCandidate
+          ? {
+              seat: room.engine.trumpCandidate.seat,
+              strength: room.engine.trumpCandidate.strength,
+              trumpSuit: room.engine.trumpCandidate.trumpSuit,
+              expiresAt: room.engine.trumpCandidate.expiresAt
+            }
+          : null;
+        if (JSON.stringify(before) === JSON.stringify(after)) {
+          send(ws, { type: 'ACTION_REJECTED', action: msg.type, reason: 'DECLARE_NOT_STRONGER' });
+          return;
+        }
+        if (after) {
+          room.declareSeat = after.seat;
+          room.declareUntilMs = after.expiresAt;
+          room.noSnatchSeats?.clear();
+          broadcast(room, {
+            type: 'TRUMP_DECLARED',
+            seat: after.seat,
+            trumpSuit: after.trumpSuit,
+            cardIds: cards.map((c) => c.id)
+          });
+        }
+        broadcastState(room);
         ensureFairnessTimer(room);
         return;
       }
 
+      if (msg.type === 'NO_SNATCH') {
+        if (room.engine.phase !== 'FLIP_TRUMP') return;
+        if (room.declareEnabled === false) return;
+        const until = Number(room.declareUntilMs ?? 0);
+        if (until <= now()) return;
+        if (!room.noSnatchSeats) room.noSnatchSeats = new Set<number>();
+        room.noSnatchSeats.add(seatState.seat);
+        broadcastState(room);
+
+        const connectedCount = room.seats.filter((s) => s.isConnected).length;
+        if (
+          room.dealingInProgress &&
+          room.finalDeclarePauseDone &&
+          room.resumeTailDeal &&
+          room.noSnatchSeats.size >= connectedCount
+        ) {
+          room.resumeTailDeal();
+        }
+        return;
+      }
+
       if (msg.type === 'BURY') {
+        if (room.engine.phase !== 'BURY_KITTY') {
+          send(ws, { type: 'ACTION_REJECTED', action: 'BURY', reason: 'NOT_IN_BURY_PHASE' });
+          return;
+        }
+        if (seatState.seat !== room.engine.config.bankerSeat) {
+          send(ws, { type: 'ACTION_REJECTED', action: 'BURY', reason: 'ONLY_BANKER_CAN_BURY' });
+          return;
+        }
+        if (msg.cardIds.length !== room.kittySize) {
+          send(ws, {
+            type: 'ACTION_REJECTED',
+            action: 'BURY',
+            reason: `BURY_REQUIRES_${room.kittySize}_CARDS`
+          });
+          return;
+        }
         room.engine.buryKitty(seatState.seat, msg.cardIds);
+        if (room.engine.phase !== 'TRICK_PLAY') {
+          send(ws, { type: 'ACTION_REJECTED', action: 'BURY', reason: 'INVALID_BURY_SELECTION' });
+          return;
+        }
+        sendHand(room, seatState.seat);
         flushEngineEvents(room);
         broadcastState(room);
         if (room.engine.trick?.turnSeat !== undefined) {
@@ -364,11 +745,66 @@ export function createWsServer(port: number, path = '/ws') {
       }
 
       if (msg.type === 'PLAY') {
+        if (room.engine.phase !== 'TRICK_PLAY' || !room.engine.trick) {
+          send(ws, { type: 'ACTION_REJECTED', action: 'PLAY', reason: 'NOT_IN_PLAY_PHASE' });
+          return;
+        }
+        if (seatState.seat !== room.engine.trick.turnSeat) {
+          send(ws, { type: 'ACTION_REJECTED', action: 'PLAY', reason: 'NOT_YOUR_TURN' });
+          return;
+        }
+        const leadPattern = room.engine.trick.leadPattern;
+        const state = {
+          levelRank: room.engine.config.levelRank,
+          trumpSuit: room.engine.config.trumpSuit
+        };
+        if (leadPattern) {
+          const vr = validateFollowPlay(
+            leadPattern,
+            msg.cardIds,
+            room.engine.hands[seatState.seat],
+            state
+          );
+          if (!vr.ok) {
+            send(ws, {
+              type: 'ACTION_REJECTED',
+              action: 'PLAY',
+              reason: vr.reason ?? 'INVALID_PLAY',
+              expectedIds: vr.expectedIds
+            });
+            return;
+          }
+        }
         room.engine.play(seatState.seat, msg.cardIds);
+        sendHand(room, seatState.seat);
         flushEngineEvents(room);
         broadcastState(room);
         if (room.engine.trick?.turnSeat !== undefined) {
           requestAction(room, room.engine.trick.turnSeat);
+        }
+        return;
+      }
+
+      if (msg.type === 'FORCE_END_ROUND') {
+        (room.engine as any).finishRound();
+        flushEngineEvents(room);
+        broadcastState(room);
+        return;
+      }
+
+      if (msg.type === 'NEXT_ROUND') {
+        if (room.engine.phase === 'ROUND_SCORE') {
+          const started = room.engine.startNextRoundFromPending();
+          if (!started) return;
+          deal(room);
+          broadcastState(room);
+          return;
+        }
+
+        if (room.engine.phase === 'GAME_OVER') {
+          resetRoomAfterGameOver(room);
+          deal(room);
+          broadcastState(room);
         }
         return;
       }
