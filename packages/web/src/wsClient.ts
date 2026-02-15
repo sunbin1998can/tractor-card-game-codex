@@ -1,52 +1,5 @@
 import { useStore } from './store';
-
-type ClientMessage =
-  | { type: 'JOIN_ROOM'; roomId: string; name: string; players: number }
-  | { type: 'REJOIN_ROOM'; roomId: string; sessionToken: string }
-  | { type: 'LEAVE_ROOM' }
-  | { type: 'NEXT_ROUND' }
-  | { type: 'CHAT_SEND'; text: string }
-  | { type: 'READY' }
-  | { type: 'UNREADY' }
-  | { type: 'DECLARE'; cardIds: string[] }
-  | { type: 'SNATCH'; cardIds: string[] }
-  | { type: 'NO_SNATCH' }
-  | { type: 'BURY'; cardIds: string[] }
-  | { type: 'PLAY'; cardIds: string[] }
-  | { type: 'FORCE_END_ROUND' };
-
-type ServerMessage =
-  | { type: 'SESSION'; seat: number; sessionToken: string }
-  | { type: 'DEAL'; hand: string[] }
-  | { type: 'REQUEST_ACTION'; legalActions: { count: number }[] }
-  | { type: 'CHAT'; seat: number; name: string; text: string; atMs: number }
-  | { type: 'KOU_DI'; cards: string[]; pointSteps: number[]; total: number; multiplier: number }
-  | { type: 'ACTION_REJECTED'; action: 'PLAY' | 'BURY' | 'DECLARE' | 'SNATCH'; reason: string; expectedIds?: string[] }
-  | { type: 'TRUMP_DECLARED'; seat: number; trumpSuit: string; cardIds: string[] }
-  | { type: 'TRUMP_LED'; seat: number }
-  | { type: 'LEAD_PATTERN'; seat: number; kind: 'PAIR' | 'TRACTOR' }
-  | { type: 'ROOM_STATE'; state: any }
-  | { type: 'PHASE'; phase: string }
-  | { type: 'TRICK_UPDATE'; seat: number; cards: string[] }
-  | { type: 'TRICK_END'; winnerSeat: number; cards: string[] }
-  | { type: 'THROW_PUNISHED'; seat: number; originalCards: string[]; punishedCards: string[]; reason: string }
-  | {
-      type: 'ROUND_RESULT';
-      levelFrom: string;
-      levelTo: string;
-      delta: number;
-      defenderPoints: number;
-      attackerPoints: number;
-      kittyPoints: number;
-      killMultiplier: number;
-      winnerTeam: number;
-      winnerSide: 'DEFENDER' | 'ATTACKER';
-      rolesSwapped: boolean;
-      newBankerSeat: number;
-      playedBySeat: string[][];
-      kittyCards: string[];
-    }
-  | { type: 'GAME_OVER'; winnerTeam: number };
+import type { ClientMessage, ServerMessage } from '@tractor/protocol';
 
 class WsClient {
   ws: WebSocket | null = null;

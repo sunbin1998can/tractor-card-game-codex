@@ -69,8 +69,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo -e "${BLUE}==> Installing dependencies...${NC}"
-(cd "$REPO_ROOT/server" && pnpm install --silent)
-(cd "$REPO_ROOT/web" && pnpm install --silent)
+(cd "$REPO_ROOT" && pnpm install --silent)
 echo ""
 
 # Find available ports
@@ -93,11 +92,11 @@ if [ "$WEB_PORT" != "$DEFAULT_WEB_PORT" ]; then
 fi
 
 echo -e "${BLUE}==> Starting server on port $SERVER_PORT...${NC}"
-(cd "$REPO_ROOT/server" && PORT=$SERVER_PORT pnpm dev) &
+(cd "$REPO_ROOT" && PORT=$SERVER_PORT pnpm --filter @tractor/server dev) &
 SERVER_PID=$!
 
 echo -e "${BLUE}==> Starting web client on port $WEB_PORT...${NC}"
-(cd "$REPO_ROOT/web" && VITE_WS_URL="ws://localhost:${SERVER_PORT}/ws" pnpm vite --port "$WEB_PORT" --strictPort) &
+(cd "$REPO_ROOT" && VITE_WS_URL="ws://localhost:${SERVER_PORT}/ws" pnpm --filter @tractor/web exec vite --port "$WEB_PORT" --strictPort) &
 WEB_PID=$!
 
 echo ""

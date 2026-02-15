@@ -2,8 +2,8 @@
 node_modules/
 
 # Build output
-server/dist/
-web/dist/
+dist/
+*.tsbuildinfo
 
 # Nix / direnv
 .direnv/

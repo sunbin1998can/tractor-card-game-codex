@@ -1,58 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
-import { GameEngine } from '../engine/GameEngine.js';
-import { validateFollowPlay } from '../engine/Follow.js';
-import type { Card } from '../engine/types.js';
-
-
-type ClientMessage =
-  | { type: 'JOIN_ROOM'; roomId: string; name: string; players: number }
-  | { type: 'REJOIN_ROOM'; roomId: string; sessionToken: string }
-  | { type: 'LEAVE_ROOM' }
-  | { type: 'NEXT_ROUND' }
-  | { type: 'CHAT_SEND'; text: string }
-  | { type: 'READY' }
-  | { type: 'UNREADY' }
-  | { type: 'DECLARE'; cardIds: string[] }
-  | { type: 'SNATCH'; cardIds: string[] }
-  | { type: 'NO_SNATCH' }
-  | { type: 'BURY'; cardIds: string[] }
-  | { type: 'PLAY'; cardIds: string[] }
-  | { type: 'FORCE_END_ROUND' };
-
-type ServerMessage =
-  | { type: 'SESSION'; seat: number; sessionToken: string }
-  | { type: 'DEAL'; hand: string[] }
-  | { type: 'REQUEST_ACTION'; legalActions: { count: number }[] }
-  | { type: 'CHAT'; seat: number; name: string; text: string; atMs: number }
-  | { type: 'KOU_DI'; cards: string[]; pointSteps: number[]; total: number; multiplier: number }
-  | { type: 'ACTION_REJECTED'; action: 'PLAY' | 'BURY' | 'DECLARE' | 'SNATCH'; reason: string; expectedIds?: string[] }
-  | { type: 'TRUMP_DECLARED'; seat: number; trumpSuit: string; cardIds: string[] }
-  | { type: 'TRUMP_LED'; seat: number }
-  | { type: 'LEAD_PATTERN'; seat: number; kind: 'PAIR' | 'TRACTOR' }
-  | { type: 'ROOM_STATE'; state: PublicRoomState }
-  | { type: 'PHASE'; phase: string }
-  | { type: 'TRICK_UPDATE'; seat: number; cards: string[] }
-  | { type: 'TRICK_END'; winnerSeat: number; cards: string[] }
-  | { type: 'THROW_PUNISHED'; seat: number; originalCards: string[]; punishedCards: string[]; reason: string }
-  | {
-      type: 'ROUND_RESULT';
-      advancingTeam: number;
-      levelFrom: string;
-      levelTo: string;
-      delta: number;
-      defenderPoints: number;
-      attackerPoints: number;
-      kittyPoints: number;
-      killMultiplier: number;
-      winnerTeam: number;
-      winnerSide: 'DEFENDER' | 'ATTACKER';
-      rolesSwapped: boolean;
-      newBankerSeat: number;
-      nextBankerSeat: number;
-      playedBySeat: string[][];
-      kittyCards: string[];
-    }
-  | { type: 'GAME_OVER'; winnerTeam: number };
+import { GameEngine, validateFollowPlay } from '@tractor/engine';
+import type { Card } from '@tractor/engine';
+import type { ClientMessage, ServerMessage, PublicRoomState, RoundResult } from '@tractor/protocol';
 
 interface SeatState {
   seat: number;
@@ -81,59 +30,7 @@ interface Room {
   finalDeclarePauseDone?: boolean;
   tailDealCount?: number;
   fairnessTimer?: NodeJS.Timeout;
-  lastRoundResult?: {
-    seq: number;
-    levelFrom: string;
-    levelTo: string;
-    delta: number;
-    defenderPoints: number;
-    attackerPoints: number;
-    kittyPoints: number;
-    killMultiplier: number;
-    winnerTeam: number;
-    winnerSide: 'DEFENDER' | 'ATTACKER';
-    rolesSwapped: boolean;
-    newBankerSeat: number;
-    playedBySeat: string[][];
-    kittyCards: string[];
-  };
-}
-
-interface PublicRoomState {
-  id: string;
-  players: number;
-  seats: { seat: number; name: string; team: number; connected: boolean; ready: boolean; cardsLeft: number }[];
-  teamLevels: [string, string];
-  phase: string;
-  bankerSeat: number;
-  leaderSeat?: number;
-  turnSeat?: number;
-  trumpSuit: string;
-  levelRank: string;
-  scores: [number, number];
-  capturedPointCards: [string[], string[]];
-  kittyCount: number;
-  declareSeat?: number;
-  declareUntilMs?: number;
-  declareEnabled?: boolean;
-  noSnatchSeats?: number[];
-  trick?: { seat: number; cards: string[] }[];
-  lastRoundResult?: {
-    seq: number;
-    levelFrom: string;
-    levelTo: string;
-    delta: number;
-    defenderPoints: number;
-    attackerPoints: number;
-    kittyPoints: number;
-    killMultiplier: number;
-    winnerTeam: number;
-    winnerSide: 'DEFENDER' | 'ATTACKER';
-    rolesSwapped: boolean;
-    newBankerSeat: number;
-    playedBySeat: string[][];
-    kittyCards: string[];
-  };
+  lastRoundResult?: RoundResult;
 }
 
 const rooms = new Map<string, Room>();
@@ -437,8 +334,8 @@ function flushEngineEvents(room: Room) {
         rolesSwapped: ev.rolesSwapped,
         newBankerSeat: ev.newBankerSeat,
         nextBankerSeat: ev.nextBankerSeat,
-        playedBySeat: ev.playedBySeat.map((cards: any[]) => cards.map((c: any) => c.id)),
-        kittyCards: ev.kittyCards.map((c: any) => c.id)
+        playedBySeat: ev.playedBySeat.map((cards: Card[]) => cards.map((c: Card) => c.id)),
+        kittyCards: ev.kittyCards.map((c: Card) => c.id)
       });
     } else if (ev.type === 'GAME_OVER') {
       broadcast(room, { type: 'GAME_OVER', winnerTeam: ev.winnerTeam });
@@ -501,7 +398,7 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
     return now() - s.lastSeen > DISCONNECT_GRACE_MS;
   });
 
-  let seat = seatReuse?.seat ?? room.seats.length;
+  const seat = seatReuse?.seat ?? room.seats.length;
   if (seat >= room.players) return;
 
   const sessionToken = makeSessionToken();
