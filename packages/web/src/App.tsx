@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useStore } from './store';
 import { wsClient } from './wsClient';
 import { useT } from './i18n';
+import { guestLogin, sendEmailCode, verifyEmailCode as apiVerifyEmail, getMe } from './api';
 import GameTable from './components/GameTable';
 import Hand from './components/Hand';
 import ActionPanel from './components/ActionPanel';
@@ -22,9 +23,40 @@ export default function App() {
   const players = useStore((s) => s.players);
   const setPlayers = useStore((s) => s.setPlayers);
   const toggleLang = useStore((s) => s.toggleLang);
+  const authToken = useStore((s) => s.authToken);
+  const email = useStore((s) => s.email);
+  const setAuth = useStore((s) => s.setAuth);
+  const clearAuth = useStore((s) => s.clearAuth);
   const t = useT();
 
   const [roomInput, setRoomInput] = useState('room1');
+  const [emailInput, setEmailInput] = useState('');
+  const [codeInput, setCodeInput] = useState('');
+  const [emailSent, setEmailSent] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
+
+  // Auto-guest login and auth validation on mount
+  useEffect(() => {
+    (async () => {
+      const stored = localStorage.getItem('authToken');
+      if (stored) {
+        try {
+          const { user } = await getMe(stored);
+          setAuth(stored, user.id, user.isGuest, user.email);
+          return;
+        } catch {
+          // Token invalid, will create new guest below
+        }
+      }
+      try {
+        const displayName = sessionStorage.getItem('nickname') || 'Guest';
+        const { authToken: token, user } = await guestLogin(displayName);
+        setAuth(token, user.id, user.isGuest, user.email);
+      } catch {
+        // DB not available — no-op, game still works without auth
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     wsClient.connect();
@@ -81,6 +113,70 @@ export default function App() {
               {t('lobby.join')}
             </button>
           </div>
+          {email ? (
+            <div className="identity-bar">
+              <span className="identity-chip">Email: {email}</span>
+              <button onClick={clearAuth}>Logout</button>
+            </div>
+          ) : (
+            <div className="row" style={{ marginTop: 8 }}>
+              {!emailSent ? (
+                <>
+                  <input
+                    placeholder="Email"
+                    type="email"
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                  />
+                  <button
+                    disabled={authLoading}
+                    onClick={async () => {
+                      if (!emailInput.trim()) return;
+                      setAuthLoading(true);
+                      try {
+                        await sendEmailCode(emailInput.trim());
+                        setEmailSent(true);
+                      } catch {
+                        // Email service unavailable
+                      } finally {
+                        setAuthLoading(false);
+                      }
+                    }}
+                  >
+                    Send Code
+                  </button>
+                </>
+              ) : (
+                <>
+                  <input
+                    placeholder="Code"
+                    value={codeInput}
+                    onChange={(e) => setCodeInput(e.target.value)}
+                  />
+                  <button
+                    disabled={authLoading}
+                    onClick={async () => {
+                      if (!codeInput.trim()) return;
+                      setAuthLoading(true);
+                      try {
+                        const { authToken: token, user } = await apiVerifyEmail(emailInput.trim(), codeInput.trim());
+                        setAuth(token, user.id, user.isGuest, user.email);
+                        setEmailSent(false);
+                        setEmailInput('');
+                        setCodeInput('');
+                      } catch {
+                        // Verification failed
+                      } finally {
+                        setAuthLoading(false);
+                      }
+                    }}
+                  >
+                    Verify
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );

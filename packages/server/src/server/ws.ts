@@ -2,6 +2,16 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { GameEngine, validateFollowPlay } from '@tractor/engine';
 import type { Card } from '@tractor/engine';
 import type { ClientMessage, ServerMessage, PublicRoomState, RoundResult } from '@tractor/protocol';
+import { verifyAuthToken } from '../auth.js';
+import {
+  createRoomPersistence,
+  onMatchStart,
+  onRoundStart,
+  onRoundEvent,
+  onRoundEnd,
+  onMatchEnd,
+  type RoomPersistence,
+} from '../persistence.js';
 
 interface SeatState {
   seat: number;
@@ -12,6 +22,7 @@ interface SeatState {
   isConnected: boolean;
   lastSeen: number;
   ready: boolean;
+  userId: string | null;
 }
 
 interface Room {
@@ -31,6 +42,8 @@ interface Room {
   tailDealCount?: number;
   fairnessTimer?: NodeJS.Timeout;
   lastRoundResult?: RoundResult;
+  persistence: RoomPersistence | null;
+  matchStarted?: boolean;
 }
 
 const rooms = new Map<string, Room>();
@@ -100,6 +113,19 @@ function deal(room: Room) {
 
   room.engine.setHands(Array.from({ length: room.players }, () => []), kitty);
   room.dealingInProgress = true;
+
+  // Persistence hooks
+  if (!room.matchStarted) {
+    room.matchStarted = true;
+    onMatchStart(
+      room.persistence,
+      room.id,
+      room.players,
+      [...room.engine.teamLevels],
+      room.seats.map((s) => ({ userId: s.userId, seat: s.seat, team: s.team, name: s.name })),
+    );
+  }
+  onRoundStart(room.persistence);
   room.declareEnabled = true;
   room.noSnatchSeats = new Set<number>();
   room.resumeTailDeal = null;
@@ -278,6 +304,15 @@ function requestAction(room: Room, seat: number) {
 
 function flushEngineEvents(room: Room) {
   for (const ev of room.engine.events) {
+    // Record every event for persistence
+    onRoundEvent(
+      room.persistence,
+      ev.type,
+      'seat' in ev ? (ev as any).seat ?? null : null,
+      'cards' in ev ? ((ev as any).cards ?? []).map((c: any) => typeof c === 'string' ? c : c.id) : null,
+      ev,
+    );
+
     if (ev.type === 'TRICK_UPDATE') {
       broadcast(room, { type: 'TRICK_UPDATE', seat: ev.seat, cards: ev.cards.map((c) => c.id) });
     } else if (ev.type === 'KOU_DI') {
@@ -303,6 +338,23 @@ function flushEngineEvents(room: Room) {
         reason: ev.reason
       });
     } else if (ev.type === 'ROUND_RESULT') {
+      onRoundEnd(room.persistence, {
+        bankerSeat: room.engine.config.bankerSeat,
+        levelRank: room.engine.config.levelRank,
+        trumpSuit: room.engine.config.trumpSuit ?? 'N',
+        kittyCards: ev.kittyCards.map((c: Card) => c.id),
+        defenderPoints: ev.defenderPoints,
+        attackerPoints: ev.attackerPoints,
+        kittyPoints: ev.kittyPoints,
+        kittyMultiplier: ev.killMultiplier,
+        winnerTeam: ev.winnerTeam,
+        winnerSide: ev.winnerSide,
+        levelFrom: ev.levelFrom,
+        levelTo: ev.levelTo,
+        levelDelta: ev.delta,
+        rolesSwapped: ev.rolesSwapped,
+        newBankerSeat: ev.newBankerSeat,
+      });
       room.lastRoundResult = {
         seq: (room.lastRoundResult?.seq ?? 0) + 1,
         levelFrom: ev.levelFrom,
@@ -338,6 +390,7 @@ function flushEngineEvents(room: Room) {
         kittyCards: ev.kittyCards.map((c: Card) => c.id)
       });
     } else if (ev.type === 'GAME_OVER') {
+      onMatchEnd(room.persistence, ev.winnerTeam, [...room.engine.teamLevels]);
       broadcast(room, { type: 'GAME_OVER', winnerTeam: ev.winnerTeam });
     } else if (ev.type === 'PHASE') {
       broadcast(room, { type: 'PHASE', phase: ev.phase });
@@ -364,7 +417,7 @@ function ensureFairnessTimer(room: Room) {
   }, 200);
 }
 
-function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: number }) {
+function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: number; authToken?: string }) {
   const roomId = msg.roomId.trim();
   const players = msg.players === 6 ? 6 : 4;
 
@@ -383,7 +436,8 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
       players,
       engine,
       seats: [],
-      kittySize
+      kittySize,
+      persistence: createRoomPersistence(),
     };
     room.engine.startTrumpPhase();
     rooms.set(roomId, room);
@@ -403,6 +457,8 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
 
   const sessionToken = makeSessionToken();
 
+  const authPayload = msg.authToken ? verifyAuthToken(msg.authToken) : null;
+
   const seatState: SeatState = {
     seat,
     name: msg.name || `Player ${seat + 1}`,
@@ -411,7 +467,8 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
     sessionToken,
     isConnected: true,
     lastSeen: now(),
-    ready: false
+    ready: false,
+    userId: authPayload?.userId ?? null,
   };
 
   if (seatReuse) {
@@ -422,6 +479,12 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
   }
 
   send(ws, { type: 'SESSION', seat, sessionToken });
+  send(ws, {
+    type: 'AUTH_INFO',
+    userId: seatState.userId,
+    displayName: seatState.name,
+    isGuest: !authPayload,
+  });
   send(ws, { type: 'ROOM_STATE', state: publicState(room) });
   maybeStartRound(room);
 }
@@ -486,6 +549,8 @@ function resetRoomAfterGameOver(room: Room) {
     kittySize: room.kittySize
   });
   room.lastRoundResult = undefined;
+  room.persistence = createRoomPersistence();
+  room.matchStarted = false;
   room.engine.startTrumpPhase();
 }
 

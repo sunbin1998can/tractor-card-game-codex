@@ -566,11 +566,13 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
       this.send({ type: 'REJOIN_ROOM', roomId: join.roomId, sessionToken: token });
       this.pendingJoinFallback = window.setTimeout(() => {
         this.pendingJoinFallback = null;
-        this.send({ type: 'JOIN_ROOM', ...join });
+        const authToken = useStore.getState().authToken ?? undefined;
+        this.send({ type: 'JOIN_ROOM', ...join, authToken });
       }, 900);
       return;
     }
-    this.send({ type: 'JOIN_ROOM', ...join });
+    const authToken = useStore.getState().authToken ?? undefined;
+    this.send({ type: 'JOIN_ROOM', ...join, authToken });
   }
 
   connect() {
@@ -613,6 +615,8 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
 
       if (msg.type === 'SESSION') {
         store.setSession(msg.seat, msg.sessionToken);
+      } else if (msg.type === 'AUTH_INFO') {
+        // Server acknowledged our auth status — no store action needed for now
       } else if (msg.type === 'ROOM_STATE') {
         const prevState = store.publicState;
         store.setPublicState(msg.state);

@@ -1,7 +1,7 @@
 // ── Client → Server messages ──
 
 export type ClientMessage =
-  | { type: 'JOIN_ROOM'; roomId: string; name: string; players: number }
+  | { type: 'JOIN_ROOM'; roomId: string; name: string; players: number; authToken?: string }
   | { type: 'REJOIN_ROOM'; roomId: string; sessionToken: string }
   | { type: 'LEAVE_ROOM' }
   | { type: 'NEXT_ROUND' }
@@ -50,7 +50,8 @@ export type ServerMessage =
       playedBySeat: string[][];
       kittyCards: string[];
     }
-  | { type: 'GAME_OVER'; winnerTeam: number };
+  | { type: 'GAME_OVER'; winnerTeam: number }
+  | { type: 'AUTH_INFO'; userId: string | null; displayName: string; isGuest: boolean };
 
 // ── Shared public state types ──
 

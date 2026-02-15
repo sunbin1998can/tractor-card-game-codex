@@ -25,6 +25,10 @@ type StoreState = {
   sessionToken: string | null;
   nickname: string;
   players: number;
+  authToken: string | null;
+  userId: string | null;
+  isGuest: boolean;
+  email: string | null;
   publicState: PublicState | null;
   trickDisplay: { seat: number; cards: string[] }[];
   trumpDeclareMarker: { seat: number; cardId: string } | null;
@@ -60,6 +64,8 @@ type StoreState = {
   clearChatMessages: () => void;
   setRoundPopup: (msg: string | null) => void;
   setKouDiPopup: (msg: { cards: string[]; pointSteps: number[]; total: number; multiplier: number } | null) => void;
+  setAuth: (token: string, userId: string, isGuest: boolean, email?: string | null) => void;
+  clearAuth: () => void;
   leaveRoom: () => void;
 };
 
@@ -72,6 +78,10 @@ export const useStore = create<StoreState>((set, get) => ({
   sessionToken: null,
   nickname: sessionStorage.getItem('nickname') || '',
   players: 4,
+  authToken: localStorage.getItem('authToken'),
+  userId: localStorage.getItem('userId'),
+  isGuest: localStorage.getItem('isGuest') !== 'false',
+  email: localStorage.getItem('email'),
   publicState: null,
   trickDisplay: [],
   trumpDeclareMarker: null,
@@ -164,6 +174,21 @@ export const useStore = create<StoreState>((set, get) => ({
   clearChatMessages: () => set({ chatMessages: [] }),
   setKouDiPopup: (msg) => set({ kouDiPopup: msg }),
   setRoundPopup: (msg) => set({ roundPopup: msg }),
+  setAuth: (token, userId, isGuest, email) => {
+    localStorage.setItem('authToken', token);
+    localStorage.setItem('userId', userId);
+    localStorage.setItem('isGuest', String(isGuest));
+    if (email) localStorage.setItem('email', email);
+    else localStorage.removeItem('email');
+    set({ authToken: token, userId, isGuest, email: email ?? null });
+  },
+  clearAuth: () => {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('isGuest');
+    localStorage.removeItem('email');
+    set({ authToken: null, userId: null, isGuest: true, email: null });
+  },
   leaveRoom: () => {
     sessionStorage.removeItem('roomId');
     const prevToken = get().sessionToken || sessionStorage.getItem('sessionToken');
