@@ -101,11 +101,10 @@ export default function ActionPanel() {
     <div className="panel action-panel">
       {showLobbyReady && (
         <button
-          className="lobby-ready-btn"
-          onClick={() => wsClient.send({ type: 'READY' })}
-          disabled={youReady}
+          className={`lobby-ready-btn ${youReady ? 'is-ready' : ''}`}
+          onClick={() => wsClient.send({ type: youReady ? 'UNREADY' : 'READY' })}
         >
-          {youReady ? 'Ready' : 'Ready Up'}
+          {youReady ? 'Cancel Ready' : 'Ready Up'}
         </button>
       )}
       <div className="action-buttons">

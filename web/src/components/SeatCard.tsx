@@ -76,11 +76,10 @@ export default function SeatCard({ seat }: Props) {
       )}
       {isPreDealLobby && isYou && (
         <button
-          className="seat-ready-btn"
-          disabled={seat.ready}
-          onClick={() => wsClient.send({ type: 'READY' })}
+          className={`seat-ready-btn ${seat.ready ? 'is-ready' : ''}`}
+          onClick={() => wsClient.send({ type: seat.ready ? 'UNREADY' : 'READY' })}
         >
-          {seat.ready ? 'Ready' : 'Ready Up'}
+          {seat.ready ? 'Cancel Ready' : 'Ready Up'}
         </button>
       )}
     </div>

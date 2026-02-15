@@ -7,6 +7,7 @@ type ClientMessage =
   | { type: 'NEXT_ROUND' }
   | { type: 'CHAT_SEND'; text: string }
   | { type: 'READY' }
+  | { type: 'UNREADY' }
   | { type: 'DECLARE'; cardIds: string[] }
   | { type: 'SNATCH'; cardIds: string[] }
   | { type: 'NO_SNATCH' }

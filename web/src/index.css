@@ -356,6 +356,16 @@ input::placeholder {
   font-size: 11px;
 }
 
+.seat-ready-btn.is-ready {
+  background: #2e7d32;
+  border-color: #1b5e20;
+}
+
+.lobby-ready-btn.is-ready {
+  background: #2e7d32;
+  border-color: #1b5e20;
+}
+
 .ready-state {
   font-size: 10px;
   font-weight: 700;

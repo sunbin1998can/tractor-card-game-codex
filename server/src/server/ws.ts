@@ -11,6 +11,7 @@ type ClientMessage =
   | { type: 'NEXT_ROUND' }
   | { type: 'CHAT_SEND'; text: string }
   | { type: 'READY' }
+  | { type: 'UNREADY' }
   | { type: 'DECLARE'; cardIds: string[] }
   | { type: 'SNATCH'; cardIds: string[] }
   | { type: 'NO_SNATCH' }
@@ -642,6 +643,12 @@ export function createWsServer(server: import('http').Server, path = '/ws') {
         seatState.ready = true;
         broadcastState(room);
         maybeStartRound(room);
+        return;
+      }
+
+      if (msg.type === 'UNREADY') {
+        seatState.ready = false;
+        broadcastState(room);
         return;
       }
 
