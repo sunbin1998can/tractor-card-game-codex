@@ -26,11 +26,37 @@ describe('RulesEngine basics', () => {
     expect(suitGroup(card, '7', 'H')).toBe('TRUMP');
   });
 
-  it('seqRankForTractor excludes level and jokers', () => {
-    expect(seqRankForTractor('SJ', '7')).toBeNull();
-    expect(seqRankForTractor('BJ', '7')).toBeNull();
-    expect(seqRankForTractor('7', '7')).toBeNull();
-    expect(seqRankForTractor('10', '7')).toBe(10);
+  it('no-trump: only jokers and level-rank are TRUMP', () => {
+    // In no-trump mode (trumpSuit=null), regular suited cards keep their natural suit
+    const heartCard = makeCard('H', '9', 1);
+    expect(suitGroup(heartCard, '7', null)).toBe('H');
+    // Level-rank cards are still TRUMP
+    const levelCard = makeCard('D', '7', 1);
+    expect(suitGroup(levelCard, '7', null)).toBe('TRUMP');
+    // Jokers are still TRUMP
+    const bj = makeCard('J', 'BJ', 1);
+    expect(suitGroup(bj, '7', null)).toBe('TRUMP');
+  });
+
+  it('seqRankForTractor for non-trump cards', () => {
+    // Non-trump cards: level-rank excluded, gap bridged
+    // Using suit 'S' with trumpSuit 'H' so cards are non-trump
+    expect(seqRankForTractor(makeCard('S', '10', 1), '7', 'H')).toBe(9);
+    expect(seqRankForTractor(makeCard('S', '6', 1), '7', 'H')).toBe(6);
+    expect(seqRankForTractor(makeCard('S', '8', 1), '7', 'H')).toBe(7);
+    expect(seqRankForTractor(makeCard('S', '3', 1), '7', 'H')).toBe(3);
+    expect(seqRankForTractor(makeCard('S', 'A', 1), '7', 'H')).toBe(13);
+  });
+
+  it('seqRankForTractor for trump cards includes jokers and level-rank', () => {
+    // Trump cards: BJ=17, SJ=16, trump-suit-level=15, off-suit-level=14, then regular
+    expect(seqRankForTractor(makeCard('J', 'BJ', 1), '7', 'H')).toBe(17);
+    expect(seqRankForTractor(makeCard('J', 'SJ', 1), '7', 'H')).toBe(16);
+    expect(seqRankForTractor(makeCard('H', '7', 1), '7', 'H')).toBe(15); // trump-suit level
+    expect(seqRankForTractor(makeCard('S', '7', 1), '7', 'H')).toBe(14); // off-suit level
+    // Regular trump: A♥ with level=7 → 14-1=13 (adjacent to off-suit level 14)
+    expect(seqRankForTractor(makeCard('H', 'A', 1), '7', 'H')).toBe(13);
+    expect(seqRankForTractor(makeCard('H', '6', 1), '7', 'H')).toBe(6);
   });
 });
 
@@ -70,6 +96,82 @@ describe('analyze pattern recognition', () => {
     ];
     const pattern = analyze(cards, '6', 'H');
     expect(pattern.kind).toBe('INVALID');
+  });
+
+  it('recognizes AAKKQQ as a valid tractor (three connected pairs)', () => {
+    const cards = [
+      makeCard('S', 'Q', 1),
+      makeCard('S', 'Q', 2),
+      makeCard('S', 'K', 1),
+      makeCard('S', 'K', 2),
+      makeCard('S', 'A', 1),
+      makeCard('S', 'A', 2),
+    ];
+    const pattern = analyze(cards, '2', 'H');
+    expect(pattern.kind).toBe('TRACTOR');
+    expect(pattern.length).toBe(3);
+  });
+
+  it('recognizes tractor bridging the level rank gap', () => {
+    // When level=7, 6 and 8 are adjacent (gap bridged)
+    const cards = [
+      makeCard('S', '6', 1),
+      makeCard('S', '6', 2),
+      makeCard('S', '8', 1),
+      makeCard('S', '8', 2),
+    ];
+    const pattern = analyze(cards, '7', 'H');
+    expect(pattern.kind).toBe('TRACTOR');
+    expect(pattern.length).toBe(2);
+  });
+
+  it('recognizes BJ-BJ + SJ-SJ as trump tractor', () => {
+    const cards = [
+      makeCard('J', 'BJ', 1),
+      makeCard('J', 'BJ', 2),
+      makeCard('J', 'SJ', 1),
+      makeCard('J', 'SJ', 2),
+    ];
+    const pattern = analyze(cards, '7', 'H');
+    expect(pattern.kind).toBe('TRACTOR');
+    expect(pattern.length).toBe(2);
+  });
+
+  it('recognizes SJ-SJ + trump-level pair as trump tractor', () => {
+    const cards = [
+      makeCard('J', 'SJ', 1),
+      makeCard('J', 'SJ', 2),
+      makeCard('H', '7', 1),
+      makeCard('H', '7', 2),
+    ];
+    const pattern = analyze(cards, '7', 'H');
+    expect(pattern.kind).toBe('TRACTOR');
+    expect(pattern.length).toBe(2);
+  });
+
+  it('recognizes off-suit-level + trump-suit-level pair as trump tractor', () => {
+    const cards = [
+      makeCard('S', '7', 1),  // off-suit level-rank, suitGroup=TRUMP, seqRank=14
+      makeCard('S', '7', 2),
+      makeCard('H', '7', 1),  // trump-suit level-rank, suitGroup=TRUMP, seqRank=15
+      makeCard('H', '7', 2),
+    ];
+    const pattern = analyze(cards, '7', 'H');
+    expect(pattern.kind).toBe('TRACTOR');
+    expect(pattern.length).toBe(2);
+  });
+
+  it('recognizes A-trump + off-suit-level pair as trump tractor', () => {
+    // A♥ seqRank=13, off-suit level(7D) seqRank=14 → consecutive
+    const cards = [
+      makeCard('H', 'A', 1),
+      makeCard('H', 'A', 2),
+      makeCard('D', '7', 1),
+      makeCard('D', '7', 2),
+    ];
+    const pattern = analyze(cards, '7', 'H');
+    expect(pattern.kind).toBe('TRACTOR');
+    expect(pattern.length).toBe(2);
   });
 
   it('rejects non-consecutive tractor', () => {

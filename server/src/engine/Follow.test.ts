@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { analyze } from './RulesEngine';
+import { analyze, analyzeThrow } from './RulesEngine';
 import { validateFollowPlay } from './Follow';
 import type { Card, Rank, Suit } from './types';
 
@@ -42,6 +42,36 @@ describe('validateFollowPlay', () => {
   it('allows non-pair if no pair exists in suitGroup', () => {
     const lead = leadPattern([makeCard('S', '5', 1), makeCard('S', '5', 2)]);
     const hand = [makeCard('S', '6', 1), makeCard('S', '9', 1), makeCard('D', '2', 1)];
+    const play = [hand[0].id, hand[1].id];
+    const res = validateFollowPlay(lead, play, hand, state);
+    expect(res.ok).toBe(true);
+  });
+
+  it('allows two single trumps when responding to a non-trump pair if no trump pair exists', () => {
+    const lead = leadPattern([makeCard('S', 'Q', 1), makeCard('S', 'Q', 2)]);
+    const hand = [makeCard('H', 'A', 1), makeCard('C', '2', 1), makeCard('D', '9', 1)];
+    const play = [hand[0].id, hand[1].id];
+    const res = validateFollowPlay(lead, play, hand, state);
+    expect(res.ok).toBe(true);
+  });
+
+  it('rejects non-pair trump response when a trump pair exists', () => {
+    const lead = leadPattern([makeCard('S', 'Q', 1), makeCard('S', 'Q', 2)]);
+    const hand = [
+      makeCard('H', 'A', 1),
+      makeCard('H', 'A', 2),
+      makeCard('C', '2', 1),
+      makeCard('D', '9', 1)
+    ];
+    const play = [hand[0].id, hand[2].id];
+    const res = validateFollowPlay(lead, play, hand, state);
+    expect(res.ok).toBe(false);
+    expect(res.reason).toBe('TRUMP_RESPONSE_TO_PAIR_MUST_BE_PAIR');
+  });
+
+  it('allows trump pair response to a non-trump pair', () => {
+    const lead = leadPattern([makeCard('S', 'Q', 1), makeCard('S', 'Q', 2)]);
+    const hand = [makeCard('H', 'A', 1), makeCard('H', 'A', 2), makeCard('D', '9', 1)];
     const play = [hand[0].id, hand[1].id];
     const res = validateFollowPlay(lead, play, hand, state);
     expect(res.ok).toBe(true);
@@ -158,6 +188,26 @@ describe('validateFollowPlay', () => {
     expect(res.ok).toBe(false);
   });
 
+  it('allows any same-suit cards when following tractor with no pairs in suit', () => {
+    const lead = leadPattern([
+      makeCard('S', '5', 1),
+      makeCard('S', '5', 2),
+      makeCard('S', '6', 1),
+      makeCard('S', '6', 2)
+    ]);
+    const hand = [
+      makeCard('S', '9', 1),
+      makeCard('S', '10', 1),
+      makeCard('S', 'J', 1),
+      makeCard('S', 'Q', 1),
+      makeCard('D', 'A', 1)
+    ];
+
+    const play = [hand[0].id, hand[1].id, hand[2].id, hand[3].id];
+    const res = validateFollowPlay(lead, play, hand, state);
+    expect(res.ok).toBe(true);
+  });
+
   it('allows play when group cards are fewer than lead size', () => {
     const lead = leadPattern([
       makeCard('S', '5', 1),
@@ -174,6 +224,74 @@ describe('validateFollowPlay', () => {
     const play = [hand[0].id, hand[1].id, hand[2].id, hand[3].id];
     const res = validateFollowPlay(lead, play, hand, state);
     expect(res.ok).toBe(true);
+  });
+
+  it('follows throw lead with sufficient suit group cards', () => {
+    // Throw: pair + single in spades
+    const throwCards = [
+      makeCard('S', '5', 1),
+      makeCard('S', '5', 2),
+      makeCard('S', 'K', 1),
+    ];
+    const lead = analyzeThrow(throwCards, state.levelRank, state.trumpSuit);
+    expect(lead.kind).toBe('THROW');
+
+    const hand = [
+      makeCard('S', '6', 1),
+      makeCard('S', '6', 2),
+      makeCard('S', '9', 1),
+      makeCard('D', '4', 1),
+    ];
+    // Must play from spades only
+    const play = [hand[0].id, hand[1].id, hand[2].id];
+    const res = validateFollowPlay(lead, play, hand, state);
+    expect(res.ok).toBe(true);
+
+    // Cannot play diamond when spades available
+    const badPlay = [hand[0].id, hand[1].id, hand[3].id];
+    const resBad = validateFollowPlay(lead, badPlay, hand, state);
+    expect(resBad.ok).toBe(false);
+  });
+
+  it('follows throw lead when void in suit group', () => {
+    const throwCards = [
+      makeCard('S', '5', 1),
+      makeCard('S', '5', 2),
+      makeCard('S', 'K', 1),
+    ];
+    const lead = analyzeThrow(throwCards, state.levelRank, state.trumpSuit);
+    // No spades in hand — can play anything
+    const hand = [
+      makeCard('D', '6', 1),
+      makeCard('D', '9', 1),
+      makeCard('C', '4', 1),
+    ];
+    const play = [hand[0].id, hand[1].id, hand[2].id];
+    const res = validateFollowPlay(lead, play, hand, state);
+    expect(res.ok).toBe(true);
+  });
+
+  it('follows throw lead with insufficient suit group cards', () => {
+    const throwCards = [
+      makeCard('S', '5', 1),
+      makeCard('S', '5', 2),
+      makeCard('S', 'K', 1),
+    ];
+    const lead = analyzeThrow(throwCards, state.levelRank, state.trumpSuit);
+    // Only 1 spade in hand — must play it plus fill
+    const hand = [
+      makeCard('S', '6', 1),
+      makeCard('D', '9', 1),
+      makeCard('C', '4', 1),
+    ];
+    const play = [hand[0].id, hand[1].id, hand[2].id];
+    const res = validateFollowPlay(lead, play, hand, state);
+    expect(res.ok).toBe(true);
+
+    // Not playing the spade card is invalid
+    const badPlay = [hand[1].id, hand[2].id, makeCard('D', '3', 1).id];
+    const resBad = validateFollowPlay(lead, badPlay, hand, state);
+    expect(resBad.ok).toBe(false);
   });
 
   it('rejects missing group cards when group size < lead size', () => {
@@ -194,5 +312,52 @@ describe('validateFollowPlay', () => {
     const play = [hand[2].id, hand[3].id, hand[4].id, hand[5].id];
     const res = validateFollowPlay(lead, play, hand, state);
     expect(res.ok).toBe(false);
+  });
+
+  it('for THROW lead (AKK), requires pair follow if pair exists', () => {
+    const lead = analyzeThrow(
+      [makeCard('S', 'A', 1), makeCard('S', 'K', 1), makeCard('S', 'K', 2)],
+      state.levelRank,
+      state.trumpSuit
+    );
+    const hand = [
+      makeCard('S', 'Q', 1),
+      makeCard('S', 'Q', 2),
+      makeCard('S', '9', 1),
+      makeCard('S', '8', 1)
+    ];
+    const badPlay = [hand[0].id, hand[2].id, hand[3].id];
+    const res = validateFollowPlay(lead, badPlay, hand, state);
+    expect(res.ok).toBe(false);
+    expect(res.reason).toBe('MUST_FOLLOW_THROW_STRUCTURE');
+  });
+
+  it('for THROW lead (AKK), allows 3 same-suit singles if no pair exists', () => {
+    const lead = analyzeThrow(
+      [makeCard('S', 'A', 1), makeCard('S', 'K', 1), makeCard('S', 'K', 2)],
+      state.levelRank,
+      state.trumpSuit
+    );
+    const hand = [
+      makeCard('S', 'Q', 1),
+      makeCard('S', '10', 1),
+      makeCard('S', '9', 1),
+      makeCard('D', '7', 1)
+    ];
+    const play = [hand[0].id, hand[1].id, hand[2].id];
+    const res = validateFollowPlay(lead, play, hand, state);
+    expect(res.ok).toBe(true);
+  });
+
+  it('for THROW lead (AKK), allows off-suit fill when insufficient in lead suitGroup', () => {
+    const lead = analyzeThrow(
+      [makeCard('S', 'A', 1), makeCard('S', 'K', 1), makeCard('S', 'K', 2)],
+      state.levelRank,
+      state.trumpSuit
+    );
+    const hand = [makeCard('S', 'Q', 1), makeCard('S', '9', 1), makeCard('D', '7', 1)];
+    const play = [hand[0].id, hand[1].id, hand[2].id];
+    const res = validateFollowPlay(lead, play, hand, state);
+    expect(res.ok).toBe(true);
   });
 });

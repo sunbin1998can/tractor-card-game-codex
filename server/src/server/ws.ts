@@ -35,6 +35,7 @@ type ServerMessage =
   | { type: 'THROW_PUNISHED'; seat: number; originalCards: string[]; punishedCards: string[]; reason: string }
   | {
       type: 'ROUND_RESULT';
+      advancingTeam: number;
       levelFrom: string;
       levelTo: string;
       delta: number;
@@ -46,6 +47,7 @@ type ServerMessage =
       winnerSide: 'DEFENDER' | 'ATTACKER';
       rolesSwapped: boolean;
       newBankerSeat: number;
+      nextBankerSeat: number;
       playedBySeat: string[][];
       kittyCards: string[];
     }
@@ -101,6 +103,7 @@ interface PublicRoomState {
   id: string;
   players: number;
   seats: { seat: number; name: string; team: number; connected: boolean; ready: boolean; cardsLeft: number }[];
+  teamLevels: [string, string];
   phase: string;
   bankerSeat: number;
   leaderSeat?: number;
@@ -339,7 +342,8 @@ function publicState(room: Room): PublicRoomState {
     bankerSeat: room.engine.config.bankerSeat,
     leaderSeat: room.engine.trick?.leaderSeat,
     turnSeat: room.engine.trick?.turnSeat,
-    trumpSuit: room.engine.config.trumpSuit,
+    teamLevels: [...room.engine.teamLevels],
+    trumpSuit: room.engine.config.trumpSuit ?? 'N',
     levelRank: room.engine.config.levelRank,
     scores: room.engine.capturedPoints,
     capturedPointCards: [
@@ -420,6 +424,7 @@ function flushEngineEvents(room: Room) {
       };
       broadcast(room, {
         type: 'ROUND_RESULT',
+        advancingTeam: ev.advancingTeam,
         levelFrom: ev.levelFrom,
         levelTo: ev.levelTo,
         delta: ev.delta,
@@ -431,8 +436,9 @@ function flushEngineEvents(room: Room) {
         winnerSide: ev.winnerSide,
         rolesSwapped: ev.rolesSwapped,
         newBankerSeat: ev.newBankerSeat,
-        playedBySeat: ev.playedBySeat.map((cards) => cards.map((c) => c.id)),
-        kittyCards: ev.kittyCards.map((c) => c.id)
+        nextBankerSeat: ev.nextBankerSeat,
+        playedBySeat: ev.playedBySeat.map((cards: any[]) => cards.map((c: any) => c.id)),
+        kittyCards: ev.kittyCards.map((c: any) => c.id)
       });
     } else if (ev.type === 'GAME_OVER') {
       broadcast(room, { type: 'GAME_OVER', winnerTeam: ev.winnerTeam });
@@ -683,7 +689,7 @@ export function createWsServer(port: number, path = '/ws') {
           broadcast(room, {
             type: 'TRUMP_DECLARED',
             seat: after.seat,
-            trumpSuit: after.trumpSuit,
+            trumpSuit: after.trumpSuit ?? 'N',
             cardIds: cards.map((c) => c.id)
           });
         }
