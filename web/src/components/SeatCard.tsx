@@ -1,4 +1,5 @@
 import { useStore } from '../store';
+import { useT } from '../i18n';
 import { wsClient } from '../wsClient';
 import type { PublicSeat } from '../store';
 import type { RelativePosition } from './GameTable';
@@ -32,6 +33,7 @@ export default function SeatCard({ seat }: Props) {
   const state = useStore((s) => s.publicState);
   const marker = useStore((s) => s.trumpDeclareMarker);
   const youSeat = useStore((s) => s.youSeat);
+  const t = useT();
 
   if (!state) return null;
 
@@ -44,7 +46,7 @@ export default function SeatCard({ seat }: Props) {
   const totalCards = state.seats.reduce((sum, s) => sum + (s.cardsLeft ?? 0), 0);
   const isPreDealLobby = state.phase === 'FLIP_TRUMP' && totalCards === 0;
 
-  const name = seat.name || `Seat ${seat.seat + 1}`;
+  const name = seat.name || `${t('seat.seat')} ${seat.seat + 1}`;
   const initial = name.charAt(0).toUpperCase();
 
   return (
@@ -54,24 +56,24 @@ export default function SeatCard({ seat }: Props) {
         {initial}
       </div>
       <div className="seat-name" title={name}>
-        {isYou ? `${name} (You)` : name}
+        {isYou ? `${name} (${t('seat.you')})` : name}
       </div>
       {(isBanker || isLeader) && (
         <span className="seat-badge">
-          {isBanker ? 'Banker' : ''}{isBanker && isLeader ? ' / ' : ''}{isLeader ? 'Leader' : ''}
+          {isBanker ? t('seat.banker') : ''}{isBanker && isLeader ? ' / ' : ''}{isLeader ? t('seat.leader') : ''}
         </span>
       )}
       {seat.cardsLeft > 0 && (
-        <span className="seat-cards-pill">{seat.cardsLeft} cards</span>
+        <span className="seat-cards-pill">{seat.cardsLeft} {t('seat.cards')}</span>
       )}
       {marker?.seat === seat.seat && (
         <div className="declare-marker">
-          {'亮主'} {markerLabel(marker.cardId)}
+          {t('seat.declare')} {markerLabel(marker.cardId)}
         </div>
       )}
       {!isPreDealLobby && (
         <span className={`ready-state ${seat.ready ? 'ready' : 'not-ready'}`}>
-          {seat.ready ? 'Ready' : 'Not Ready'}
+          {seat.ready ? t('seat.ready') : t('seat.notReady')}
         </span>
       )}
       {isPreDealLobby && isYou && (
@@ -79,7 +81,7 @@ export default function SeatCard({ seat }: Props) {
           className={`seat-ready-btn ${seat.ready ? 'is-ready' : ''}`}
           onClick={() => wsClient.send({ type: seat.ready ? 'UNREADY' : 'READY' })}
         >
-          {seat.ready ? 'Cancel Ready' : 'Ready Up'}
+          {seat.ready ? t('seat.cancelReady') : t('seat.readyUp')}
         </button>
       )}
     </div>

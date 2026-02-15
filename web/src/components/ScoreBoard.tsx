@@ -1,4 +1,5 @@
 import { useStore } from '../store';
+import { useT } from '../i18n';
 import { wsClient } from '../wsClient';
 
 function suitSymbol(suit: string) {
@@ -34,6 +35,8 @@ type Props = {
 export default function ScoreBoard({ playerLabel, seatLabel, roomId }: Props) {
   const state = useStore((s) => s.publicState);
   const leaveRoom = useStore((s) => s.leaveRoom);
+  const toggleLang = useStore((s) => s.toggleLang);
+  const t = useT();
 
   if (!state) return null;
 
@@ -48,26 +51,26 @@ export default function ScoreBoard({ playerLabel, seatLabel, roomId }: Props) {
     .filter((c): c is { rank: string; suitSymbol: string; isRed: boolean } => c !== null);
   const declarePrompt =
     state.phase === 'FLIP_TRUMP' && state.declareSeat !== undefined
-      ? `Declare: Seat ${state.declareSeat + 1}`
+      ? `${t('score.declare')} ${state.declareSeat + 1}`
       : null;
 
   return (
     <div className="panel scoreboard">
       {playerLabel && <span className="identity-chip">{playerLabel}</span>}
       {seatLabel && <span className="identity-chip">{seatLabel}</span>}
-      {roomId && <span className="identity-chip">Room: {roomId}</span>}
+      {roomId && <span className="identity-chip">{t('score.room')}: {roomId}</span>}
       <div className="trump-wrap">
-        <span>Trump:</span>
+        <span>{t('score.trump')}:</span>
         <span className={`trump-mini-card ${isRed ? 'red' : state.trumpSuit === 'N' ? 'nt' : 'black'}`}>
           {state.levelRank}
           <span className="trump-mini-suit">{symbol}</span>
         </span>
       </div>
       <div className="score-captured-row">
-        <span>Def {defenderScore} / Atk {attackerScore}</span>
+        <span>{t('score.def')} {defenderScore} / {t('score.atk')} {attackerScore}</span>
         <span className="captured-cards">
           {attackerPointCards.length === 0 ? (
-            <span className="captured-empty">none</span>
+            <span className="captured-empty">{t('score.none')}</span>
           ) : (
             attackerPointCards.map((card, i) => (
               <span
@@ -81,8 +84,9 @@ export default function ScoreBoard({ playerLabel, seatLabel, roomId }: Props) {
           )}
         </span>
       </div>
-      <span className="identity-chip">Kitty: {state.kittyCount}</span>
+      <span className="identity-chip">{t('score.kitty')}: {state.kittyCount}</span>
       {declarePrompt && <span className="identity-chip">{declarePrompt}</span>}
+      <button className="lang-toggle" onClick={toggleLang}>{t('lang.toggle')}</button>
       <button
         className="leave-btn"
         onClick={() => {
@@ -91,7 +95,7 @@ export default function ScoreBoard({ playerLabel, seatLabel, roomId }: Props) {
           wsClient.connect();
         }}
       >
-        Leave
+        {t('score.leave')}
       </button>
     </div>
   );

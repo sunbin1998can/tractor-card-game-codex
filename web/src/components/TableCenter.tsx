@@ -1,4 +1,5 @@
 import { useStore } from '../store';
+import { useT } from '../i18n';
 import { getRelativePosition } from './GameTable';
 import CardFace from './CardFace';
 import { motion, AnimatePresence } from 'motion/react';
@@ -10,13 +11,14 @@ export default function TableCenter() {
   const totalPlayers = useStore((s) => s.publicState?.players ?? 4);
 
   const mySeat = youSeat ?? 0;
+  const t = useT();
 
   return (
     <div className="table-center">
       <div className="table-center-inner">
         {(!trick || trick.length === 0) ? (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span className="no-trick-msg">No trick in progress</span>
+            <span className="no-trick-msg">{t('table.noTrick')}</span>
           </div>
         ) : (
           <AnimatePresence>

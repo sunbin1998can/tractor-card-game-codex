@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../store';
+import { useT } from '../i18n';
 import { wsClient } from '../wsClient';
 
 function parseCardRank(id: string): string | null {
@@ -54,6 +55,9 @@ export default function ActionPanel() {
   const publicState = useStore((s) => s.publicState);
   const youSeat = useStore((s) => s.youSeat);
   const hand = useStore((s) => s.hand);
+  const t = useT();
+
+  const [buryConfirm, setBuryConfirm] = useState(false);
 
   const count = selected.size;
   const canPlay = count > 0;
@@ -97,6 +101,11 @@ export default function ActionPanel() {
     return () => window.clearInterval(timer);
   }, [showDeclareCountdown, declareUntilMs]);
 
+  // Reset bury confirmation when phase changes
+  useEffect(() => {
+    setBuryConfirm(false);
+  }, [publicState?.phase]);
+
   return (
     <div className="panel action-panel">
       {showLobbyReady && (
@@ -104,7 +113,7 @@ export default function ActionPanel() {
           className={`lobby-ready-btn ${youReady ? 'is-ready' : ''}`}
           onClick={() => wsClient.send({ type: youReady ? 'UNREADY' : 'READY' })}
         >
-          {youReady ? 'Cancel Ready' : 'Ready Up'}
+          {youReady ? t('seat.cancelReady') : t('seat.readyUp')}
         </button>
       )}
       <div className="action-buttons">
@@ -115,28 +124,43 @@ export default function ActionPanel() {
               wsClient.send({ type: 'DECLARE', cardIds: declareCardIds });
             }}
             disabled={!canDeclareNow}
-            title={!canDeclareNow ? 'Select a level-rank card or joker pair to declare' : ''}
+            title={!canDeclareNow ? t('action.declareHint') : ''}
           >
-            Declare
+            {t('action.declare')}
           </button>
         )}
-        {publicState?.phase === 'BURY_KITTY' && isBanker && (
+        {publicState?.phase === 'BURY_KITTY' && isBanker && !buryConfirm && (
           <button
             className="action-btn"
-            onClick={() => {
-              if (!canBury) return;
-              const ok = window.confirm(`Bury these ${kittyCount} cards?`);
-              if (!ok) return;
-              wsClient.send({ type: 'BURY', cardIds: Array.from(selected) });
-            }}
+            onClick={() => setBuryConfirm(true)}
             disabled={!canBury}
-            title={!canBury ? `Select exactly ${kittyCount} cards to bury` : ''}
+            title={!canBury ? t('action.buryHint').replace('{n}', String(kittyCount)) : ''}
           >
-            Bury ({count}/{kittyCount})
+            {t('action.bury')} ({count}/{kittyCount})
           </button>
         )}
+        {publicState?.phase === 'BURY_KITTY' && isBanker && buryConfirm && (
+          <div className="bury-confirm-bar">
+            <span className="bury-confirm-text">{t('action.buryConfirm')}</span>
+            <button
+              className="action-btn bury-yes"
+              onClick={() => {
+                wsClient.send({ type: 'BURY', cardIds: Array.from(selected) });
+                setBuryConfirm(false);
+              }}
+            >
+              {t('round.ok')}
+            </button>
+            <button
+              className="action-btn bury-no"
+              onClick={() => setBuryConfirm(false)}
+            >
+              ✕
+            </button>
+          </div>
+        )}
         {publicState?.phase === 'BURY_KITTY' && !isBanker && (
-          <div className="action-status">{'等待庄家扣底牌...'}</div>
+          <div className="action-status">{t('action.waitBury')}</div>
         )}
         {publicState?.phase === 'TRICK_PLAY' && (
           <button
@@ -145,9 +169,9 @@ export default function ActionPanel() {
               wsClient.send({ type: 'PLAY', cardIds: Array.from(selected) });
             }}
             disabled={!isYourTurn || !canPlay}
-            title={!isYourTurn ? 'Wait for your turn' : !canPlay ? 'Select cards to play' : ''}
+            title={!isYourTurn ? t('action.waitTurn') : !canPlay ? t('action.selectCards') : ''}
           >
-            {isYourTurn ? `Play (${count})` : 'Waiting...'}
+            {isYourTurn ? `${t('action.play')} (${count})` : t('action.waiting')}
           </button>
         )}
       </div>
@@ -157,13 +181,13 @@ export default function ActionPanel() {
             <span className="declare-timer-number">{remainSeconds}</span>
           </div>
           <div className="declare-timer-info">
-            <span className="declare-timer-label">{'反主倒计时'}</span>
+            <span className="declare-timer-label">{t('action.snatchCountdown')}</span>
             <button
               className="no-snatch-btn"
               disabled={!!youNoSnatch}
               onClick={() => wsClient.send({ type: 'NO_SNATCH' })}
             >
-              {youNoSnatch ? '已选不反主' : '不反主'}
+              {youNoSnatch ? t('action.noSnatched') : t('action.noSnatch')}
             </button>
           </div>
         </div>

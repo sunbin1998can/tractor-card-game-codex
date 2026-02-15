@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { useStore } from '../store';
+import { useT } from '../i18n';
 import { motion, AnimatePresence } from 'motion/react';
 import CardFace from './CardFace';
 
@@ -159,13 +160,14 @@ export default function Hand() {
   }, [hand, publicState?.phase, publicState?.trick, isYourTurn, inPlayablePhase, hasTrumpContext, levelRank, trumpSuit, legalActions]);
 
   const handleToggle = useCallback((id: string) => () => toggle(id), [toggle]);
+  const t = useT();
 
   if (!hand.length) {
     return (
       <div className="hand-section">
-        <div className="hand-label">Your hand</div>
+        <div className="hand-label">{t('hand.title')}</div>
         <div className="hand-container">
-          <span className="no-trick-msg">No cards dealt yet.</span>
+          <span className="no-trick-msg">{t('hand.noCards')}</span>
         </div>
       </div>
     );
@@ -178,7 +180,7 @@ export default function Hand() {
 
   return (
     <div className="hand-section">
-      <div className="hand-label">Your hand ({totalCards})</div>
+      <div className="hand-label">{t('hand.title')} ({totalCards})</div>
       <div className="hand-container">
         <AnimatePresence initial={false}>
           {sorted.map((id, i) => {

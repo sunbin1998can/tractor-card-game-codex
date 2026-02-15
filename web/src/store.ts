@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+export type Lang = 'en' | 'zh';
+
 export type PublicSeat = {
   seat: number;
   name: string;
@@ -56,6 +58,7 @@ export type Toast = {
 let toastIdCounter = 0;
 
 type StoreState = {
+  lang: Lang;
   roomId: string | null;
   youSeat: number | null;
   sessionToken: string | null;
@@ -88,6 +91,8 @@ type StoreState = {
   expireToasts: () => void;
   pushAnnouncement: (msg: string, durationMs?: number) => void;
   expireAnnouncements: () => void;
+  setLang: (lang: Lang) => void;
+  toggleLang: () => void;
   pushChatMessage: (msg: { seat: number; name: string; text: string; atMs: number }) => void;
   clearChatMessages: () => void;
   setRoundPopup: (msg: string | null) => void;
@@ -96,6 +101,7 @@ type StoreState = {
 };
 
 export const useStore = create<StoreState>((set, get) => ({
+  lang: (sessionStorage.getItem('lang') as Lang) || 'zh',
   roomId: sessionStorage.getItem('roomId'),
   youSeat: null,
   sessionToken: null,
@@ -163,6 +169,15 @@ export const useStore = create<StoreState>((set, get) => ({
     const now = Date.now();
     const filtered = get().announcements.filter((t) => t.expiresAt > now);
     if (filtered.length !== get().announcements.length) set({ announcements: filtered });
+  },
+  setLang: (lang) => {
+    sessionStorage.setItem('lang', lang);
+    set({ lang });
+  },
+  toggleLang: () => {
+    const next = get().lang === 'en' ? 'zh' : 'en';
+    sessionStorage.setItem('lang', next);
+    set({ lang: next });
   },
   pushChatMessage: (msg) => {
     const next = [...get().chatMessages, msg].slice(-50);

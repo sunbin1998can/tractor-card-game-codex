@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
+import { useT } from '../i18n';
 import { wsClient } from '../wsClient';
 
 export default function ChatBox() {
@@ -7,6 +8,7 @@ export default function ChatBox() {
   const [text, setText] = useState('');
   const [collapsed, setCollapsed] = useState(true);
   const logRef = useRef<HTMLDivElement | null>(null);
+  const t = useT();
 
   useEffect(() => {
     if (!logRef.current) return;
@@ -23,26 +25,26 @@ export default function ChatBox() {
   return (
     <div className={`panel chat-panel compact ${collapsed ? 'collapsed' : ''}`}>
       <button className="chat-toggle" onClick={() => setCollapsed(!collapsed)}>
-        {collapsed ? `Chat (${messages.length})` : 'Hide Chat'}
+        {collapsed ? `${t('chat.title')} (${messages.length})` : t('chat.hide')}
       </button>
       <div className="chat-log compact" role="log" aria-live="polite" ref={logRef}>
         {messages.length === 0 ? (
-          <div className="chat-empty">No messages</div>
+          <div className="chat-empty">{t('chat.noMessages')}</div>
         ) : (
           messages.map((m, idx) => (
             <div key={`${m.atMs}-${m.seat}-${idx}`} className="chat-row">
-              <span className="chat-name">{m.name || `Seat ${m.seat + 1}`}:</span>
+              <span className="chat-name">{m.name || `${t('seat.seat')} ${m.seat + 1}`}:</span>
               <span className="chat-text">{m.text}</span>
             </div>
           ))
         )}
       </div>
       <div className="chat-input-row">
-        <span className="chat-inline-label">Chat</span>
+        <span className="chat-inline-label">{t('chat.title')}</span>
         <input
           value={text}
           maxLength={200}
-          placeholder="Say something"
+          placeholder={t('chat.placeholder')}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
@@ -52,7 +54,7 @@ export default function ChatBox() {
           }}
         />
         <button onClick={send} disabled={!text.trim()}>
-          Send
+          {t('chat.send')}
         </button>
       </div>
     </div>

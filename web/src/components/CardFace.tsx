@@ -1,4 +1,5 @@
 import Card from '@heruka_urgyen/react-playing-cards/lib/TcN';
+import { useT } from '../i18n';
 
 type CardFaceProps = {
   id: string;
@@ -39,6 +40,7 @@ export default function CardFace({
   mini = false,
   onClick
 }: CardFaceProps) {
+  const t = useT();
   const cls = [
     'card-face',
     mini ? 'mini' : '',
@@ -54,7 +56,7 @@ export default function CardFace({
     return (
       <button type="button" className={`${cls} ${isSmall ? 'joker-small' : 'joker-big'}`} onClick={onClick}>
         <span className="joker-inner">
-          <span className="joker-type">{isSmall ? '小' : '大'}</span>
+          <span className="joker-type">{isSmall ? t('joker.small') : t('joker.big')}</span>
           <span className="joker-star">{isSmall ? '\u2606' : '\u2605'}</span>
           <span className="joker-label">JOKER</span>
         </span>
