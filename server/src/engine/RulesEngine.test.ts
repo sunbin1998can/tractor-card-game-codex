@@ -98,6 +98,20 @@ describe('analyze pattern recognition', () => {
     expect(pattern.kind).toBe('INVALID');
   });
 
+  it('recognizes AAKKQQ as a valid tractor (three connected pairs)', () => {
+    const cards = [
+      makeCard('S', 'Q', 1),
+      makeCard('S', 'Q', 2),
+      makeCard('S', 'K', 1),
+      makeCard('S', 'K', 2),
+      makeCard('S', 'A', 1),
+      makeCard('S', 'A', 2),
+    ];
+    const pattern = analyze(cards, '2', 'H');
+    expect(pattern.kind).toBe('TRACTOR');
+    expect(pattern.length).toBe(3);
+  });
+
   it('recognizes tractor bridging the level rank gap', () => {
     // When level=7, 6 and 8 are adjacent (gap bridged)
     const cards = [

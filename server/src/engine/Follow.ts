@@ -264,6 +264,19 @@ export function validateFollowPlay(
   }
 
   if (leadPat.kind === 'PAIR') {
+    // When void in lead suit and playing trump, must play trump pair if available
+    if (leadPat.suitGroup !== 'TRUMP' && groupCards.length === 0) {
+      const playedTrumps = getSuitGroupCards(played, 'TRUMP', levelRank, trumpSuit);
+      if (playedTrumps.length === 2) {
+        const trumpCardsInHand = getSuitGroupCards(hand, 'TRUMP', levelRank, trumpSuit);
+        if (hasPair(trumpCardsInHand, levelRank, trumpSuit)) {
+          const k0 = pairKey(playedTrumps[0], levelRank, trumpSuit);
+          const k1 = pairKey(playedTrumps[1], levelRank, trumpSuit);
+          if (k0 !== k1) return invalid('TRUMP_RESPONSE_TO_PAIR_MUST_BE_PAIR');
+        }
+      }
+    }
+
     if (groupCards.length >= 2 && hasPair(groupCards, levelRank, trumpSuit)) {
       if (playedGroup.length !== 2) return invalid('MUST_PLAY_PAIR');
       const k0 = pairKey(playedGroup[0], levelRank, trumpSuit);
@@ -275,37 +288,32 @@ export function validateFollowPlay(
 
   if (leadPat.kind === 'THROW') {
     // For THROW leads, enforce structural following per each throw part.
-    // The follower must match as much structure as possible from their suit-group
-    // cards: tractors first, then pairs, then singles.
     if (!leadPat.parts || groupCards.length === 0) return { ok: true };
 
-    // Count required structure from throw parts
-    let requiredTractorPairs = 0;
-    let requiredPairs = 0;
-    for (const part of leadPat.parts) {
-      if (part.kind === 'TRACTOR') requiredTractorPairs += (part.length ?? part.size / 2);
-      else if (part.kind === 'PAIR') requiredPairs += 1;
-    }
+    // When enough cards in lead suitGroup, keep pair structure if available.
+    if (groupCards.length >= leadPat.size) {
+      const leadPairUnits = (leadPat.parts ?? []).reduce((sum, part) => {
+        if (part.kind === 'PAIR') return sum + 1;
+        if (part.kind === 'TRACTOR') return sum + (part.length ?? part.size / 2);
+        return sum;
+      }, 0);
 
-    // Check what the follower can provide from their group cards
-    const maxTLen = maxTractorLen(groupCards, levelRank, trumpSuit);
-    const groupHasPair = hasPair(groupCards, levelRank, trumpSuit);
-
-    // For tractors in throw parts: if follower can form a tractor of the required length, they must
-    if (requiredTractorPairs > 0 && maxTLen >= 2) {
-      // Check that played group contains at least some tractor structure
-      // This is a simplified check — full enforcement would need per-part validation
-    }
-
-    // For pairs in throw parts: if follower has pairs, they must play them
-    if (requiredPairs > 0 && groupHasPair && groupCards.length >= 2) {
-      // Count pairs in played group
-      const playedPairCount = countPairs(playedGroup, levelRank, trumpSuit);
-      if (playedPairCount < Math.min(requiredPairs, countPairs(groupCards, levelRank, trumpSuit))) {
-        return invalid('MUST_PLAY_PAIRS_FOR_THROW');
+      if (leadPairUnits > 0) {
+        const availablePairUnits = countPairs(groupCards, levelRank, trumpSuit);
+        const requiredPairUnits = Math.min(leadPairUnits, availablePairUnits);
+        const playedPairUnits = countPairs(playedGroup, levelRank, trumpSuit);
+        if (playedPairUnits < requiredPairUnits) {
+          return invalid('MUST_FOLLOW_THROW_STRUCTURE');
+        }
       }
     }
 
+    return { ok: true };
+  }
+
+  // If follower has no pairs at all in lead suitGroup, they cannot satisfy any
+  // pair/tractor structure, so any same-group cards of required count are legal.
+  if (countPairs(groupCards, levelRank, trumpSuit) === 0) {
     return { ok: true };
   }
 

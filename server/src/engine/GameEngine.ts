@@ -1,4 +1,4 @@
-import { analyze, cardKey, suitGroup } from './RulesEngine';
+import { analyze, analyzeThrow, cardKey, suitGroup } from './RulesEngine';
 import { handleLeaderThrow } from './Throw';
 import { validateFollowPlay } from './Follow';
 import type { Card, Pattern, Rank, Suit, SuitGroup, TrumpSuit } from './types';
@@ -16,6 +16,9 @@ export type Event =
   | { type: 'DEAL'; seat: number; cards: Card[] }
   | { type: 'PHASE'; phase: Phase }
   | { type: 'REQUEST_ACTION'; seat: number }
+  | { type: 'KOU_DI'; cards: Card[]; pointSteps: number[]; total: number; multiplier: number }
+  | { type: 'TRUMP_LED'; seat: number }
+  | { type: 'LEAD_PATTERN'; seat: number; kind: 'PAIR' | 'TRACTOR' }
   | { type: 'TRICK_UPDATE'; seat: number; cards: Card[] }
   | { type: 'TRICK_END'; winnerSeat: number; cards: Card[] }
   | { type: 'THROW_PUNISHED'; seat: number; originalCards: Card[]; punishedCards: Card[]; reason: string }
@@ -26,9 +29,16 @@ export type Event =
       levelTo: Rank;
       delta: number;
       defenderPoints: number;
+      attackerPoints: number;
       kittyPoints: number;
       killMultiplier: number;
+      winnerTeam: number;
+      winnerSide: 'DEFENDER' | 'ATTACKER';
+      rolesSwapped: boolean;
+      newBankerSeat: number;
       nextBankerSeat: number;
+      playedBySeat: Card[][];
+      kittyCards: Card[];
     }
   | { type: 'GAME_OVER'; winnerTeam: number };
 
@@ -87,10 +97,28 @@ function teamOfSeat(seat: number): number {
 function comparePattern(
   a: Pattern,
   b: Pattern,
+  leadPattern: Pattern,
   leadSuitGroup: SuitGroup,
   levelRank: Rank,
   trumpSuit: TrumpSuit
 ): number {
+  // Structural matching: a non-matching pattern shape cannot beat the lead
+  const requiredKind = leadPattern.kind;
+  const requiredTractorLen = leadPattern.length;
+  const canCompete = (p: Pattern): boolean => {
+    if (requiredKind === 'SINGLE') return p.kind === 'SINGLE';
+    if (requiredKind === 'PAIR') return p.kind === 'PAIR';
+    if (requiredKind === 'TRACTOR') {
+      return p.kind === 'TRACTOR' && p.length === requiredTractorLen;
+    }
+    return false;
+  };
+
+  const aCanCompete = canCompete(a);
+  const bCanCompete = canCompete(b);
+  if (aCanCompete !== bCanCompete) return aCanCompete ? 1 : -1;
+  if (!aCanCompete && !bCanCompete) return 0;
+
   if (a.suitGroup !== b.suitGroup) {
     if (leadSuitGroup !== 'TRUMP') {
       if (a.suitGroup === 'TRUMP') return 1;
@@ -100,9 +128,8 @@ function comparePattern(
   const ka = a.topKey ?? 0;
   const kb = b.topKey ?? 0;
   if (ka !== kb) return ka - kb;
-  const aIds = a.cards.map((c) => c.id).sort().join(',');
-  const bIds = b.cards.map((c) => c.id).sort().join(',');
-  return aIds.localeCompare(bIds);
+  // For exact strength ties, keep the current winner (earlier play) stable.
+  return 0;
 }
 
 export class GameEngine {
@@ -116,9 +143,12 @@ export class GameEngine {
   trick: TrickState | null = null;
 
   capturedPoints: [number, number] = [0, 0];
+  capturedPointCards: [Card[], Card[]] = [[], []];
   lastTrickLeadKind: 'SINGLE' | 'PAIR' | 'TRACTOR' | null = null;
   lastTrickLeadPairCount: number = 0;
   lastTrickWinnerSeat: number | null = null;
+  pendingNextRound: { bankerSeat: number; levelRank: Rank } | null = null;
+  roundPlayedCards: Card[][] = [];
   teamLevels: [Rank, Rank] = ['2', '2'];
 
   trumpCandidate: TrumpCandidate | null = null;
@@ -133,6 +163,7 @@ export class GameEngine {
     const bankerTeam = teamOfSeat(config.bankerSeat);
     this.config.levelRank = this.teamLevels[bankerTeam];
     this.hands = Array.from({ length: config.numPlayers }, () => []);
+    this.roundPlayedCards = Array.from({ length: config.numPlayers }, () => []);
     this.emit({ type: 'ROOM_STATE', phase: this.phase });
   }
 
@@ -143,11 +174,35 @@ export class GameEngine {
   setHands(hands: Card[][], kitty: Card[]) {
     this.hands = hands.map((h) => [...h]);
     this.kitty = [...kitty];
+    this.roundPlayedCards = Array.from({ length: this.config.numPlayers }, () => []);
   }
 
   startTrumpPhase() {
     this.phase = 'FLIP_TRUMP';
     this.emit({ type: 'PHASE', phase: this.phase });
+  }
+
+  startNextRoundFromPending(): boolean {
+    if (this.phase !== 'ROUND_SCORE') return false;
+    if (!this.pendingNextRound) return false;
+
+    this.config.bankerSeat = this.pendingNextRound.bankerSeat;
+    this.config.levelRank = this.pendingNextRound.levelRank;
+    this.pendingNextRound = null;
+
+    this.capturedPoints = [0, 0];
+    this.capturedPointCards = [[], []];
+    this.lastTrickLeadKind = null;
+    this.lastTrickLeadPairCount = 0;
+    this.lastTrickWinnerSeat = null;
+    this.trumpCandidate = null;
+    this.trick = null;
+    this.kitty = [];
+    this.hands = Array.from({ length: this.config.numPlayers }, () => []);
+    this.roundPlayedCards = Array.from({ length: this.config.numPlayers }, () => []);
+
+    this.startTrumpPhase();
+    return true;
   }
 
   canRequestRedeal(seat: number): boolean {
@@ -205,6 +260,11 @@ export class GameEngine {
 
     this.config.trumpSuit = this.trumpCandidate.trumpSuit;
     this.trumpCandidate = null;
+    // Banker picks up kitty before choosing which cards to bury
+    this.hands[this.config.bankerSeat] = [
+      ...this.hands[this.config.bankerSeat],
+      ...this.kitty
+    ];
     this.phase = 'BURY_KITTY';
     this.emit({ type: 'PHASE', phase: this.phase });
   }
@@ -280,25 +340,52 @@ export class GameEngine {
 
         const played = result.playedCards;
         this.applyPlay(seat, played);
-        const pat = analyze(played, state.levelRank, state.trumpSuit);
-        if (pat.kind === 'INVALID') return;
-        this.trick.leadPattern = pat;
-        this.trick.leadSuitGroup = pat.suitGroup ?? undefined;
-        this.trick.plays.push({ seat, cards: played, pattern: pat });
+        if (result.stands) {
+          const throwPat = analyzeThrow(played, state.levelRank, state.trumpSuit);
+          if (throwPat.kind !== 'THROW') return;
+          this.trick.leadPattern = throwPat;
+          this.trick.leadSuitGroup = throwPat.suitGroup ?? undefined;
+          this.trick.plays.push({ seat, cards: played, pattern: throwPat });
+        } else {
+          const pat = analyze(played, state.levelRank, state.trumpSuit);
+          if (pat.kind === 'INVALID') return;
+          this.trick.leadPattern = pat;
+          this.trick.leadSuitGroup = pat.suitGroup ?? undefined;
+          this.trick.plays.push({ seat, cards: played, pattern: pat });
+          if (pat.kind === 'PAIR' || pat.kind === 'TRACTOR') {
+            this.emit({ type: 'LEAD_PATTERN', seat, kind: pat.kind });
+          }
+        }
+        if (this.trick.leadSuitGroup === 'TRUMP') this.emit({ type: 'TRUMP_LED', seat });
         for (const ev of result.events ?? []) this.emit(ev as Event);
       } else {
         this.applyPlay(seat, cards);
         this.trick.leadPattern = leadPat;
         this.trick.leadSuitGroup = leadPat.suitGroup ?? undefined;
         this.trick.plays.push({ seat, cards, pattern: leadPat });
+        if (leadPat.kind === 'PAIR' || leadPat.kind === 'TRACTOR') {
+          this.emit({ type: 'LEAD_PATTERN', seat, kind: leadPat.kind });
+        }
+        if (this.trick.leadSuitGroup === 'TRUMP') this.emit({ type: 'TRUMP_LED', seat });
         this.emit({ type: 'TRICK_UPDATE', seat, cards });
       }
     } else {
       if (!this.trick.leadPattern || !this.trick.leadSuitGroup) return;
       const res = validateFollowPlay(this.trick.leadPattern, cardIds, hand, state);
       if (!res.ok) return;
-      const pat = analyze(cards, state.levelRank, state.trumpSuit);
-      if (pat.kind === 'INVALID') return;
+      const analyzed = analyze(cards, state.levelRank, state.trumpSuit);
+      const pat =
+        analyzed.kind === 'INVALID'
+          ? this.trick.leadPattern.kind === 'THROW'
+            ? analyzeThrow(cards, state.levelRank, state.trumpSuit)
+            : {
+                kind: 'INVALID' as const,
+                suitGroup: suitGroup(cards[0], state.levelRank, state.trumpSuit),
+                size: cards.length,
+                cards: [...cards],
+                reason: analyzed.reason ?? 'VALIDATED_FOLLOW_NON_STANDARD_STRUCTURE'
+              }
+          : analyzed;
       this.applyPlay(seat, cards);
       this.trick.plays.push({ seat, cards, pattern: pat });
       this.emit({ type: 'TRICK_UPDATE', seat, cards });
@@ -316,6 +403,7 @@ export class GameEngine {
   private applyPlay(seat: number, cards: Card[]) {
     const ids = new Set(cards.map((c) => c.id));
     this.hands[seat] = this.hands[seat].filter((c) => !ids.has(c.id));
+    this.roundPlayedCards[seat].push(...cards);
   }
 
   private finishTrick() {
@@ -328,6 +416,7 @@ export class GameEngine {
       const cmp = comparePattern(
         challenger.pattern,
         winner.pattern,
+        this.trick.leadPattern,
         this.trick.leadSuitGroup,
         state.levelRank,
         state.trumpSuit
@@ -339,6 +428,7 @@ export class GameEngine {
     const points = handPoints(trickCards);
     const team = teamOfSeat(winner.seat);
     this.capturedPoints[team] += points;
+    this.capturedPointCards[team].push(...trickCards.filter((c) => isPointCard(c) > 0));
 
     this.lastTrickLeadKind = this.trick.leadPattern.kind === 'TRACTOR' || this.trick.leadPattern.kind === 'PAIR'
       ? this.trick.leadPattern.kind
@@ -369,42 +459,63 @@ export class GameEngine {
 
   private finishRound() {
     const bankerTeam = teamOfSeat(this.config.bankerSeat);
-    const defenderTeam = bankerTeam === 0 ? 1 : 0;
+    const defenderTeam = bankerTeam;
+    const attackerTeam = bankerTeam === 0 ? 1 : 0;
 
-    let defenderPoints = this.capturedPoints[defenderTeam];
+    const defenderPoints = this.capturedPoints[defenderTeam];
+    let attackerPoints = this.capturedPoints[attackerTeam];
     const kittyPoints = handPoints(this.kitty);
     let killMultiplier = 1;
 
-    if (this.lastTrickWinnerSeat !== null && teamOfSeat(this.lastTrickWinnerSeat) === defenderTeam) {
+    if (this.lastTrickWinnerSeat !== null && teamOfSeat(this.lastTrickWinnerSeat) === attackerTeam) {
       killMultiplier = 2 * Math.pow(2, this.lastTrickLeadPairCount);
-      defenderPoints += kittyPoints * killMultiplier;
-      this.capturedPoints[defenderTeam] = defenderPoints;
+      attackerPoints += kittyPoints * killMultiplier;
+      this.capturedPoints[attackerTeam] = attackerPoints;
+      this.capturedPointCards[attackerTeam].push(...this.kitty.filter((c) => isPointCard(c) > 0));
+      const pointSteps: number[] = [];
+      let running = 0;
+      for (const c of this.kitty) {
+        const p = isPointCard(c);
+        if (p <= 0) continue;
+        running += p * killMultiplier;
+        pointSteps.push(running);
+      }
+      this.emit({
+        type: 'KOU_DI',
+        cards: [...this.kitty],
+        pointSteps,
+        total: kittyPoints * killMultiplier,
+        multiplier: killMultiplier
+      });
     }
+
+    const winnerSide: 'DEFENDER' | 'ATTACKER' = attackerPoints < 80 ? 'DEFENDER' : 'ATTACKER';
+    const winnerTeam = winnerSide === 'DEFENDER' ? defenderTeam : attackerTeam;
 
     // Standard 8-tier scoring per RULES.md §9.3
     let advancingTeam: number;
     let delta: number;
 
-    if (defenderPoints === 0) {
-      advancingTeam = bankerTeam;
+    if (attackerPoints === 0) {
+      advancingTeam = defenderTeam;
       delta = 3;
-    } else if (defenderPoints < 40) {
-      advancingTeam = bankerTeam;
+    } else if (attackerPoints < 40) {
+      advancingTeam = defenderTeam;
       delta = 2;
-    } else if (defenderPoints < 80) {
-      advancingTeam = bankerTeam;
+    } else if (attackerPoints < 80) {
+      advancingTeam = defenderTeam;
       delta = 1;
-    } else if (defenderPoints < 120) {
+    } else if (attackerPoints < 120) {
       advancingTeam = -1; // swap banker, no level change
       delta = 0;
-    } else if (defenderPoints < 160) {
-      advancingTeam = defenderTeam;
+    } else if (attackerPoints < 160) {
+      advancingTeam = attackerTeam;
       delta = 1;
-    } else if (defenderPoints < 200) {
-      advancingTeam = defenderTeam;
+    } else if (attackerPoints < 200) {
+      advancingTeam = attackerTeam;
       delta = 2;
     } else {
-      advancingTeam = defenderTeam;
+      advancingTeam = attackerTeam;
       delta = 3;
     }
 
@@ -421,12 +532,14 @@ export class GameEngine {
     }
 
     // Banker succession
+    const rolesSwapped = advancingTeam !== bankerTeam && advancingTeam !== -1;
     let nextBankerSeat: number;
     if (advancingTeam === bankerTeam) {
       nextBankerSeat = this.config.bankerSeat;
     } else {
       nextBankerSeat = this.lastTrickWinnerSeat ?? (this.config.bankerSeat + 1) % this.config.numPlayers;
     }
+    const newBankerSeat = nextBankerSeat;
 
     this.phase = 'ROUND_SCORE';
     this.emit({
@@ -436,9 +549,16 @@ export class GameEngine {
       levelTo,
       delta,
       defenderPoints,
+      attackerPoints,
       kittyPoints,
       killMultiplier,
+      winnerTeam,
+      winnerSide,
+      rolesSwapped,
+      newBankerSeat,
       nextBankerSeat,
+      playedBySeat: this.roundPlayedCards.map((cards) => [...cards]),
+      kittyCards: [...this.kitty],
     });
 
     if (levelTo === 'A' && advancingTeam >= 0) {
@@ -448,10 +568,8 @@ export class GameEngine {
       return;
     }
 
-    // Set up for next round
-    this.config.bankerSeat = nextBankerSeat;
-    const nextBankerTeam = teamOfSeat(nextBankerSeat);
-    this.config.levelRank = this.teamLevels[nextBankerTeam];
+    // Store pending next round instead of applying immediately
+    this.pendingNextRound = { bankerSeat: newBankerSeat, levelRank: levelTo };
     this.emit({ type: 'PHASE', phase: this.phase });
   }
 }

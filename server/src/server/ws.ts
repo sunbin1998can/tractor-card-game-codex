@@ -343,7 +343,7 @@ function publicState(room: Room): PublicRoomState {
     leaderSeat: room.engine.trick?.leaderSeat,
     turnSeat: room.engine.trick?.turnSeat,
     teamLevels: [...room.engine.teamLevels],
-    trumpSuit: room.engine.config.trumpSuit,
+    trumpSuit: room.engine.config.trumpSuit ?? 'N',
     levelRank: room.engine.config.levelRank,
     scores: room.engine.capturedPoints,
     capturedPointCards: [
@@ -689,7 +689,7 @@ export function createWsServer(port: number, path = '/ws') {
           broadcast(room, {
             type: 'TRUMP_DECLARED',
             seat: after.seat,
-            trumpSuit: after.trumpSuit,
+            trumpSuit: after.trumpSuit ?? 'N',
             cardIds: cards.map((c) => c.id)
           });
         }

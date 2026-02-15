@@ -61,6 +61,181 @@ describe('GameEngine trick resolution', () => {
 
     expect(engine.capturedPoints[1]).toBe(25);
   });
+
+  it('keeps earlier play as winner on equal trump single strength', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 0
+    });
+
+    const hands = [
+      [makeCard('H', '9', 1)],
+      [makeCard('H', '9', 2)],
+      [makeCard('S', '3', 1)],
+      [makeCard('S', '4', 1)]
+    ];
+    engine.setHands(hands, []);
+    engine.phase = 'TRICK_PLAY';
+    engine.trick = { leaderSeat: 0, turnSeat: 0, plays: [] };
+
+    engine.play(0, [hands[0][0].id]);
+    engine.play(1, [hands[1][0].id]);
+    engine.play(2, [hands[2][0].id]);
+    engine.play(3, [hands[3][0].id]);
+
+    expect(engine.lastTrickWinnerSeat).toBe(0);
+  });
+
+  it('accepts insufficient pair follow and keeps lead pair as winner', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 0
+    });
+
+    const hands = [
+      [makeCard('S', 'K', 1), makeCard('S', 'K', 2)],
+      [makeCard('S', 'A', 1), makeCard('S', '9', 1)],
+      [makeCard('S', 'Q', 1), makeCard('S', 'Q', 2)],
+      [makeCard('S', 'J', 1), makeCard('S', 'J', 2)]
+    ];
+    engine.setHands(hands, []);
+    engine.phase = 'TRICK_PLAY';
+    engine.trick = { leaderSeat: 0, turnSeat: 0, plays: [] };
+
+    engine.play(0, [hands[0][0].id, hands[0][1].id]);
+    engine.play(1, [hands[1][0].id, hands[1][1].id]);
+    engine.play(2, [hands[2][0].id, hands[2][1].id]);
+    engine.play(3, [hands[3][0].id, hands[3][1].id]);
+
+    expect(engine.hands[1]).toHaveLength(0);
+    expect(engine.lastTrickWinnerSeat).toBe(0);
+  });
+
+  it('void-in-suit non-pair trump follow to a pair does not win the trick', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 0
+    });
+
+    const hands = [
+      [makeCard('S', 'K', 1), makeCard('S', 'K', 2)],
+      [makeCard('H', 'A', 1), makeCard('H', 'Q', 1)],
+      [makeCard('D', '9', 1), makeCard('D', '10', 1)],
+      [makeCard('C', 'J', 1), makeCard('C', 'Q', 1)]
+    ];
+    engine.setHands(hands, []);
+    engine.phase = 'TRICK_PLAY';
+    engine.trick = { leaderSeat: 0, turnSeat: 0, plays: [] };
+
+    engine.play(0, [hands[0][0].id, hands[0][1].id]);
+    engine.play(1, [hands[1][0].id, hands[1][1].id]);
+    engine.play(2, [hands[2][0].id, hands[2][1].id]);
+    engine.play(3, [hands[3][0].id, hands[3][1].id]);
+
+    expect(engine.lastTrickWinnerSeat).toBe(0);
+  });
+
+  it('ranks connected-pair tractors correctly', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 0
+    });
+
+    const hands = [
+      [
+        makeCard('S', '4', 1), makeCard('S', '4', 2),
+        makeCard('S', '5', 1), makeCard('S', '5', 2),
+        makeCard('S', '6', 1), makeCard('S', '6', 2)
+      ],
+      [
+        makeCard('S', '5', 1), makeCard('S', '5', 2),
+        makeCard('S', '6', 1), makeCard('S', '6', 2),
+        makeCard('S', '7', 1), makeCard('S', '7', 2)
+      ],
+      [
+        makeCard('S', '10', 1), makeCard('S', '10', 2),
+        makeCard('S', 'J', 1), makeCard('S', 'J', 2),
+        makeCard('S', 'Q', 1), makeCard('S', 'Q', 2)
+      ],
+      [
+        makeCard('S', '3', 1), makeCard('S', '3', 2),
+        makeCard('S', '8', 1), makeCard('S', '8', 2),
+        makeCard('S', '9', 1), makeCard('S', '9', 2)
+      ]
+    ];
+    engine.setHands(hands, []);
+    engine.phase = 'TRICK_PLAY';
+    engine.trick = { leaderSeat: 0, turnSeat: 0, plays: [] };
+
+    engine.play(0, hands[0].map((c) => c.id));
+    engine.play(1, hands[1].map((c) => c.id));
+    engine.play(2, hands[2].map((c) => c.id));
+    engine.play(3, hands[3].map((c) => c.id));
+
+    expect(engine.lastTrickWinnerSeat).toBe(2);
+  });
+
+  it('banker receives kitty cards when entering bury phase', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 2
+    });
+
+    const bankerBase = [makeCard('S', '3', 1), makeCard('S', '4', 1)];
+    const kitty = [makeCard('D', '5', 1), makeCard('C', '6', 1)];
+    engine.setHands([bankerBase, [], [], []], kitty);
+    engine.startTrumpPhase();
+    engine.flipTrump(0, [makeCard('H', '2', 1)], 0);
+    engine.finalizeTrump(5000);
+
+    expect(engine.phase).toBe('BURY_KITTY');
+    expect(engine.hands[0]).toHaveLength(4);
+    expect(engine.hands[0].map((c) => c.id)).toEqual(
+      expect.arrayContaining(kitty.map((c) => c.id))
+    );
+  });
+
+  it('applies next round settings from pending', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '3',
+      trumpSuit: 'H',
+      kittySize: 0
+    });
+
+    engine.capturedPoints = [0, 90];
+    engine.kitty = [];
+    engine.lastTrickWinnerSeat = 1;
+    engine.lastTrickLeadKind = 'SINGLE';
+
+    (engine as any).finishRound();
+    expect(engine.phase).toBe('ROUND_SCORE');
+    expect(engine.config.bankerSeat).toBe(0);
+    expect(engine.pendingNextRound?.bankerSeat).toBe(1);
+
+    const started = engine.startNextRoundFromPending();
+    expect(started).toBe(true);
+    expect(engine.phase).toBe('FLIP_TRUMP');
+    expect(engine.config.bankerSeat).toBe(1);
+    expect(engine.pendingNextRound).toBeNull();
+    expect(engine.capturedPoints).toEqual([0, 0]);
+  });
 });
 
 describe('GameEngine trump flipping', () => {
@@ -504,14 +679,14 @@ describe('GameEngine round scoring', () => {
     const engine = makeScoreEngine({ bankerSeat: 0, defenderPoints: 120, lastWinner: 3 });
     (engine as any).finishRound();
     expect(getRoundResult(engine)?.nextBankerSeat).toBe(3);
-    expect(engine.config.bankerSeat).toBe(3);
+    expect(engine.pendingNextRound?.bankerSeat).toBe(3);
   });
 
   it('last trick winner becomes banker on swap (80-115)', () => {
     const engine = makeScoreEngine({ bankerSeat: 0, defenderPoints: 80, lastWinner: 1 });
     (engine as any).finishRound();
     expect(getRoundResult(engine)?.nextBankerSeat).toBe(1);
-    expect(engine.config.bankerSeat).toBe(1);
+    expect(engine.pendingNextRound?.bankerSeat).toBe(1);
   });
 
   // --- Game over ---
