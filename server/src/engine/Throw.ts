@@ -1,9 +1,9 @@
 import { analyze, analyzeThrow, cardKey, pairKey, seqRankForTractor, suitGroup } from './RulesEngine';
-import type { Card, Pattern, Rank, Suit, SuitGroup } from './types';
+import type { Card, Pattern, Rank, Suit, SuitGroup, TrumpSuit } from './types';
 
 export interface ThrowState {
   levelRank: Rank;
-  trumpSuit: Suit;
+  trumpSuit: TrumpSuit;
 }
 
 export interface ThrowStandingResult {
@@ -18,7 +18,7 @@ export interface ThrowPunishResult {
   reason: string;
 }
 
-function sortCardsAsc(cards: Card[], levelRank: Rank, trumpSuit: Suit): Card[] {
+function sortCardsAsc(cards: Card[], levelRank: Rank, trumpSuit: TrumpSuit): Card[] {
   return [...cards].sort((a, b) => {
     const ka = cardKey(a, levelRank, trumpSuit);
     const kb = cardKey(b, levelRank, trumpSuit);
@@ -27,13 +27,13 @@ function sortCardsAsc(cards: Card[], levelRank: Rank, trumpSuit: Suit): Card[] {
   });
 }
 
-function patternTopKey(pattern: Pattern, levelRank: Rank, trumpSuit: Suit): number {
+function patternTopKey(pattern: Pattern, levelRank: Rank, trumpSuit: TrumpSuit): number {
   if (pattern.topKey !== undefined) return pattern.topKey;
   const pat = analyze(pattern.cards, levelRank, trumpSuit);
   return pat.topKey ?? 0;
 }
 
-function bestPairTopKey(cards: Card[], levelRank: Rank, trumpSuit: Suit): number | null {
+function bestPairTopKey(cards: Card[], levelRank: Rank, trumpSuit: TrumpSuit): number | null {
   const counts = new Map<string, Card[]>();
   for (const card of cards) {
     const pk = pairKey(card, levelRank, trumpSuit);

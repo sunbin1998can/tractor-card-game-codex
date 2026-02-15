@@ -1,4 +1,4 @@
-import type { Card, Pattern, PatternKind, Rank, Suit, SuitGroup } from './types';
+import type { Card, Pattern, PatternKind, Rank, Suit, SuitGroup, TrumpSuit } from './types';
 
 const RANK_VALUE: Record<Rank, number> = {
   '2': 2,
@@ -18,14 +18,14 @@ const RANK_VALUE: Record<Rank, number> = {
   BJ: 16,
 };
 
-export function suitGroup(card: Card, levelRank: Rank, trumpSuit: Suit): SuitGroup {
+export function suitGroup(card: Card, levelRank: Rank, trumpSuit: TrumpSuit): SuitGroup {
   if (card.rank === 'BJ' || card.rank === 'SJ') return 'TRUMP';
   if (card.rank === levelRank) return 'TRUMP';
-  if (card.suit === trumpSuit) return 'TRUMP';
+  if (trumpSuit !== null && card.suit === trumpSuit) return 'TRUMP';
   return card.suit as Suit;
 }
 
-export function cardKey(card: Card, levelRank: Rank, trumpSuit: Suit): number {
+export function cardKey(card: Card, levelRank: Rank, trumpSuit: TrumpSuit): number {
   const group = suitGroup(card, levelRank, trumpSuit);
   const rv = RANK_VALUE[card.rank];
   if (group !== 'TRUMP') return rv;
@@ -50,13 +50,13 @@ export function seqRankForTractor(rank: Rank, levelRank: Rank): number | null {
   return rv > lv ? rv - 1 : rv;
 }
 
-export function pairKey(card: Card, levelRank: Rank, trumpSuit: Suit): string {
+export function pairKey(card: Card, levelRank: Rank, trumpSuit: TrumpSuit): string {
   const group = suitGroup(card, levelRank, trumpSuit);
   const suit = card.rank === 'BJ' || card.rank === 'SJ' ? 'J' : card.suit;
   return `${group}|${card.rank}|${suit}`;
 }
 
-function sortCardsAsc(cards: Card[], levelRank: Rank, trumpSuit: Suit): Card[] {
+function sortCardsAsc(cards: Card[], levelRank: Rank, trumpSuit: TrumpSuit): Card[] {
   return [...cards].sort((a, b) => {
     const ka = cardKey(a, levelRank, trumpSuit);
     const kb = cardKey(b, levelRank, trumpSuit);
@@ -65,7 +65,7 @@ function sortCardsAsc(cards: Card[], levelRank: Rank, trumpSuit: Suit): Card[] {
   });
 }
 
-function sortCardsDesc(cards: Card[], levelRank: Rank, trumpSuit: Suit): Card[] {
+function sortCardsDesc(cards: Card[], levelRank: Rank, trumpSuit: TrumpSuit): Card[] {
   return [...cards].sort((a, b) => {
     const ka = cardKey(a, levelRank, trumpSuit);
     const kb = cardKey(b, levelRank, trumpSuit);
@@ -78,7 +78,7 @@ function invalidPattern(reason: string): Pattern {
   return { kind: 'INVALID', suitGroup: null, size: 0, cards: [], reason };
 }
 
-export function analyze(cards: Card[], levelRank: Rank, trumpSuit: Suit): Pattern {
+export function analyze(cards: Card[], levelRank: Rank, trumpSuit: TrumpSuit): Pattern {
   if (cards.length === 0) return invalidPattern('EMPTY');
 
   const group = suitGroup(cards[0], levelRank, trumpSuit);
@@ -147,7 +147,7 @@ export function analyze(cards: Card[], levelRank: Rank, trumpSuit: Suit): Patter
   };
 }
 
-export function bestDecomposition(cards: Card[], levelRank: Rank, trumpSuit: Suit): Pattern[] {
+export function bestDecomposition(cards: Card[], levelRank: Rank, trumpSuit: TrumpSuit): Pattern[] {
   if (cards.length === 0) return [];
 
   const group = suitGroup(cards[0], levelRank, trumpSuit);
@@ -292,7 +292,7 @@ export function bestDecomposition(cards: Card[], levelRank: Rank, trumpSuit: Sui
   return [...tractors, ...pairs, ...singles];
 }
 
-export function analyzeThrow(cards: Card[], levelRank: Rank, trumpSuit: Suit): Pattern {
+export function analyzeThrow(cards: Card[], levelRank: Rank, trumpSuit: TrumpSuit): Pattern {
   if (cards.length === 0) return invalidPattern('EMPTY');
   const group = suitGroup(cards[0], levelRank, trumpSuit);
   if (cards.some((c) => suitGroup(c, levelRank, trumpSuit) !== group)) {

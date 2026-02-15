@@ -1,9 +1,9 @@
 import { analyze, cardKey, pairKey, seqRankForTractor, suitGroup } from './RulesEngine';
-import type { Card, Pattern, Rank, Suit, SuitGroup } from './types';
+import type { Card, Pattern, Rank, Suit, SuitGroup, TrumpSuit } from './types';
 
 export interface FollowState {
   levelRank: Rank;
-  trumpSuit: Suit;
+  trumpSuit: TrumpSuit;
 }
 
 export interface FollowResult {
@@ -24,7 +24,7 @@ function arrayEq(a: string[], b: string[]): boolean {
   return true;
 }
 
-function sortCardsAsc(cards: Card[], levelRank: Rank, trumpSuit: Suit): Card[] {
+function sortCardsAsc(cards: Card[], levelRank: Rank, trumpSuit: TrumpSuit): Card[] {
   return [...cards].sort((a, b) => {
     const ka = cardKey(a, levelRank, trumpSuit);
     const kb = cardKey(b, levelRank, trumpSuit);
@@ -188,7 +188,7 @@ function buildExpectedInsufficient(
   return result;
 }
 
-function hasPair(cardsInGroup: Card[], levelRank: Rank, trumpSuit: Suit): boolean {
+function hasPair(cardsInGroup: Card[], levelRank: Rank, trumpSuit: TrumpSuit): boolean {
   const counts = new Map<string, number>();
   for (const card of cardsInGroup) {
     const pk = pairKey(card, levelRank, trumpSuit);
@@ -200,7 +200,7 @@ function hasPair(cardsInGroup: Card[], levelRank: Rank, trumpSuit: Suit): boolea
   return false;
 }
 
-function getSuitGroupCards(hand: Card[], group: SuitGroup, levelRank: Rank, trumpSuit: Suit): Card[] {
+function getSuitGroupCards(hand: Card[], group: SuitGroup, levelRank: Rank, trumpSuit: TrumpSuit): Card[] {
   return hand.filter((c) => suitGroup(c, levelRank, trumpSuit) === group);
 }
 

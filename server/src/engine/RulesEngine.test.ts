@@ -26,6 +26,18 @@ describe('RulesEngine basics', () => {
     expect(suitGroup(card, '7', 'H')).toBe('TRUMP');
   });
 
+  it('no-trump: only jokers and level-rank are TRUMP', () => {
+    // In no-trump mode (trumpSuit=null), regular suited cards keep their natural suit
+    const heartCard = makeCard('H', '9', 1);
+    expect(suitGroup(heartCard, '7', null)).toBe('H');
+    // Level-rank cards are still TRUMP
+    const levelCard = makeCard('D', '7', 1);
+    expect(suitGroup(levelCard, '7', null)).toBe('TRUMP');
+    // Jokers are still TRUMP
+    const bj = makeCard('J', 'BJ', 1);
+    expect(suitGroup(bj, '7', null)).toBe('TRUMP');
+  });
+
   it('seqRankForTractor excludes level and jokers', () => {
     expect(seqRankForTractor('SJ', '7')).toBeNull();
     expect(seqRankForTractor('BJ', '7')).toBeNull();

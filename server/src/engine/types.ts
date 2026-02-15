@@ -1,4 +1,6 @@
 export type Suit = 'S' | 'H' | 'D' | 'C';
+/** Trump suit for the round — null means no-trump (joker pair declaration). */
+export type TrumpSuit = Suit | null;
 export type SuitGroup = Suit | 'TRUMP';
 export type Rank =
   | '2'

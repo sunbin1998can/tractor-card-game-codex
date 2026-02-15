@@ -76,8 +76,8 @@ describe('GameEngine trump flipping', () => {
     engine.flipTrump(0, [makeCard('J', 'BJ', 1), makeCard('J', 'BJ', 2)], 1000);
     expect(engine.trumpCandidate).toBeTruthy();
     expect(engine.trumpCandidate!.strength).toBe(60);
-    // Joker bid preserves the existing trump suit
-    expect(engine.trumpCandidate!.trumpSuit).toBe('H');
+    // Joker bid declares no-trump round
+    expect(engine.trumpCandidate!.trumpSuit).toBeNull();
   });
 
   it('accepts SJ pair bid with strength 50', () => {
@@ -92,7 +92,8 @@ describe('GameEngine trump flipping', () => {
     engine.flipTrump(1, [makeCard('J', 'SJ', 1), makeCard('J', 'SJ', 2)], 1000);
     expect(engine.trumpCandidate).toBeTruthy();
     expect(engine.trumpCandidate!.strength).toBe(50);
-    expect(engine.trumpCandidate!.trumpSuit).toBe('S');
+    // Joker bid declares no-trump round
+    expect(engine.trumpCandidate!.trumpSuit).toBeNull();
   });
 
   it('accepts single BJ bid with strength 40', () => {
@@ -144,7 +145,23 @@ describe('GameEngine trump flipping', () => {
     expect(engine.trumpCandidate!.strength).toBe(20);
   });
 
-  it('original bidder can self-reinforce', () => {
+  it('BJ pair bid finalizes as no-trump round', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 8
+    });
+    engine.phase = 'FLIP_TRUMP';
+    engine.flipTrump(0, [makeCard('J', 'BJ', 1), makeCard('J', 'BJ', 2)], 1000);
+    // Finalize after fairness window
+    engine.finalizeTrump(1000 + 2001);
+    expect(engine.config.trumpSuit).toBeNull();
+    expect(engine.phase).toBe('BURY_KITTY');
+  });
+
+  it('original bidder can self-reinforce with same suit', () => {
     const engine = new GameEngine({
       numPlayers: 4,
       bankerSeat: 0,
@@ -154,10 +171,26 @@ describe('GameEngine trump flipping', () => {
     });
     engine.phase = 'FLIP_TRUMP';
     engine.flipTrump(0, [makeCard('S', '2', 1)], 1000);
-    // Same seat upgrades to pair
+    // Same seat upgrades to pair of same suit
     engine.flipTrump(0, [makeCard('S', '2', 1), makeCard('S', '2', 2)], 1500);
     expect(engine.trumpCandidate!.seat).toBe(0);
     expect(engine.trumpCandidate!.strength).toBe(20);
+  });
+
+  it('original bidder cannot self-reinforce with different suit', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 8
+    });
+    engine.phase = 'FLIP_TRUMP';
+    engine.flipTrump(0, [makeCard('S', '2', 1)], 1000);
+    // Same seat tries to upgrade to pair of different suit — rejected
+    engine.flipTrump(0, [makeCard('D', '2', 1), makeCard('D', '2', 2)], 1500);
+    expect(engine.trumpCandidate!.strength).toBe(10); // still original single bid
+    expect(engine.trumpCandidate!.trumpSuit).toBe('S'); // still original suit
   });
 });
 

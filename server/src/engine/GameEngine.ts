@@ -1,7 +1,7 @@
 import { analyze, cardKey, suitGroup } from './RulesEngine';
 import { handleLeaderThrow } from './Throw';
 import { validateFollowPlay } from './Follow';
-import type { Card, Pattern, Rank, Suit, SuitGroup } from './types';
+import type { Card, Pattern, Rank, Suit, SuitGroup, TrumpSuit } from './types';
 
 export type Phase =
   | 'DEALING'
@@ -36,7 +36,7 @@ export interface GameConfig {
   numPlayers: number;
   bankerSeat: number;
   levelRank: Rank;
-  trumpSuit: Suit;
+  trumpSuit: TrumpSuit;
   kittySize: number;
   fairnessWindowMs?: number;
   rngSeed?: number;
@@ -46,7 +46,7 @@ export interface GameConfig {
 export interface TrumpCandidate {
   seat: number;
   strength: number;
-  trumpSuit: Suit;
+  trumpSuit: TrumpSuit;
   expiresAt: number;
 }
 
@@ -89,7 +89,7 @@ function comparePattern(
   b: Pattern,
   leadSuitGroup: SuitGroup,
   levelRank: Rank,
-  trumpSuit: Suit
+  trumpSuit: TrumpSuit
 ): number {
   if (a.suitGroup !== b.suitGroup) {
     if (leadSuitGroup !== 'TRUMP') {
@@ -156,13 +156,20 @@ export class GameEngine {
     const strength = trumpStrength(cards, this.config.levelRank);
     if (strength === null) return;
 
-    const suit = trumpSuitFromCards(cards, this.config.trumpSuit);
+    const suit = trumpSuitFromCards(cards);
 
-    // Partner reinforcement restriction: partner cannot reinforce the current bid
     if (this.trumpCandidate) {
       const candidateTeam = teamOfSeat(this.trumpCandidate.seat);
       const bidderTeam = teamOfSeat(seat);
+
+      // Partner reinforcement restriction: partner cannot reinforce the current bid
       if (bidderTeam === candidateTeam && seat !== this.trumpCandidate.seat) return;
+
+      // Self-reinforcement: original bidder can upgrade to pair of same suit only
+      if (seat === this.trumpCandidate.seat) {
+        if (suit !== this.trumpCandidate.trumpSuit) return;
+        if (strength <= this.trumpCandidate.strength) return;
+      }
     }
 
     const candidate: TrumpCandidate = {
@@ -453,11 +460,11 @@ function trumpStrength(cards: Card[], levelRank: Rank): number | null {
   return null;
 }
 
-function trumpSuitFromCards(cards: Card[], fallback: Suit): Suit {
+function trumpSuitFromCards(cards: Card[]): TrumpSuit {
   for (const card of cards) {
     if (card.rank === 'BJ' || card.rank === 'SJ') continue;
     return card.suit as Suit;
   }
-  // Joker-only bid: preserve the current/default trump suit
-  return fallback;
+  // Joker-only bid: no-trump round
+  return null;
 }
