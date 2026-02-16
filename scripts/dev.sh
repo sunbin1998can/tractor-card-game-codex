@@ -45,6 +45,7 @@ DEFAULT_WEB_PORT=5173
 
 SERVER_PID=""
 WEB_PID=""
+PG_METHOD=""  # "docker" | "pgctl" | ""
 
 is_port_in_use() {
   local port=$1
@@ -87,9 +88,14 @@ cleanup() {
     kill "$SERVER_PID" 2>/dev/null || true
     pkill -P "$SERVER_PID" 2>/dev/null || true
   fi
-  # Note: PostgreSQL container is NOT stopped — data persists between runs.
+  if [ "$PG_METHOD" = "pgctl" ]; then
+    echo -e "${BLUE}Stopping local PostgreSQL (pg_ctl)...${NC}"
+    pg_ctl stop -s -m fast 2>/dev/null || true
+  fi
   echo -e "${GREEN}All services stopped.${NC}"
-  echo -e "${CYAN}PostgreSQL container '${PG_CONTAINER}' is still running. Stop with: docker stop ${PG_CONTAINER}${NC}"
+  if [ "$PG_METHOD" = "docker" ]; then
+    echo -e "${CYAN}PostgreSQL container '${PG_CONTAINER}' is still running. Stop with: docker stop ${PG_CONTAINER}${NC}"
+  fi
 }
 trap cleanup EXIT INT TERM
 
@@ -104,43 +110,90 @@ if [ "$SKIP_DB" = true ]; then
   unset DATABASE_URL
   unset AUTH_SECRET
 else
-  if ! command -v docker &> /dev/null; then
-    echo -e "${RED}Docker not found. Install Docker or use --no-db to skip PostgreSQL.${NC}"
+  if command -v docker &> /dev/null; then
+    PG_METHOD="docker"
+  elif command -v pg_ctl &> /dev/null; then
+    PG_METHOD="pgctl"
+  else
+    echo -e "${RED}Neither Docker nor pg_ctl found.${NC}"
+    echo -e "${YELLOW}Install Docker, enter a Nix shell (nix develop), or use --no-db to skip PostgreSQL.${NC}"
     exit 1
   fi
 
-  # Start or reuse container
-  if docker ps --format '{{.Names}}' | grep -qw "$PG_CONTAINER"; then
-    echo -e "${BLUE}==> PostgreSQL container '${PG_CONTAINER}' already running${NC}"
-  elif docker ps -a --format '{{.Names}}' | grep -qw "$PG_CONTAINER"; then
-    echo -e "${BLUE}==> Starting existing PostgreSQL container '${PG_CONTAINER}'...${NC}"
-    docker start "$PG_CONTAINER" > /dev/null
-  else
-    echo -e "${BLUE}==> Creating PostgreSQL container '${PG_CONTAINER}'...${NC}"
-    docker run -d \
-      --name "$PG_CONTAINER" \
-      -p "${PG_PORT}:5432" \
-      -e POSTGRES_USER="$PG_USER" \
-      -e POSTGRES_PASSWORD="$PG_PASS" \
-      -e POSTGRES_DB="$PG_DB" \
-      postgres:16-alpine > /dev/null
-  fi
+  if [ "$PG_METHOD" = "docker" ]; then
+    # ── Docker-managed PostgreSQL ──
+    if docker ps --format '{{.Names}}' | grep -qw "$PG_CONTAINER"; then
+      echo -e "${BLUE}==> PostgreSQL container '${PG_CONTAINER}' already running${NC}"
+    elif docker ps -a --format '{{.Names}}' | grep -qw "$PG_CONTAINER"; then
+      echo -e "${BLUE}==> Starting existing PostgreSQL container '${PG_CONTAINER}'...${NC}"
+      docker start "$PG_CONTAINER" > /dev/null
+    else
+      echo -e "${BLUE}==> Creating PostgreSQL container '${PG_CONTAINER}'...${NC}"
+      docker run -d \
+        --name "$PG_CONTAINER" \
+        -p "${PG_PORT}:5432" \
+        -e POSTGRES_USER="$PG_USER" \
+        -e POSTGRES_PASSWORD="$PG_PASS" \
+        -e POSTGRES_DB="$PG_DB" \
+        postgres:16-alpine > /dev/null
+    fi
 
-  # Wait for PostgreSQL to be ready
-  echo -ne "  Waiting for PostgreSQL"
-  for i in $(seq 1 30); do
-    if docker exec "$PG_CONTAINER" pg_isready -U "$PG_USER" -d "$PG_DB" &> /dev/null; then
-      echo -e " ${GREEN}ready${NC}"
-      break
+    # Wait for PostgreSQL to be ready
+    echo -ne "  Waiting for PostgreSQL"
+    for i in $(seq 1 30); do
+      if docker exec "$PG_CONTAINER" pg_isready -U "$PG_USER" -d "$PG_DB" &> /dev/null; then
+        echo -e " ${GREEN}ready${NC}"
+        break
+      fi
+      echo -n "."
+      sleep 1
+      if [ "$i" -eq 30 ]; then
+        echo -e " ${RED}timeout${NC}"
+        echo -e "${RED}PostgreSQL did not start in 30s. Check: docker logs ${PG_CONTAINER}${NC}"
+        exit 1
+      fi
+    done
+
+  else
+    # ── pg_ctl-managed PostgreSQL (Nix flake) ──
+    export PGDATA="${REPO_ROOT}/.pg-data"
+    echo -e "${BLUE}==> Starting PostgreSQL via pg_ctl (PGDATA=${PGDATA})${NC}"
+
+    if [ ! -d "$PGDATA" ]; then
+      echo -e "${BLUE}  Initializing database cluster...${NC}"
+      initdb --username="$PG_USER" --auth=trust -D "$PGDATA" > /dev/null
+      # Configure the port
+      echo "port = ${PG_PORT}" >> "$PGDATA/postgresql.conf"
+      echo "unix_socket_directories = '$PGDATA'" >> "$PGDATA/postgresql.conf"
     fi
-    echo -n "."
-    sleep 1
-    if [ "$i" -eq 30 ]; then
-      echo -e " ${RED}timeout${NC}"
-      echo -e "${RED}PostgreSQL did not start in 30s. Check: docker logs ${PG_CONTAINER}${NC}"
-      exit 1
+
+    if ! pg_ctl status -D "$PGDATA" &> /dev/null; then
+      pg_ctl start -D "$PGDATA" -l "$PGDATA/server.log" -o "-k $PGDATA"
     fi
-  done
+
+    # Wait for PostgreSQL to be ready
+    echo -ne "  Waiting for PostgreSQL"
+    for i in $(seq 1 30); do
+      if pg_isready -h localhost -p "$PG_PORT" &> /dev/null; then
+        echo -e " ${GREEN}ready${NC}"
+        break
+      fi
+      echo -n "."
+      sleep 1
+      if [ "$i" -eq 30 ]; then
+        echo -e " ${RED}timeout${NC}"
+        echo -e "${RED}PostgreSQL did not start in 30s. Check: ${PGDATA}/server.log${NC}"
+        exit 1
+      fi
+    done
+
+    # Create database and role if they don't exist
+    if ! psql -h localhost -p "$PG_PORT" -U "$PG_USER" -lqt 2>/dev/null | grep -qw "$PG_DB"; then
+      createdb -h localhost -p "$PG_PORT" -U "$PG_USER" "$PG_DB" 2>/dev/null || true
+    fi
+
+    DATABASE_URL="postgres://${PG_USER}@localhost:${PG_PORT}/${PG_DB}"
+  fi
 
   # Run migrations
   echo -e "${BLUE}==> Running database migrations...${NC}"
@@ -181,7 +234,7 @@ echo -e "${BLUE}==> Starting server on port $SERVER_PORT...${NC}"
 SERVER_PID=$!
 
 echo -e "${BLUE}==> Starting web client on port $WEB_PORT...${NC}"
-(cd "$REPO_ROOT" && VITE_WS_URL="ws://localhost:${SERVER_PORT}/ws" pnpm --filter @tractor/web exec vite --port "$WEB_PORT" --strictPort) &
+(cd "$REPO_ROOT" && VITE_WS_URL="ws://localhost:${SERVER_PORT}/ws" pnpm --filter @tractor/web exec vite --port "$WEB_PORT" --strictPort --clearScreen false) &
 WEB_PID=$!
 
 echo ""

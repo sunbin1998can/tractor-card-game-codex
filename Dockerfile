@@ -1,4 +1,4 @@
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 RUN corepack enable && corepack prepare pnpm@9 --activate
 WORKDIR /app
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
@@ -15,7 +15,7 @@ COPY tsconfig.base.json ./
 COPY packages ./packages
 RUN pnpm -r build
 
-FROM node:20-slim AS runtime
+FROM node:22-slim AS runtime
 RUN corepack enable && corepack prepare pnpm@9 --activate
 WORKDIR /app
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./

@@ -40,7 +40,7 @@ pnpm --version   # latest
 
 **Option B — Manual install**
 
-Install [Node.js](https://nodejs.org/) (v20+) and [pnpm](https://pnpm.io/) (v9+) yourself.
+Install [Node.js](https://nodejs.org/) (v22+) and [pnpm](https://pnpm.io/) (v9+) yourself.
 
 ## Quick Start (Local)
 ```bash
