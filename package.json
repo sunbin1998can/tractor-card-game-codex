@@ -8,6 +8,10 @@
     "start": "node packages/server/dist/index.js",
     "test": "pnpm --filter @tractor/engine test",
     "dev:server": "pnpm --filter @tractor/server dev",
-    "dev:web": "pnpm --filter @tractor/web dev"
+    "dev:web": "pnpm --filter @tractor/web dev",
+    "screenshot:debug": "tsx scripts/screenshot-debug.ts"
+  },
+  "devDependencies": {
+    "playwright": "^1.58.2"
   }
 }
