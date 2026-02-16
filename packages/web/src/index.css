@@ -533,7 +533,34 @@ input::placeholder {
   gap: 8px;
 }
 
-/* (chat-panel fixed positioning removed — now uses .chat-drawer / .chat-fab) */
+/* Horizontal flex wrapper: game content + optional chat sidebar */
+.game-main {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Game content column takes remaining space */
+.game-content {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Desktop chat sidebar — normal flow, not fixed */
+.chat-sidebar {
+  flex: 0 0 280px;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-bg);
+  border-left: 1px solid var(--panel-border);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  overflow: hidden;
+}
 
 .game-footer {
   flex: 0 0 auto;
@@ -1478,26 +1505,19 @@ input::placeholder {
   50% { opacity: 1; }
 }
 
-/* ===== Chat Drawer ===== */
-.chat-drawer {
+/* ===== Chat Sidebar / Mobile popup ===== */
+/* (Desktop .chat-sidebar is defined above in the game-main section) */
+
+/* Mobile: fixed full-width popup overlay */
+.chat-sidebar.chat-sidebar-mobile {
   position: fixed;
   top: 0;
+  right: 0;
   bottom: 0;
-  width: 280px;
+  width: 100%;
   z-index: var(--z-overlay-ui);
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  display: flex;
-  flex-direction: column;
-  transition: transform 0.25s ease;
+  flex: none;
 }
-
-.chat-drawer.right { right: 0; border-left: 1px solid var(--panel-border); }
-.chat-drawer.left { left: 0; border-right: 1px solid var(--panel-border); }
-.chat-drawer.right.minimized { transform: translateX(100%); }
-.chat-drawer.left.minimized { transform: translateX(-100%); }
 
 .chat-drawer-header {
   display: flex;
@@ -1667,8 +1687,7 @@ input::placeholder {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
-.chat-fab.right { right: 12px; bottom: 12px; }
-.chat-fab.left { left: 12px; bottom: 12px; }
+.chat-fab { right: 12px; bottom: 12px; }
 
 .chat-fab-badge {
   position: absolute;
@@ -2457,8 +2476,9 @@ input::placeholder {
     display: none;
   }
 
-  .chat-drawer {
-    width: 100%;
+  /* Chat sidebar hidden on mobile — uses fixed popup via .chat-sidebar-mobile */
+  .chat-sidebar:not(.chat-sidebar-mobile) {
+    display: none;
   }
 
   .action-panel button {

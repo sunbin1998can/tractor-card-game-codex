@@ -218,16 +218,20 @@ export default function App() {
     <div className="game-layout" style={{ '--card-scale': cardScale } as React.CSSProperties}>
       <DevDebugHint />
       <ScoreBoard playerLabel={playerLabel} seatLabel={seatLabel} roomId={roomId} />
-      <div className="game-body">
-        <SeatSidebar />
-        <GameTable />
+      <div className="game-main">
+        <div className="game-content">
+          <div className="game-body">
+            <SeatSidebar />
+            <GameTable />
+          </div>
+          <div className="game-footer">
+            <ActionPanel />
+            <Hand />
+          </div>
+          <EventLog />
+        </div>
+        <ChatBox />
       </div>
-      <div className="game-footer">
-        <ActionPanel />
-        <Hand />
-      </div>
-      <EventLog />
-      <ChatBox />
       <FloatingPoints />
       <GameBadges />
       <Toasts />

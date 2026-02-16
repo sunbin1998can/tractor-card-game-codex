@@ -122,7 +122,7 @@ export const useStore = create<StoreState>((set, get) => ({
   toasts: [],
   announcements: [],
   chatMessages: [],
-  chatHidden: sessionStorage.getItem('chatHidden') === 'true',
+  chatHidden: sessionStorage.getItem('chatHidden') !== 'false',
   kouDiPopup: null,
   roundPopup: null,
   roundEndEffect: null,
