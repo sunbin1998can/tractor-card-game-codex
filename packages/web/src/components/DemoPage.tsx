@@ -15,22 +15,22 @@ import Toasts from './Toasts';
 import KouDiPopup from './KouDiPopup';
 
 type Tab = 'lobby' | 'game' | 'round-result' | 'kou-di' | 'badges';
-type DebugPlayerCount = 4 | 6;
+type DemoPlayerCount = 4 | 6;
 
-function DebugLabel({ name, children }: { name: string; children: React.ReactNode }) {
+function DemoLabel({ name, children }: { name: string; children: React.ReactNode }) {
   return (
-    <div className="debug-label-wrap">
-      <span className="debug-label-tag">{name}</span>
+    <div className="demo-label-wrap">
+      <span className="demo-label-tag">{name}</span>
       {children}
     </div>
   );
 }
 
 const MOCK_SEATS_4 = [
-  { seat: 0, name: 'Alice', team: 0, connected: true, ready: true, cardsLeft: 18 },
-  { seat: 1, name: 'Bob', team: 1, connected: true, ready: true, cardsLeft: 18 },
-  { seat: 2, name: 'Charlie', team: 0, connected: true, ready: false, cardsLeft: 18 },
-  { seat: 3, name: 'Diana', team: 1, connected: false, ready: false, cardsLeft: 18 },
+  { seat: 0, name: 'Alice', team: 0, connected: true, ready: true, cardsLeft: 25 },
+  { seat: 1, name: 'Bob', team: 1, connected: true, ready: true, cardsLeft: 25 },
+  { seat: 2, name: 'Charlie', team: 0, connected: true, ready: false, cardsLeft: 25 },
+  { seat: 3, name: 'Diana', team: 1, connected: false, ready: false, cardsLeft: 25 },
 ];
 
 const MOCK_HAND = [
@@ -50,16 +50,16 @@ const MOCK_TRICK = [
 ];
 
 const MOCK_SEATS_6 = [
-  { seat: 0, name: 'Alice', team: 0, connected: true, ready: true, cardsLeft: 18 },
-  { seat: 1, name: 'Bob', team: 1, connected: true, ready: true, cardsLeft: 18 },
-  { seat: 2, name: 'Charlie', team: 0, connected: true, ready: true, cardsLeft: 18 },
-  { seat: 3, name: 'Diana', team: 1, connected: true, ready: false, cardsLeft: 18 },
-  { seat: 4, name: 'Eve', team: 0, connected: false, ready: false, cardsLeft: 18 },
-  { seat: 5, name: 'Frank', team: 1, connected: true, ready: true, cardsLeft: 18 },
+  { seat: 0, name: 'Alice', team: 0, connected: true, ready: true, cardsLeft: 16 },
+  { seat: 1, name: 'Bob', team: 1, connected: true, ready: true, cardsLeft: 16 },
+  { seat: 2, name: 'Charlie', team: 0, connected: true, ready: true, cardsLeft: 16 },
+  { seat: 3, name: 'Diana', team: 1, connected: true, ready: false, cardsLeft: 16 },
+  { seat: 4, name: 'Eve', team: 0, connected: false, ready: false, cardsLeft: 16 },
+  { seat: 5, name: 'Frank', team: 1, connected: true, ready: true, cardsLeft: 16 },
 ];
 
 const MOCK_STATE = {
-  id: 'debug-room',
+  id: 'demo-room',
   players: 4,
   seats: MOCK_SEATS_4,
   teamLevels: ['5', '3'] as [string, string],
@@ -75,8 +75,8 @@ const MOCK_STATE = {
   trick: MOCK_TRICK,
 };
 
-const DEBUG_PLAYER_COUNTS: DebugPlayerCount[] = [4, 6];
-const DEBUG_SEAT_CONFIGS: Record<DebugPlayerCount, PublicSeat[]> = {
+const DEMO_PLAYER_COUNTS: DemoPlayerCount[] = [4, 6];
+const DEMO_SEAT_CONFIGS: Record<DemoPlayerCount, PublicSeat[]> = {
   4: MOCK_SEATS_4,
   6: MOCK_SEATS_6,
 };
@@ -89,14 +89,14 @@ function createMockStateForSeats(seats: PublicSeat[]): PublicState {
   };
 }
 
-const CARDS_PER_HAND: Record<DebugPlayerCount, number> = {
-  4: 24,
+const CARDS_PER_HAND: Record<DemoPlayerCount, number> = {
+  4: 25,
   6: 16,
 };
 
 const HAND_BATCH_SIZE = 4;
 
-function handForPlayers(count: DebugPlayerCount) {
+function handForPlayers(count: DemoPlayerCount) {
   return MOCK_HAND.slice(0, CARDS_PER_HAND[count]);
 }
 
@@ -281,7 +281,7 @@ function getScriptedTricksForPlayers(count: number) {
 /*  useSimulation hook                                                  */
 /* ------------------------------------------------------------------ */
 
-function useSimulation(active: boolean, seatConfig: PublicSeat[], playerCount: DebugPlayerCount) {
+function useSimulation(active: boolean, seatConfig: PublicSeat[], playerCount: DemoPlayerCount) {
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const cancelledRef = useRef(false);
 
@@ -338,8 +338,8 @@ function useSimulation(active: boolean, seatConfig: PublicSeat[], playerCount: D
         if (cancelledRef.current) return;
 
         /* ============ Phase 1: Initialize & Deal ============ */
-        store().setRoomId('debug-room');
-        ss({ youSeat: 0, sessionToken: 'debug-token' });
+        store().setRoomId('demo-room');
+        ss({ youSeat: 0, sessionToken: 'demo-token' });
         store().setHand([]);
         store().clearTrickDisplay();
         store().setRoundPopup(null);
@@ -378,7 +378,7 @@ function useSimulation(active: boolean, seatConfig: PublicSeat[], playerCount: D
         await delay(500);
 
         /* ============ Phase 2: Play tricks ============ */
-        let currentHand = [...MOCK_HAND];
+        let currentHand = [...handCopy];
         let scores: [number, number] = [0, 0];
 
         for (let ti = 0; ti < trickSequence.length; ti++) {
@@ -482,8 +482,8 @@ function useSimulation(active: boolean, seatConfig: PublicSeat[], playerCount: D
 /* ------------------------------------------------------------------ */
 
 function seedGameState(store: ReturnType<typeof useStore.getState>, seats: PublicSeat[]) {
-  store.setRoomId('debug-room');
-  useStore.setState({ youSeat: 0, sessionToken: 'debug-token' });
+  store.setRoomId('demo-room');
+  useStore.setState({ youSeat: 0, sessionToken: 'demo-token' });
   store.setPublicState(createMockStateForSeats(seats) as any);
   store.setHand(MOCK_HAND);
   store.setTrickDisplay(MOCK_TRICK);
@@ -494,7 +494,7 @@ const VALID_TABS = new Set<Tab>(['lobby', 'game', 'round-result', 'kou-di', 'bad
 
 function getTabFromHash(): Tab {
   try {
-    const hash = window.location.hash; // e.g. "#/debug?view=kou-di"
+    const hash = window.location.hash; // e.g. "#/demo?view=kou-di"
     const qIdx = hash.indexOf('?');
     if (qIdx === -1) return 'game';
     const params = new URLSearchParams(hash.slice(qIdx + 1));
@@ -506,16 +506,16 @@ function getTabFromHash(): Tab {
 }
 
 function setTabInHash(tab: Tab) {
-  const base = '#/debug';
+  const base = '#/demo';
   window.history.replaceState(null, '', tab === 'game' ? base : `${base}?view=${tab}`);
 }
 
-export default function DebugPage() {
+export default function DemoPage() {
   const [tab, setTabState] = useState<Tab>(getTabFromHash);
   const [open, setOpen] = useState(false);
-  const [playerCount, setPlayerCount] = useState<DebugPlayerCount>(4);
+  const [playerCount, setPlayerCount] = useState<DemoPlayerCount>(4);
   const store = useStore.getState();
-  const playerSeats = DEBUG_SEAT_CONFIGS[playerCount];
+  const playerSeats = DEMO_SEAT_CONFIGS[playerCount];
 
   const setTab = useCallback((t: Tab) => {
     setTabState(t);
@@ -544,9 +544,9 @@ export default function DebugPage() {
   useEffect(() => {
     return () => {
       const state = useStore.getState();
-      if (state.roomId !== 'debug-room' && state.sessionToken !== 'debug-token') return;
+      if (state.roomId !== 'demo-room' && state.sessionToken !== 'demo-token') return;
       state.leaveRoom();
-      if (state.sessionToken === 'debug-token') {
+      if (state.sessionToken === 'demo-token') {
         sessionStorage.removeItem('sessionToken');
         useStore.setState({ sessionToken: null });
       }
@@ -589,15 +589,15 @@ export default function DebugPage() {
 
   return (
     <div style={{ height: '100vh', overflow: 'hidden' }}>
-      <div className={`debug-tab-bar ${open ? 'open' : ''}`}>
-        <button className="debug-tab-toggle" onClick={() => setOpen(!open)}>
-          {open ? '\u2716' : '\u2699 Debug'}
+      <div className={`demo-tab-bar ${open ? 'open' : ''}`}>
+        <button className="demo-tab-toggle" onClick={() => setOpen(!open)}>
+          {open ? '\u2716' : '\u2699 Demo'}
         </button>
-        <div className="debug-player-toggle">
-          {DEBUG_PLAYER_COUNTS.map((count) => (
+        <div className="demo-player-toggle">
+          {DEMO_PLAYER_COUNTS.map((count) => (
             <button
               key={`dbg-players-${count}`}
-              className={`debug-player-count ${playerCount === count ? 'active' : ''}`}
+              className={`demo-player-count ${playerCount === count ? 'active' : ''}`}
               onClick={() => setPlayerCount(count)}
             >
               {count} Players
@@ -607,7 +607,7 @@ export default function DebugPage() {
         {open && tabs.map((t) => (
           <button
             key={t.id}
-            className={`debug-tab ${tab === t.id ? 'active' : ''}`}
+            className={`demo-tab ${tab === t.id ? 'active' : ''}`}
             onClick={() => { setTab(t.id); setOpen(false); }}
           >
             {t.label}
@@ -615,13 +615,13 @@ export default function DebugPage() {
         ))}
       </div>
       <div style={{ height: '100%', overflow: 'hidden' }}>
-        <DebugContent tab={tab} />
+        <DemoContent tab={tab} />
       </div>
     </div>
   );
 }
 
-function DebugContent({ tab }: { tab: Tab }) {
+function DemoContent({ tab }: { tab: Tab }) {
   const roomId = useStore((s) => s.roomId);
   const nickname = useStore((s) => s.nickname);
   const cardScale = useStore((s) => s.cardScale);
@@ -638,7 +638,7 @@ function DebugContent({ tab }: { tab: Tab }) {
         <div className="lobby-container">
           <div className="lobby-hero">
             <h1 className="lobby-title">Tractor</h1>
-            <p className="lobby-subtitle">Debug Lobby Preview</p>
+            <p className="lobby-subtitle">Demo Lobby Preview</p>
           </div>
           <div className="lobby-main">
             <div className="panel lobby-join-panel">
@@ -668,34 +668,34 @@ function DebugContent({ tab }: { tab: Tab }) {
 
   return (
     <div className="game-layout" style={layoutStyle}>
-      <DebugLabel name="ScoreBoard">
-        <ScoreBoard playerLabel="Alice" seatLabel="Seat 1" roomId="debug-room" />
-      </DebugLabel>
+      <DemoLabel name="ScoreBoard">
+        <ScoreBoard playerLabel="Alice" seatLabel="Seat 1" roomId="demo-room" />
+      </DemoLabel>
       <div className="game-main">
         <div className="game-content">
           <div className="game-body">
-            <DebugLabel name="SeatSidebar">
+            <DemoLabel name="SeatSidebar">
               <SeatSidebar />
-            </DebugLabel>
-            <DebugLabel name="GameTable">
+            </DemoLabel>
+            <DemoLabel name="GameTable">
               <GameTable />
-            </DebugLabel>
+            </DemoLabel>
           </div>
           <div className="game-footer">
-            <DebugLabel name="ActionPanel">
+            <DemoLabel name="ActionPanel">
               <ActionPanel />
-            </DebugLabel>
-            <DebugLabel name="Hand">
+            </DemoLabel>
+            <DemoLabel name="Hand">
               <Hand />
-            </DebugLabel>
+            </DemoLabel>
           </div>
-          <DebugLabel name="EventLog">
+          <DemoLabel name="EventLog">
             <EventLog />
-          </DebugLabel>
+          </DemoLabel>
         </div>
-        <DebugLabel name="ChatBox">
+        <DemoLabel name="ChatBox">
           <ChatBox />
-        </DebugLabel>
+        </DemoLabel>
       </div>
       <FloatingPoints />
       <GameBadges />

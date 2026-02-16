@@ -85,7 +85,7 @@ engine (0 deps)     protocol (0 deps)
 - Trump fairness window (default 2000ms) prevents bot speed advantage.
 
 ## UI Review Workflow
-After changing CSS or UI components, screenshot the debug page at both viewports to verify:
+After changing CSS or UI components, screenshot the demo page at both viewports to verify:
 1. Start dev server: `bash scripts/dev.sh --no-db`
-2. Run `npx tsx scripts/screenshot-debug.ts` — produces `screenshots/debug-desktop.png` (1920x1080) and `screenshots/debug-mobile.png` (375x812)
+2. Run `npx tsx scripts/screenshot-debug.ts` — produces `screenshots/demo-desktop.png` (1920x1080) and `screenshots/demo-mobile.png` (375x812)
 3. Read both PNGs to review layout, spacing, and readability at desktop and mobile sizes

@@ -16,7 +16,7 @@ import EventLog from './components/EventLog';
 import RoundEndOverlay from './components/RoundEndOverlay';
 import FloatingPoints from './components/FloatingPoints';
 import GameBadges from './components/GameBadges';
-import DebugPage from './components/DebugPage';
+import DemoPage from './components/DemoPage';
 import MatchHistory from './components/MatchHistory';
 import DevDebugHint from './components/DevDebugHint';
 import CardImpactParticles from './components/CardImpactParticles';
@@ -25,13 +25,13 @@ import LevelUpOverlay from './components/LevelUpOverlay';
 import ThrowPunishedFlash from './components/ThrowPunishedFlash';
 
 export default function App() {
-  const [isDebug, setIsDebug] = useState(
-    () => typeof window !== 'undefined' && window.location.hash.startsWith('#/debug'),
+  const [isDemo, setIsDemo] = useState(
+    () => typeof window !== 'undefined' && window.location.hash.startsWith('#/demo'),
   );
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const syncHash = () => setIsDebug(window.location.hash.startsWith('#/debug'));
+    const syncHash = () => setIsDemo(window.location.hash.startsWith('#/demo'));
     window.addEventListener('hashchange', syncHash);
     window.addEventListener('popstate', syncHash);
     return () => {
@@ -40,8 +40,8 @@ export default function App() {
     };
   }, []);
 
-  // Debug mode: /#/debug
-  if (isDebug) return <DebugPage />;
+  // Demo mode: /#/demo
+  if (isDemo) return <DemoPage />;
   return <MainApp />;
 }
 

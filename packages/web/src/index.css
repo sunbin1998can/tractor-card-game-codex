@@ -34,7 +34,7 @@
   --z-floating: 400;
   --z-banner: 500;
   --z-modal: 600;
-  --z-debug: 700;
+  --z-demo: 700;
 
   /* Responsive base font: scales from 16px at 320px to 22px at 1920px */
   font-size: clamp(16px, 0.85rem + 0.4vw, 22px);
@@ -2541,8 +2541,8 @@ input::placeholder {
   border: 1px solid var(--panel-border);
 }
 
-/* ===== Debug Tab Bar ===== */
-.debug-tab-bar {
+/* ===== Demo Tab Bar ===== */
+.demo-tab-bar {
   position: fixed;
   top: 8px;
   right: 8px;
@@ -2553,12 +2553,12 @@ input::placeholder {
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 8px;
-  z-index: calc(var(--z-debug) + 1);
+  z-index: calc(var(--z-demo) + 1);
   flex-wrap: wrap;
   max-width: 320px;
 }
 
-.debug-tab-toggle {
+.demo-tab-toggle {
   padding: 4px 10px;
   border: 1px solid rgba(255, 215, 0, 0.4);
   border-radius: 6px;
@@ -2571,18 +2571,18 @@ input::placeholder {
   transition: background 0.15s;
 }
 
-.debug-tab-toggle:hover {
+.demo-tab-toggle:hover {
   background: rgba(255, 215, 0, 0.3);
 }
 
-.debug-player-toggle {
+.demo-player-toggle {
   display: flex;
   gap: 4px;
   align-items: center;
   flex-wrap: wrap;
 }
 
-.debug-player-count {
+.demo-player-count {
   padding: 4px 10px;
   border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 6px;
@@ -2594,13 +2594,13 @@ input::placeholder {
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
-.debug-player-count.active {
+.demo-player-count.active {
   background: var(--card-glow-gold);
   color: #1a1a1a;
   border-color: var(--card-glow-gold);
 }
 
-.debug-tab {
+.demo-tab {
   padding: 6px 16px;
   border: 1px solid var(--panel-border);
   border-radius: 6px;
@@ -2612,29 +2612,29 @@ input::placeholder {
   transition: background 0.15s, color 0.15s;
 }
 
-.debug-tab.active {
+.demo-tab.active {
   background: var(--card-glow-gold);
   color: #1a1a1a;
   border-color: var(--card-glow-gold);
 }
 
-.debug-tab:hover:not(.active) {
+.demo-tab:hover:not(.active) {
   background: rgba(255, 255, 255, 0.1);
   color: var(--text-light);
 }
 
-.debug-game-wrapper {
+.demo-game-wrapper {
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
-.debug-game-wrapper .game-layout {
+.demo-game-wrapper .game-layout {
   height: 100%;
 }
 
-/* Debug component labels — wrapper inherits flex behavior from parent */
-.debug-label-wrap {
+/* Demo component labels — wrapper inherits flex behavior from parent */
+.demo-label-wrap {
   position: relative;
   flex: inherit;
   display: flex;
@@ -2645,21 +2645,21 @@ input::placeholder {
 }
 
 /* In game-body, game-table should expand; seat-sidebar stays auto */
-.game-body > .debug-label-wrap:has(.game-table) {
+.game-body > .demo-label-wrap:has(.game-table) {
   flex: 1 1 auto;
   align-items: center;
   justify-content: center;
 }
 
-.game-body > .debug-label-wrap:has(.seat-sidebar) {
+.game-body > .demo-label-wrap:has(.seat-sidebar) {
   flex: 0 0 auto;
 }
 
-.debug-label-tag {
+.demo-label-tag {
   position: absolute;
   top: 0;
   left: 0;
-  z-index: var(--z-debug);
+  z-index: var(--z-demo);
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.5px;
@@ -2842,8 +2842,8 @@ input::placeholder {
   .round-end-banner.loss .round-end-text { font-size: 24px; }
 }
 
-/* ===== Dev Debug Floating Button ===== */
-.dev-debug-fab {
+/* ===== Dev Demo Floating Button ===== */
+.dev-demo-fab {
   position: fixed;
   z-index: var(--z-toast);
   padding: 6px 14px;
@@ -2863,14 +2863,14 @@ input::placeholder {
   transition: box-shadow 0.15s, background 0.15s;
 }
 
-.dev-debug-fab:hover {
+.dev-demo-fab:hover {
   background: rgba(0, 0, 0, 0.9);
   box-shadow: 0 2px 12px rgba(255, 215, 0, 0.25);
   text-decoration: none;
   color: #ffe44d;
 }
 
-.dev-debug-fab:active {
+.dev-demo-fab:active {
   cursor: grabbing;
 }
 

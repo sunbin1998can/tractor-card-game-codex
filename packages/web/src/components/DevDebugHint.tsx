@@ -63,20 +63,20 @@ export default function DevDebugHint() {
     }
   }, []);
 
-  if (!import.meta.env.DEV || !pos) return null;
+  if (!pos) return null;
 
   return (
     <a
       ref={elRef}
-      href="/#/debug"
-      className="dev-debug-fab"
+      href="/#/demo"
+      className="dev-demo-fab"
       style={{ left: pos.x, top: pos.y }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onClick={onClick}
     >
-      Debug
+      Demo
     </a>
   );
 }
