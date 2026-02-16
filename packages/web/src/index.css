@@ -2242,7 +2242,6 @@ input::placeholder {
 }
 
 .trick-cell-empty {
-.trick-cell-empty {
   color: rgba(255, 255, 255, 0.4);
   font-size: 14px;
 }
@@ -2265,6 +2264,38 @@ input::placeholder {
   color: var(--card-glow-gold);
   font-size: 10px;
   font-weight: 700;
+}
+
+.trick-total-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.trick-total-info {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-light);
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.2);
+  min-width: 110px;
+}
+
+.trick-total-name {
+  display: block;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.trick-total-pts {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--card-glow-gold);
 }
 
 .trick-winner-cell {

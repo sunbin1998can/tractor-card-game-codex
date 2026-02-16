@@ -3,6 +3,8 @@ import { useT } from '../i18n';
 import { wsClient } from '../wsClient';
 import CardFace from './CardFace';
 
+const ORDER_LABELS = ['Lead', '2nd', '3rd', '4th', '5th', '6th'];
+
 function countPoints(cardIds: string[]): number {
   let pts = 0;
   for (const id of cardIds) {
@@ -28,6 +30,9 @@ export default function RoundPopup() {
   const seats = state?.seats ?? [];
   const kittyCards = rr?.kittyCards ?? [];
   const trickHistory = rr?.trickHistory ?? [];
+  const totalPlayers = state?.players ?? seats.length;
+
+  const orderLabels = ORDER_LABELS.slice(0, totalPlayers);
 
   const winnerSide = rr?.winnerSide;
   const winnerTeam = rr?.winnerTeam;
@@ -45,6 +50,22 @@ export default function RoundPopup() {
     const cards = (rr?.playedBySeat ?? [])[seat.seat] ?? [];
     return countPoints(cards);
   });
+
+  const seatMap = new Map(seats.map((seat) => [seat.seat, seat]));
+  const nameForSeat = (seatId: number) =>
+    seatMap.get(seatId)?.name || `${t('seat.seat')} ${seatId + 1}`;
+  const getOrderedPlays = (trick: typeof trickHistory[number]) => {
+    const total = totalPlayers;
+    return Array.from({ length: total }, (_, idx) => {
+      const seatIdx = (trick.leader + idx) % total;
+      const play = trick.plays.find((p) => p.seat === seatIdx);
+      return {
+        seatId: seatIdx,
+        play,
+        isLeader: idx === 0,
+      };
+    });
+  };
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
@@ -103,66 +124,81 @@ export default function RoundPopup() {
 
               {/* Trick-by-trick table */}
               {trickHistory.length > 0 && (
-                <div className="trick-table-wrap">
-                  <table className="trick-table">
-                    <thead>
-                      <tr>
-                        <th className="trick-table-th trick-num">#</th>
-                        {seats.map((seat) => (
-                          <th key={seat.seat} className="trick-table-th">
-                            {seat.name || `${t('seat.seat')} ${seat.seat + 1}`}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {trickHistory.map((trick, trickIdx) => (
-                        <tr key={trickIdx} className="trick-table-row">
-                          <td className="trick-table-td trick-num">{trickIdx + 1}</td>
-                          {seats.map((seat) => {
-                            const play = trick.plays.find((p) => p.seat === seat.seat);
-                            const isWinner = trick.winnerSeat === seat.seat;
-                            return (
-                              <td
-                                key={seat.seat}
-                                className={`trick-table-td ${isWinner ? 'trick-winner-cell' : ''}`}
-                              >
-                                {play ? (
-                                  play.cards.map((c, ci) => (
-                                    <CardFace key={`${trickIdx}-${seat.seat}-${c}-${ci}`} id={c} mini />
-                                  ))
-                                ) : (
-                                  <span className="trick-cell-empty">&mdash;</span>
-                                )}
-                              </td>
-                            );
-                          })}
+                <>
+                  <div className="trick-table-wrap">
+                    <table className="trick-table">
+                      <thead>
+                        <tr>
+                          <th className="trick-table-th trick-num">#</th>
+                          {orderLabels.map((label) => (
+                            <th key={label} className="trick-table-th">
+                              {label}
+                            </th>
+                          ))}
                         </tr>
-                      ))}
-                      {/* Totals row */}
-                      <tr className="trick-table-row trick-totals-row">
-                        <td className="trick-table-td trick-num">{t('round.totalPts')}</td>
-                        {seats.map((seat, i) => (
-                          <td key={seat.seat} className="trick-table-td trick-total-cell">
-                            {playerPoints[i]} pts
-                          </td>
-                        ))}
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {trickHistory.map((trick, trickIdx) => {
+                          const orderedPlays = getOrderedPlays(trick);
+                          return (
+                            <tr key={trickIdx} className="trick-table-row">
+                              <td className="trick-table-td trick-num">{trickIdx + 1}</td>
+                              {orderedPlays.map(({ seatId, play, isLeader }, idx) => {
+                                const isWinner = trick.winnerSeat === seatId;
+                                return (
+                                  <td
+                                    key={`${seatId}-${idx}-${play?.cards?.join('-') ?? 'empty'}`}
+                                    className={`trick-table-td ${isWinner ? 'trick-winner-cell' : ''}`}
+                                  >
+                                    <div className="trick-cell-seat">
+                                      <span>{nameForSeat(seatId)}</span>
+                                      {isLeader && (
+                                        <span className="trick-cell-lead">{t('seat.leader')}</span>
+                                      )}
+                                    </div>
+                                    {play ? (
+                                      <div className="trick-cell-cards">
+                                        {play.cards.map((c, ci) => (
+                                          <CardFace
+                                            key={`${trickIdx}-${seatId}-${c}-${ci}`}
+                                            id={c}
+                                            mini
+                                          />
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <span className="trick-cell-empty">&mdash;</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="trick-total-row">
+                    {seats.map((seat, i) => (
+                      <div key={`total-${seat.seat}`} className="trick-total-info">
+                        <span className="trick-total-name">{nameForSeat(seat.seat)}</span>
+                        <span className="trick-total-pts">{playerPoints[i]} pts</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
 
               {/* Kitty */}
-              <div className="round-kitty-block">
-                <div className="round-seat-title">{t('round.buried')}:</div>
-                <div className="round-seat-cards">
-                  {kittyCards.map((id, idx) => (
-                    <CardFace key={`kitty-${id}-${idx}`} id={id} mini />
-                  ))}
+                <div className="round-kitty-block">
+                  <div className="round-seat-title">{t('round.buried')}:</div>
+                  <div className="round-seat-cards">
+                    {kittyCards.map((id, idx) => (
+                      <CardFace key={`kitty-${id}-${idx}`} id={id} mini />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </>
+              </>
           ) : (
             <>
               <div className="modal-title round-result-title">{t('round.title')}</div>

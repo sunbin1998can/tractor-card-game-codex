@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import type { CSSProperties } from 'react';
 import { useStore } from '../store';
 import { useT } from '../i18n';
 import { getRelativePosition, type RelativePosition } from './GameTable';
@@ -113,11 +114,15 @@ export default function TableCenter() {
               const isWinning = winningSeat === play.seat && trick.length > 1;
               // Directional initial offset based on seat position
               const entryOffset = positionOffset(pos);
+              const isMine = play.seat === mySeat;
               return (
                 <motion.div
                   key={`trick-${play.seat}`}
                   className={`trick-play ${isWinning ? 'trick-winning' : ''}`}
-                  style={trickPositionStyle(pos)}
+                  style={{
+                    ...trickPositionStyle(pos),
+                    zIndex: isMine ? 2 : 1,
+                  } as CSSProperties}
                   initial={{ x: entryOffset.x * 0.75, y: entryOffset.y * 0.75, opacity: 0 }}
                   animate={{ x: 0, y: 0, opacity: 1 }}
                   exit={{ ...exitTarget, opacity: 0, scale: 0.6 }}
