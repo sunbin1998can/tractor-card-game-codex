@@ -20,6 +20,7 @@ function fireVictoryConfetti() {
 
 export default function RoundEndOverlay() {
   const effect = useStore((s) => s.roundEndEffect);
+  const levelUp = useStore((s) => s.levelUpEffect);
   const setRoundEndEffect = useStore((s) => s.setRoundEndEffect);
   const t = useT();
 
@@ -27,6 +28,10 @@ export default function RoundEndOverlay() {
     if (!effect) return;
     if (effect === 'win') {
       fireVictoryConfetti();
+      if (levelUp) {
+        // Double confetti for level-up
+        setTimeout(() => fireVictoryConfetti(), 600);
+      }
     }
     const timer = window.setTimeout(() => {
       setRoundEndEffect(null);

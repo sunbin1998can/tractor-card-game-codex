@@ -15,7 +15,13 @@
           packages = [
             pkgs.nodejs_22
             pkgs.pnpm
+            pkgs.postgresql_16
+            pkgs.git
           ];
+
+          shellHook = ''
+            export PGDATA="$PWD/.pg-data"
+          '';
         };
       });
     };

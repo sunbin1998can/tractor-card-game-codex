@@ -3,7 +3,7 @@ import { useStore } from './store';
 import { wsClient } from './wsClient';
 import { useT } from './i18n';
 import { guestLogin, sendEmailCode, verifyEmailCode as apiVerifyEmail, getMe } from './api';
-import GameTable from './components/GameTable';
+import GameTable, { SeatSidebar } from './components/GameTable';
 import Hand from './components/Hand';
 import ActionPanel from './components/ActionPanel';
 import ScoreBoard from './components/ScoreBoard';
@@ -17,6 +17,11 @@ import FloatingPoints from './components/FloatingPoints';
 import GameBadges from './components/GameBadges';
 import DebugPage from './components/DebugPage';
 import MatchHistory from './components/MatchHistory';
+import DevDebugHint from './components/DevDebugHint';
+import CardImpactParticles from './components/CardImpactParticles';
+import TrumpDeclareOverlay from './components/TrumpDeclareOverlay';
+import LevelUpOverlay from './components/LevelUpOverlay';
+import ThrowPunishedFlash from './components/ThrowPunishedFlash';
 
 export default function App() {
   // Debug mode: /#/debug
@@ -89,6 +94,7 @@ export default function App() {
 
     return (
       <div className="app lobby-screen">
+        <DevDebugHint />
         <div className="lobby-particles" />
         <div className="lobby-container">
           <div className="lobby-hero">
@@ -210,20 +216,32 @@ export default function App() {
     );
   }
 
+  const cardScale = useStore((s) => s.cardScale);
+
   return (
-    <div className="game-layout">
+    <div className="game-layout" style={{ '--card-scale': cardScale } as React.CSSProperties}>
+      <DevDebugHint />
       <ScoreBoard playerLabel={playerLabel} seatLabel={seatLabel} roomId={roomId} />
-      <div className="game-body">
-        <GameTable />
+      <div className="game-main">
+        <div className="game-content">
+          <div className="game-body">
+            <SeatSidebar />
+            <GameTable />
+          </div>
+          <div className="game-footer">
+            <ActionPanel />
+            <Hand />
+          </div>
+          <EventLog />
+        </div>
         <ChatBox />
       </div>
-      <div className="game-footer">
-        <ActionPanel />
-        <Hand />
-      </div>
-      <EventLog />
       <FloatingPoints />
       <GameBadges />
+      <CardImpactParticles />
+      <TrumpDeclareOverlay />
+      <LevelUpOverlay />
+      <ThrowPunishedFlash />
       <Toasts />
       <KouDiPopup />
       <RoundEndOverlay />

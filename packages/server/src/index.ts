@@ -5,7 +5,7 @@ import { createWsServer } from './server/ws.js';
 import { initDb } from './db.js';
 import { handleApi } from './api.js';
 
-initDb();
+await initDb();
 
 const port = Number(process.env.PORT ?? 3000);
 const wsPath = '/ws';

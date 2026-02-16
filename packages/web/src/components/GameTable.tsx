@@ -32,7 +32,8 @@ export function getRelativePosition(
   return positions[offset];
 }
 
-export default function GameTable() {
+/** Sidebar listing all seats in play order from your perspective */
+export function SeatSidebar() {
   const state = useStore((s) => s.publicState);
   const youSeat = useStore((s) => s.youSeat);
 
@@ -41,16 +42,29 @@ export default function GameTable() {
   const totalPlayers = state.players;
   const mySeat = youSeat ?? 0;
 
+  // Order seats starting from player's own seat
+  const ordered = Array.from({ length: totalPlayers }, (_, i) => (mySeat + i) % totalPlayers);
+
   return (
-    <div className="game-table">
-      {state.seats.map((seat) => {
-        const pos = getRelativePosition(mySeat, seat.seat, totalPlayers);
-        return (
-          <div key={seat.seat} className={`seat-slot pos-${pos}`}>
-            <SeatCard seat={seat} position={pos} />
-          </div>
-        );
+    <div className="seat-sidebar">
+      {ordered.map((seatIdx) => {
+        const seat = state.seats.find((s) => s.seat === seatIdx);
+        if (!seat) return null;
+        const pos = getRelativePosition(mySeat, seatIdx, totalPlayers);
+        return <SeatCard key={seatIdx} seat={seat} position={pos} />;
       })}
+    </div>
+  );
+}
+
+export default function GameTable() {
+  const state = useStore((s) => s.publicState);
+  const screenShake = useStore((s) => s.screenShake);
+
+  if (!state) return null;
+
+  return (
+    <div className={`game-table${screenShake ? ' screen-shake' : ''}`}>
       <TableCenter />
     </div>
   );

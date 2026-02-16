@@ -12,11 +12,13 @@ export default function MatchHistory() {
   const [rating, setRating] = useState<ApiRating | null>(null);
   const [matches, setMatches] = useState<ApiMatch[]>([]);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
 
   useEffect(() => {
-    if (!authToken) return;
+    if (!authToken) { setInitialLoading(false); return; }
     let cancelled = false;
+    setInitialLoading(true);
     (async () => {
       try {
         const [s, r, m] = await Promise.all([
@@ -31,6 +33,8 @@ export default function MatchHistory() {
         setHasMore(m.matches.length >= 20);
       } catch {
         // API not available
+      } finally {
+        if (!cancelled) setInitialLoading(false);
       }
     })();
     return () => { cancelled = true; };
@@ -94,7 +98,10 @@ export default function MatchHistory() {
 
       {/* Match list */}
       <div className="history-match-list">
-        {matches.length === 0 && (
+        {initialLoading && (
+          <div className="history-empty">{t('lobby.loading')}</div>
+        )}
+        {!initialLoading && matches.length === 0 && (
           <div className="history-empty">{t('lobby.noHistory')}</div>
         )}
         {matches.map((m) => {
@@ -105,8 +112,16 @@ export default function MatchHistory() {
             : '';
           let levelsStart: string[] = [];
           let levelsEnd: string[] = [];
-          try { levelsStart = JSON.parse(m.match.team_levels_start); } catch {}
-          try { if (m.match.team_levels_end) levelsEnd = JSON.parse(m.match.team_levels_end); } catch {}
+          try {
+            const parsed = JSON.parse(m.match.team_levels_start);
+            if (Array.isArray(parsed) && parsed.length === 2) levelsStart = parsed;
+          } catch {}
+          try {
+            if (m.match.team_levels_end) {
+              const parsed = JSON.parse(m.match.team_levels_end);
+              if (Array.isArray(parsed) && parsed.length === 2) levelsEnd = parsed;
+            }
+          } catch {}
 
           return (
             <div

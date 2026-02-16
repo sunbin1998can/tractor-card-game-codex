@@ -66,6 +66,8 @@ pnpm workspaces monorepo under `packages/`:
 - `packages/bot/` (`@tractor/bot`) — Placeholder for bot agent
 - `packages/analytics/` (`@tractor/analytics`) — Placeholder for analytics
 
+**Development tooling:** `scripts/dev.sh` provides one-command local startup. It auto-detects Docker or falls back to `pg_ctl` (Nix shell) for PostgreSQL, runs migrations, seeds sample data, and launches the server + Vite client. Use `--no-db` for memory-only mode. In dev mode, `/#/debug` opens a component showcase page.
+
 ## 3) Event Protocol Requirements
 ...
 (continued — same as full AGENTS.md you received earlier)

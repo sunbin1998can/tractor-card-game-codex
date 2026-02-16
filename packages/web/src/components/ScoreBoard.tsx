@@ -40,8 +40,14 @@ export default function ScoreBoard({ playerLabel, seatLabel, roomId }: Props) {
   const toggleLang = useStore((s) => s.toggleLang);
   const muted = useStore((s) => s.muted);
   const toggleMuted = useStore((s) => s.toggleMuted);
+  const cardScale = useStore((s) => s.cardScale);
+  const setCardScale = useStore((s) => s.setCardScale);
+  const chatHidden = useStore((s) => s.chatHidden);
+  const toggleChatHidden = useStore((s) => s.toggleChatHidden);
   const t = useT();
   const winStreak = useStore((s) => s.winStreak);
+  const youSeat = useStore((s) => s.youSeat);
+  const [surrenderConfirm, setSurrenderConfirm] = useState(false);
   const [capturedExpanded, setCapturedExpanded] = useState(false);
   const [voicePickerOpen, setVoicePickerOpen] = useState(false);
   const ttsVoiceName = useStore((s) => s.ttsVoiceName);
@@ -95,6 +101,36 @@ export default function ScoreBoard({ playerLabel, seatLabel, roomId }: Props) {
         >
           {t('score.leave')}
         </button>
+        {state.phase === 'TRICK_PLAY' && youSeat !== null && !state.surrenderVote && (
+          surrenderConfirm ? (
+            <>
+              <button
+                className="leave-btn surrender-btn"
+                onClick={() => {
+                  wsClient.send({ type: 'SURRENDER_PROPOSE' });
+                  setSurrenderConfirm(false);
+                }}
+              >
+                {t('surrender.accept')}
+              </button>
+              <button
+                className="leave-btn"
+                onClick={() => setSurrenderConfirm(false)}
+              >
+                {'\u2716'}
+              </button>
+            </>
+          ) : (
+            <button
+              className="leave-btn surrender-btn"
+              onClick={() => setSurrenderConfirm(true)}
+            >
+              {t('action.surrender')}
+            </button>
+          )
+        )}
+        {playerLabel && <span className="identity-chip">{playerLabel}</span>}
+        {seatLabel && <span className="identity-chip">{seatLabel}</span>}
       </div>
       <div className="score-center">
         <div className="score-teams">
@@ -127,11 +163,12 @@ export default function ScoreBoard({ playerLabel, seatLabel, roomId }: Props) {
           {winStreak >= 2 && <span className="streak-badge">{'\uD83D\uDD25'} x{winStreak}</span>}
           {roomId && <span className="room-badge">{t('score.room')}: {roomId}</span>}
           <span className="kitty-badge">{t('score.kitty')}: {state.kittyCount}</span>
-          {playerLabel && <span className="identity-chip">{playerLabel}</span>}
-          {seatLabel && <span className="identity-chip">{seatLabel}</span>}
         </div>
       </div>
       <div className="score-controls-right">
+        <button className="lang-toggle" onClick={toggleChatHidden} title={chatHidden ? 'Show chat' : 'Hide chat'} aria-label={chatHidden ? 'Show chat' : 'Hide chat'}>
+          {chatHidden ? '\uD83D\uDCAC' : '\uD83D\uDEAB'}
+        </button>
         <button className="lang-toggle" onClick={toggleMuted} title={muted ? 'Unmute' : 'Mute'} aria-label={muted ? 'Unmute' : 'Mute'}>
           {muted ? '\uD83D\uDD07' : '\uD83D\uDD0A'}
         </button>
@@ -169,6 +206,18 @@ export default function ScoreBoard({ playerLabel, seatLabel, roomId }: Props) {
             )}
           </div>
         )}
+        <select
+          className="lang-toggle"
+          value={cardScale}
+          onChange={(e) => setCardScale(Number(e.target.value))}
+          title="Card size"
+          style={{ minWidth: 50 }}
+        >
+          <option value={1}>1x</option>
+          <option value={1.5}>1.5x</option>
+          <option value={2}>2x</option>
+          <option value={2.5}>2.5x</option>
+        </select>
         <button className="lang-toggle" onClick={toggleLang}>{t('lang.toggle')}</button>
         <button
           className="lang-toggle"

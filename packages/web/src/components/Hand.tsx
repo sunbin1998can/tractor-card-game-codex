@@ -200,6 +200,13 @@ export default function Hand() {
   }, [toggle, pairPartners, selected]);
   const t = useT();
 
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const scrollBy = useCallback((dir: number) => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * 200, behavior: 'smooth' });
+  }, []);
+
   if (!hand.length) {
     return (
       <div className="hand-section">
@@ -211,17 +218,14 @@ export default function Hand() {
     );
   }
 
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const scrollBy = useCallback((dir: number) => {
-    const el = containerRef.current;
-    if (!el) return;
-    el.scrollBy({ left: dir * 200, behavior: 'smooth' });
-  }, []);
-
   const totalCards = sorted.length;
   const maxArc = isMobile ? 0 : Math.min(40, totalCards * 2);
   const arcPerCard = totalCards > 1 ? maxArc / (totalCards - 1) : 0;
   const overlap = isMobile ? -16 : Math.max(-24, -600 / totalCards);
+
+  const bands = hasTrumpContext
+    ? sorted.map((id) => cardGroupKey(id, levelRank as Rank, trumpSuit as Suit)[0])
+    : null;
 
   return (
     <div className="hand-section">
@@ -240,7 +244,7 @@ export default function Hand() {
                   key={id}
                   className="hand-card-wrap"
                   style={{
-                    marginLeft: i === 0 ? 0 : overlap,
+                    marginLeft: i === 0 ? 0 : (bands && bands[i] !== bands[i - 1]) ? overlap + 10 : overlap,
                     zIndex: i,
                     transform: `rotate(${angle}deg) translateY(${yOffset - (isSelected ? 12 : 0)}px)`,
                     transformOrigin: 'bottom center',
@@ -251,8 +255,8 @@ export default function Hand() {
                   dragElastic={0.3}
                   dragSnapToOrigin
                   whileDrag={{ zIndex: 200, scale: 1.08 }}
-                  initial={{ y: -60, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
+                  initial={{ y: -60, opacity: 0, scale: 0.5 }}
+                  animate={{ y: 0, opacity: 1, scale: 1 }}
                   exit={{ y: -40, opacity: 0 }}
                   transition={{ type: 'spring', stiffness: 400, damping: 30, delay: i * 0.02 }}
                   whileHover={isMobile ? undefined : { y: -10, zIndex: 100 }}

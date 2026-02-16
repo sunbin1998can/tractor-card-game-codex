@@ -8,11 +8,17 @@ dist/
 # Nix / direnv
 .direnv/
 
+# Local PostgreSQL data (Nix pg_ctl)
+.pg-data/
+
 # Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+
+# Generated screenshots
+screenshots/
 
 # OS
 .DS_Store

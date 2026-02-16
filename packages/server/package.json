@@ -11,6 +11,7 @@
   "dependencies": {
     "@tractor/db": "workspace:*",
     "@tractor/engine": "workspace:*",
+    "kysely": "^0.27.0",
     "@tractor/models": "workspace:*",
     "@tractor/protocol": "workspace:*",
     "ws": "^8.18.0"

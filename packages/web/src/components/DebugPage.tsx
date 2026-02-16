@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useStore } from '../store';
-import GameTable from './GameTable';
+import { playTurnNotification, playTrickWinSound, playVictoryFanfare, playCardPlaySound } from '../audio';
+import GameTable, { SeatSidebar } from './GameTable';
 import Hand from './Hand';
 import ActionPanel from './ActionPanel';
 import ScoreBoard from './ScoreBoard';
@@ -14,6 +15,15 @@ import Toasts from './Toasts';
 import KouDiPopup from './KouDiPopup';
 
 type Tab = 'lobby' | 'game' | 'round-result' | 'kou-di' | 'badges';
+
+function DebugLabel({ name, children }: { name: string; children: React.ReactNode }) {
+  return (
+    <div className="debug-label-wrap">
+      <span className="debug-label-tag">{name}</span>
+      {children}
+    </div>
+  );
+}
 
 const MOCK_SEATS_4 = [
   { seat: 0, name: 'Alice', team: 0, connected: true, ready: true, cardsLeft: 18 },
@@ -91,6 +101,274 @@ const MOCK_KOUDI = {
   multiplier: 4,
 };
 
+/* ------------------------------------------------------------------ */
+/*  Scripted trick data for the simulation                             */
+/* ------------------------------------------------------------------ */
+
+// Seat 0 plays come from MOCK_HAND so they animate out of the user's hand.
+// Other seats play arbitrary cards.
+const SCRIPTED_TRICKS: {
+  leader: number;
+  plays: { seat: number; cards: string[] }[];
+  winnerSeat: number;
+  points: number; // points scored this trick (for floating points)
+}[] = [
+  {
+    leader: 0,
+    plays: [
+      { seat: 0, cards: ['0_S_A', '1_S_A'] },
+      { seat: 1, cards: ['0_H_A', '1_H_A'] },
+      { seat: 2, cards: ['0_S_7', '0_S_6'] },
+      { seat: 3, cards: ['1_S_K', '1_S_Q'] },
+    ],
+    winnerSeat: 0,
+    points: 10,
+  },
+  {
+    leader: 0,
+    plays: [
+      { seat: 0, cards: ['0_S_K'] },
+      { seat: 1, cards: ['0_D_10'] },
+      { seat: 2, cards: ['0_H_3'] },
+      { seat: 3, cards: ['1_S_J'] },
+    ],
+    winnerSeat: 0,
+    points: 20,
+  },
+  {
+    leader: 0,
+    plays: [
+      { seat: 0, cards: ['0_H_K', '0_H_Q'] },
+      { seat: 1, cards: ['0_C_A', '0_C_K'] },
+      { seat: 2, cards: ['0_H_8', '0_H_7'] },
+      { seat: 3, cards: ['1_H_8', '1_H_7'] },
+    ],
+    winnerSeat: 0,
+    points: 10,
+  },
+  {
+    leader: 0,
+    plays: [
+      { seat: 0, cards: ['0_S_Q'] },
+      { seat: 1, cards: ['0_D_9'] },
+      { seat: 2, cards: ['0_S_3'] },
+      { seat: 3, cards: ['1_S_10'] },
+    ],
+    winnerSeat: 3,
+    points: 10,
+  },
+  {
+    leader: 3,
+    plays: [
+      { seat: 3, cards: ['1_D_A'] },
+      { seat: 0, cards: ['0_D_A'] },
+      { seat: 1, cards: ['0_D_8'] },
+      { seat: 2, cards: ['0_D_4'] },
+    ],
+    winnerSeat: 0,
+    points: 0,
+  },
+];
+
+/* ------------------------------------------------------------------ */
+/*  useSimulation hook                                                  */
+/* ------------------------------------------------------------------ */
+
+function useSimulation(active: boolean) {
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const cancelledRef = useRef(false);
+
+  const clearTimers = useCallback(() => {
+    cancelledRef.current = true;
+    for (const t of timersRef.current) clearTimeout(t);
+    timersRef.current = [];
+  }, []);
+
+  const delay = useCallback((ms: number): Promise<void> => {
+    return new Promise((resolve) => {
+      if (cancelledRef.current) return;
+      const t = setTimeout(() => {
+        const idx = timersRef.current.indexOf(t);
+        if (idx !== -1) timersRef.current.splice(idx, 1);
+        if (!cancelledRef.current) resolve();
+      }, ms);
+      timersRef.current.push(t);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!active) return;
+    cancelledRef.current = false;
+
+    const store = useStore.getState;
+    const ss = useStore.setState;
+
+    // Helper to update public state fields
+    const updatePublic = (patch: Record<string, unknown>) => {
+      const cur = store().publicState;
+      if (cur) ss({ publicState: { ...cur, ...patch } as any });
+    };
+
+    const updateSeatCards = (seatIdx: number, delta: number) => {
+      const cur = store().publicState;
+      if (!cur) return;
+      const seats = cur.seats.map((s: any) =>
+        s.seat === seatIdx ? { ...s, cardsLeft: Math.max(0, s.cardsLeft + delta) } : s,
+      );
+      ss({ publicState: { ...cur, seats } as any });
+    };
+
+    async function runLoop() {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        if (cancelledRef.current) return;
+
+        /* ============ Phase 1: Initialize & Deal ============ */
+        store().setRoomId('debug-room');
+        ss({ youSeat: 0, sessionToken: 'debug-token' });
+        store().setHand([]);
+        store().clearTrickDisplay();
+        store().setRoundPopup(null);
+        ss({ kouDiPopup: null, roundEndEffect: null });
+        store().setLegalActions([]);
+
+        // Set initial state with 0 cards
+        const initialSeats = MOCK_SEATS_4.map((s) => ({ ...s, cardsLeft: 0 }));
+        store().setPublicState({
+          ...MOCK_STATE,
+          seats: initialSeats,
+          scores: [0, 0],
+          trick: [],
+          turnSeat: -1,
+        } as any);
+
+        // Deal cards into hand in batches of 4
+        const handCopy = [...MOCK_HAND];
+        const BATCH = 4;
+        for (let i = 0; i < handCopy.length; i += BATCH) {
+          if (cancelledRef.current) return;
+          const batch = handCopy.slice(0, i + BATCH);
+          store().setHand(batch);
+          // Update all seats' card counts proportionally
+          const dealtPerSeat = Math.min(i + BATCH, handCopy.length);
+          const seats = MOCK_SEATS_4.map((s) => ({
+            ...s,
+            cardsLeft: s.seat === 0 ? dealtPerSeat : dealtPerSeat,
+          }));
+          updatePublic({ seats });
+          await delay(150);
+        }
+
+        // All cards dealt — set final hand count
+        const fullSeats = MOCK_SEATS_4.map((s) => ({ ...s, cardsLeft: MOCK_HAND.length }));
+        updatePublic({ seats: fullSeats, turnSeat: 0 });
+        store().setLegalActions([{ count: 2 }]);
+        await delay(500);
+
+        /* ============ Phase 2: Play tricks ============ */
+        let currentHand = [...MOCK_HAND];
+        let scores: [number, number] = [0, 0];
+
+        for (let ti = 0; ti < SCRIPTED_TRICKS.length; ti++) {
+          if (cancelledRef.current) return;
+          const trick = SCRIPTED_TRICKS[ti];
+
+          // Clear trick display for new trick
+          store().clearTrickDisplay();
+          updatePublic({ leaderSeat: trick.leader, trick: [] });
+          await delay(300);
+
+          // Determine play order from leader
+          const order = [0, 1, 2, 3].map((i) => (trick.leader + i) % 4);
+          const trickPlays: { seat: number; cards: string[] }[] = [];
+
+          for (const seatIdx of order) {
+            if (cancelledRef.current) return;
+            const play = trick.plays.find((p) => p.seat === seatIdx)!;
+
+            // Update turn seat
+            updatePublic({ turnSeat: seatIdx });
+            if (seatIdx === 0) playTurnNotification();
+
+            await delay(600);
+
+            // Add this play to trick display
+            trickPlays.push(play);
+            store().setTrickDisplay([...trickPlays]);
+            updatePublic({ trick: [...trickPlays] });
+            playCardPlaySound();
+
+            // If seat 0, remove cards from hand
+            if (seatIdx === 0) {
+              currentHand = currentHand.filter((c) => !play.cards.includes(c));
+              store().setHand([...currentHand]);
+            }
+
+            // Decrease cards left
+            updateSeatCards(seatIdx, -play.cards.length);
+
+            await delay(400);
+          }
+
+          // All plays in — show winner
+          store().setTrickWinnerSeat(trick.winnerSeat);
+          updatePublic({ turnSeat: -1 });
+          playTrickWinSound(trick.winnerSeat % 2 === 0);
+          await delay(2000);
+
+          // Update scores
+          if (trick.points > 0) {
+            const team = trick.winnerSeat % 2 === 0 ? 0 : 1;
+            scores = [...scores] as [number, number];
+            scores[team] += trick.points;
+            updatePublic({ scores: [...scores] });
+            store().pushFloatingPoint(trick.points);
+          }
+
+          // Clear trick
+          store().clearTrickDisplay();
+          await delay(500);
+        }
+
+        /* ============ Phase 3: Round end ============ */
+        if (cancelledRef.current) return;
+
+        store().setRoundEndEffect('win');
+        playVictoryFanfare();
+        store().pushBadge('Trump Master');
+        await delay(300);
+        store().pushBadge('Streak x3');
+        await delay(300);
+        store().pushBadge('Sweep');
+
+        await delay(2500);
+
+        // Show round result popup
+        updatePublic({
+          phase: 'ROUND_SCORE',
+          lastRoundResult: MOCK_ROUND_RESULT,
+        });
+        store().setRoundPopup('Round complete! Attackers win with 75 points.');
+
+        await delay(5000);
+
+        // Dismiss and loop
+        store().setRoundPopup(null);
+        ss({ roundEndEffect: null });
+        await delay(500);
+      }
+    }
+
+    runLoop();
+
+    return clearTimers;
+  }, [active, delay, clearTimers]);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Static tab seeders (unchanged)                                     */
+/* ------------------------------------------------------------------ */
+
 function seedGameState(store: ReturnType<typeof useStore.getState>) {
   store.setRoomId('debug-room');
   useStore.setState({ youSeat: 0, sessionToken: 'debug-token' });
@@ -100,9 +378,38 @@ function seedGameState(store: ReturnType<typeof useStore.getState>) {
   store.setLegalActions([{ count: 2 }]);
 }
 
+const VALID_TABS = new Set<Tab>(['lobby', 'game', 'round-result', 'kou-di', 'badges']);
+
+function getTabFromHash(): Tab {
+  try {
+    const hash = window.location.hash; // e.g. "#/debug?view=kou-di"
+    const qIdx = hash.indexOf('?');
+    if (qIdx === -1) return 'game';
+    const params = new URLSearchParams(hash.slice(qIdx + 1));
+    const view = params.get('view') as Tab | null;
+    return view && VALID_TABS.has(view) ? view : 'game';
+  } catch {
+    return 'game';
+  }
+}
+
+function setTabInHash(tab: Tab) {
+  const base = '#/debug';
+  window.history.replaceState(null, '', tab === 'game' ? base : `${base}?view=${tab}`);
+}
+
 export default function DebugPage() {
-  const [tab, setTab] = useState<Tab>('game');
+  const [tab, setTabState] = useState<Tab>(getTabFromHash);
+  const [open, setOpen] = useState(false);
   const store = useStore.getState();
+
+  const setTab = useCallback((t: Tab) => {
+    setTabState(t);
+    setTabInHash(t);
+  }, []);
+
+  // Run simulation when game tab is active
+  useSimulation(tab === 'game');
 
   useEffect(() => {
     // Seed chat messages for demo
@@ -124,9 +431,7 @@ export default function DebugPage() {
     if (tab === 'lobby') {
       useStore.setState({ roomId: null, youSeat: null });
     } else if (tab === 'game') {
-      seedGameState(store);
-      store.setRoundPopup(null);
-      useStore.setState({ kouDiPopup: null });
+      // Simulation hook handles this tab
     } else if (tab === 'round-result') {
       seedGameState(store);
       store.setPublicState({
@@ -157,19 +462,22 @@ export default function DebugPage() {
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <div className="debug-tab-bar">
-        {tabs.map((t) => (
+    <div style={{ height: '100vh', overflow: 'hidden' }}>
+      <div className={`debug-tab-bar ${open ? 'open' : ''}`}>
+        <button className="debug-tab-toggle" onClick={() => setOpen(!open)}>
+          {open ? '\u2716' : '\u2699 Debug'}
+        </button>
+        {open && tabs.map((t) => (
           <button
             key={t.id}
             className={`debug-tab ${tab === t.id ? 'active' : ''}`}
-            onClick={() => setTab(t.id)}
+            onClick={() => { setTab(t.id); setOpen(false); }}
           >
             {t.label}
           </button>
         ))}
       </div>
-      <div style={{ flex: 1, overflow: 'hidden' }}>
+      <div style={{ height: '100%', overflow: 'hidden' }}>
         <DebugContent tab={tab} />
       </div>
     </div>
@@ -178,34 +486,82 @@ export default function DebugPage() {
 
 function DebugContent({ tab }: { tab: Tab }) {
   const roomId = useStore((s) => s.roomId);
+  const nickname = useStore((s) => s.nickname);
+  const cardScale = useStore((s) => s.cardScale);
 
   if (tab === 'lobby') {
-    // The main App will render lobby since roomId is null
-    return null;
+    // Render a lightweight lobby preview inline
+    return (
+      <div className="app lobby-screen">
+        <div className="lobby-particles" />
+        <div className="lobby-container">
+          <div className="lobby-hero">
+            <h1 className="lobby-title">Tractor</h1>
+            <p className="lobby-subtitle">Debug Lobby Preview</p>
+          </div>
+          <div className="lobby-main">
+            <div className="panel lobby-join-panel">
+              <h3 className="lobby-panel-heading">Quick Play</h3>
+              <div className="form-group">
+                <input placeholder="Nickname" defaultValue={nickname || 'Player'} readOnly />
+              </div>
+              <div className="form-group">
+                <input placeholder="Room ID" defaultValue="room1" readOnly />
+              </div>
+              <div className="form-row">
+                <select defaultValue={4}><option value={4}>4 players</option></select>
+                <button className="btn-primary">Join</button>
+              </div>
+            </div>
+            <div className="panel lobby-profile-panel">
+              <div className="profile-avatar">A</div>
+              <div className="profile-name">Alice</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (!roomId) return null;
 
   return (
-    <>
-      <div className="game-layout">
+    <div className="game-layout" style={{ '--card-scale': cardScale } as React.CSSProperties}>
+      <DebugLabel name="ScoreBoard">
         <ScoreBoard playerLabel="Alice" seatLabel="Seat 1" roomId="debug-room" />
-        <div className="game-body">
-          <GameTable />
+      </DebugLabel>
+      <div className="game-main">
+        <div className="game-content">
+          <div className="game-body">
+            <DebugLabel name="SeatSidebar">
+              <SeatSidebar />
+            </DebugLabel>
+            <DebugLabel name="GameTable">
+              <GameTable />
+            </DebugLabel>
+          </div>
+          <div className="game-footer">
+            <DebugLabel name="ActionPanel">
+              <ActionPanel />
+            </DebugLabel>
+            <DebugLabel name="Hand">
+              <Hand />
+            </DebugLabel>
+          </div>
+          <DebugLabel name="EventLog">
+            <EventLog />
+          </DebugLabel>
         </div>
-        <div className="game-footer">
-          <ActionPanel />
-          <Hand />
-        </div>
-        <EventLog />
-        <ChatBox />
-        <FloatingPoints />
-        <GameBadges />
-        <Toasts />
-        <KouDiPopup />
-        <RoundEndOverlay />
-        <RoundPopup />
+        <DebugLabel name="ChatBox">
+          <ChatBox />
+        </DebugLabel>
       </div>
-    </>
+      <FloatingPoints />
+      <GameBadges />
+      <Toasts />
+      <KouDiPopup />
+      <RoundEndOverlay />
+      <RoundPopup />
+    </div>
   );
 }
