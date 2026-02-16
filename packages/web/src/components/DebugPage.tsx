@@ -102,6 +102,7 @@ function seedGameState(store: ReturnType<typeof useStore.getState>) {
 
 export default function DebugPage() {
   const [tab, setTab] = useState<Tab>('game');
+  const [open, setOpen] = useState(false);
   const store = useStore.getState();
 
   useEffect(() => {
@@ -157,19 +158,22 @@ export default function DebugPage() {
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <div className="debug-tab-bar">
-        {tabs.map((t) => (
+    <div style={{ height: '100vh', overflow: 'hidden' }}>
+      <div className={`debug-tab-bar ${open ? 'open' : ''}`}>
+        <button className="debug-tab-toggle" onClick={() => setOpen(!open)}>
+          {open ? '\u2716' : '\u2699 Debug'}
+        </button>
+        {open && tabs.map((t) => (
           <button
             key={t.id}
             className={`debug-tab ${tab === t.id ? 'active' : ''}`}
-            onClick={() => setTab(t.id)}
+            onClick={() => { setTab(t.id); setOpen(false); }}
           >
             {t.label}
           </button>
         ))}
       </div>
-      <div style={{ flex: 1, overflow: 'hidden' }}>
+      <div style={{ height: '100%', overflow: 'hidden' }}>
         <DebugContent tab={tab} />
       </div>
     </div>

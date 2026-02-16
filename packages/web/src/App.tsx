@@ -17,6 +17,7 @@ import FloatingPoints from './components/FloatingPoints';
 import GameBadges from './components/GameBadges';
 import DebugPage from './components/DebugPage';
 import MatchHistory from './components/MatchHistory';
+import DevDebugHint from './components/DevDebugHint';
 
 export default function App() {
   // Debug mode: /#/debug
@@ -89,6 +90,7 @@ export default function App() {
 
     return (
       <div className="app lobby-screen">
+        <DevDebugHint />
         <div className="lobby-particles" />
         <div className="lobby-container">
           <div className="lobby-hero">
@@ -212,6 +214,7 @@ export default function App() {
 
   return (
     <div className="game-layout">
+      <DevDebugHint />
       <ScoreBoard playerLabel={playerLabel} seatLabel={seatLabel} roomId={roomId} />
       <div className="game-body">
         <GameTable />

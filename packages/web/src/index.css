@@ -856,16 +856,16 @@ input::placeholder {
 
 .seat-card {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 2px;
-  padding: 4px 8px;
-  border-radius: 10px;
+  gap: 6px;
+  padding: 3px 12px;
+  border-radius: 16px;
   border: 2px solid transparent;
   background: var(--panel-bg);
   backdrop-filter: blur(4px);
-  min-width: 90px;
-  max-width: 120px;
+  min-width: 120px;
+  max-width: 200px;
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
@@ -901,14 +901,14 @@ input::placeholder {
 }
 
 .seat-avatar {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 800;
-  font-size: 14px;
+  font-size: 11px;
   color: #fff;
   flex-shrink: 0;
 }
@@ -1041,10 +1041,10 @@ input::placeholder {
 
 .trick-play .card-face {
   pointer-events: none;
-  width: clamp(100px, 13vw, 170px);
-  height: clamp(140px, 18.2vw, 238px);
+  width: clamp(150px, 19.5vw, 255px);
+  height: clamp(210px, 27.3vw, 357px);
 }
-.trick-play .card-face + .card-face { margin-left: -20px; }
+.trick-play .card-face + .card-face { margin-left: -30px; }
 
 .trick-player-label {
   font-size: 10px;
@@ -2200,12 +2200,36 @@ input::placeholder {
 
 /* ===== Debug Tab Bar ===== */
 .debug-tab-bar {
+  position: fixed;
+  top: 8px;
+  right: 8px;
   display: flex;
   gap: 4px;
-  padding: 8px;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: var(--z-debug);
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  z-index: calc(var(--z-debug) + 1);
   flex-wrap: wrap;
+  max-width: 320px;
+}
+
+.debug-tab-toggle {
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 215, 0, 0.4);
+  border-radius: 6px;
+  background: rgba(255, 215, 0, 0.15);
+  color: var(--card-glow-gold);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.debug-tab-toggle:hover {
+  background: rgba(255, 215, 0, 0.3);
 }
 
 .debug-tab {
@@ -2384,9 +2408,9 @@ input::placeholder {
   }
 
   .seat-card {
-    min-width: 70px;
-    max-width: 90px;
-    padding: 3px 5px;
+    min-width: 90px;
+    max-width: 150px;
+    padding: 2px 8px;
   }
 
   .seat-avatar {
@@ -2423,8 +2447,8 @@ input::placeholder {
   }
 
   .trick-play .card-face {
-    width: clamp(60px, 10vw, 100px);
-    height: clamp(84px, 14vw, 140px);
+    width: clamp(90px, 15vw, 150px);
+    height: clamp(126px, 21vw, 210px);
   }
 
   .history-match-list {
@@ -2433,4 +2457,53 @@ input::placeholder {
 
   .round-end-banner.win .round-end-text { font-size: 32px; }
   .round-end-banner.loss .round-end-text { font-size: 24px; }
+}
+
+/* ===== Dev Debug Hint Toast ===== */
+.dev-debug-hint {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  z-index: var(--z-toast);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  border-radius: 8px;
+  font-size: 12px;
+  animation: dev-hint-fade-in 0.3s ease-out;
+}
+
+.dev-debug-hint a {
+  color: #ffd700;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.dev-debug-hint a:hover {
+  text-decoration: underline;
+}
+
+.dev-debug-hint-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  min-height: auto;
+  box-shadow: none;
+}
+
+.dev-debug-hint-close:hover {
+  color: var(--text-light);
+}
+
+@keyframes dev-hint-fade-in {
+  0% { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
