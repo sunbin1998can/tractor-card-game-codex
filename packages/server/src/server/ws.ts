@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { GameEngine, validateFollowPlay } from '@tractor/engine';
 import type { Card } from '@tractor/engine';
-import type { ClientMessage, ServerMessage, PublicRoomState, RoundResult } from '@tractor/protocol';
+import type { ClientMessage, ServerMessage, PublicRoomState, RoundResult, SurrenderVoteState } from '@tractor/protocol';
 import { verifyAuthToken } from '../auth.js';
 import {
   createRoomPersistence,
@@ -44,6 +44,13 @@ interface Room {
   lastRoundResult?: RoundResult;
   persistence: RoomPersistence | null;
   matchStarted?: boolean;
+  surrenderVote?: {
+    team: number;
+    proposerSeat: number;
+    votes: Map<number, boolean | null>;
+    timer: NodeJS.Timeout;
+    expiresAtMs: number;
+  } | null;
 }
 
 const rooms = new Map<string, Room>();
@@ -51,6 +58,7 @@ const DISCONNECT_GRACE_MS = 120_000;
 const DEAL_STEP_MS = 80;
 const FINAL_DECLARE_PAUSE_MS = 30_000;
 const TRUMP_FAIRNESS_WINDOW_MS = 30_000;
+const SURRENDER_VOTE_TIMEOUT_MS = 60_000;
 
 function now() {
   return Date.now();
@@ -262,6 +270,34 @@ function deal(room: Room) {
   step(0);
 }
 
+function cancelSurrenderVote(room: Room) {
+  if (!room.surrenderVote) return;
+  clearTimeout(room.surrenderVote.timer);
+  room.surrenderVote = null;
+  broadcastState(room);
+}
+
+function checkSurrenderVoteResult(room: Room) {
+  if (!room.surrenderVote) return;
+  const votes = room.surrenderVote.votes;
+  for (const v of votes.values()) {
+    if (v === false) {
+      cancelSurrenderVote(room);
+      return;
+    }
+  }
+  const allYes = [...votes.values()].every((v) => v === true);
+  if (allYes) {
+    clearTimeout(room.surrenderVote.timer);
+    room.surrenderVote = null;
+    (room.engine as any).finishRound();
+    flushEngineEvents(room);
+    broadcastState(room);
+    return;
+  }
+  broadcastState(room);
+}
+
 function publicState(room: Room): PublicRoomState {
   const trick = room.engine.trick?.plays.map((p) => ({ seat: p.seat, cards: p.cards.map((c) => c.id) }));
   return {
@@ -293,7 +329,15 @@ function publicState(room: Room): PublicRoomState {
     declareEnabled: room.declareEnabled ?? room.engine.phase === 'FLIP_TRUMP',
     noSnatchSeats: room.noSnatchSeats ? [...room.noSnatchSeats] : [],
     trick,
-    lastRoundResult: room.lastRoundResult
+    lastRoundResult: room.lastRoundResult,
+    surrenderVote: room.surrenderVote
+      ? {
+          proposerSeat: room.surrenderVote.proposerSeat,
+          team: room.surrenderVote.team,
+          votes: Object.fromEntries(room.surrenderVote.votes) as Record<number, boolean | null>,
+          expiresAtMs: room.surrenderVote.expiresAtMs,
+        }
+      : null
   };
 }
 
@@ -352,6 +396,10 @@ function flushEngineEvents(room: Room) {
         reason: ev.reason
       });
     } else if (ev.type === 'ROUND_RESULT') {
+      if (room.surrenderVote) {
+        clearTimeout(room.surrenderVote.timer);
+        room.surrenderVote = null;
+      }
       onRoundEnd(room.persistence, {
         bankerSeat: room.engine.config.bankerSeat,
         levelRank: room.engine.config.levelRank,
@@ -795,6 +843,33 @@ export function createWsServer(server: import('http').Server, path = '/ws') {
         return;
       }
 
+      if (msg.type === 'SURRENDER_PROPOSE') {
+        if (room.engine.phase !== 'TRICK_PLAY') return;
+        if (room.surrenderVote) return;
+        const team = seatState.team;
+        const teammates = room.seats.filter((s) => s.team === team);
+        const votes = new Map<number, boolean | null>();
+        for (const tm of teammates) {
+          votes.set(tm.seat, tm.seat === seatState.seat ? true : null);
+        }
+        const expiresAtMs = now() + SURRENDER_VOTE_TIMEOUT_MS;
+        const timer = setTimeout(() => {
+          cancelSurrenderVote(room);
+        }, SURRENDER_VOTE_TIMEOUT_MS);
+        room.surrenderVote = { team, proposerSeat: seatState.seat, votes, timer, expiresAtMs };
+        broadcastState(room);
+        return;
+      }
+
+      if (msg.type === 'SURRENDER_VOTE') {
+        if (!room.surrenderVote) return;
+        if (seatState.team !== room.surrenderVote.team) return;
+        if (room.surrenderVote.votes.get(seatState.seat) !== null) return;
+        room.surrenderVote.votes.set(seatState.seat, msg.accept);
+        checkSurrenderVoteResult(room);
+        return;
+      }
+
       if (msg.type === 'FORCE_END_ROUND') {
         (room.engine as any).finishRound();
         flushEngineEvents(room);
@@ -827,6 +902,9 @@ export function createWsServer(server: import('http').Server, path = '/ws') {
         seat.isConnected = false;
         seat.ws = undefined;
         seat.lastSeen = now();
+        if (room.surrenderVote && seat.team === room.surrenderVote.team) {
+          cancelSurrenderVote(room);
+        }
         broadcastState(room);
       }
     });

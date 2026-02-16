@@ -14,6 +14,19 @@
   --text-light: #e8e0d0;
   --text-muted: #a09880;
 
+  /* Z-index layering system */
+  --z-table-content: 1;
+  --z-seat: 10;
+  --z-card-hover: 20;
+  --z-overlay-subtle: 50;
+  --z-overlay-ui: 100;
+  --z-dropdown: 200;
+  --z-toast: 300;
+  --z-floating: 400;
+  --z-banner: 500;
+  --z-modal: 600;
+  --z-debug: 700;
+
   /* Responsive base font: scales from 16px at 320px to 22px at 1920px */
   font-size: clamp(16px, 0.85rem + 0.4vw, 22px);
   font-family: "Space Grotesk", system-ui, sans-serif;
@@ -279,6 +292,120 @@ body {
   margin-top: 2px;
 }
 
+/* ===== Match History Panel ===== */
+.match-history-panel {
+  margin-top: 16px;
+}
+
+.history-stats-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.history-stats-row .stat-box {
+  flex: 1 1 80px;
+  min-width: 80px;
+}
+
+.elo-value {
+  color: var(--card-glow-gold) !important;
+  font-size: 22px !important;
+}
+
+.history-match-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.history-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 12px;
+}
+
+.history-match-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 12px;
+}
+
+.history-match-row.win {
+  border-left: 3px solid #4caf50;
+}
+
+.history-match-row.loss {
+  border-left: 3px solid #ef5350;
+}
+
+.history-match-row.pending {
+  border-left: 3px solid var(--text-muted);
+}
+
+.history-result-badge {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  min-width: 40px;
+  text-align: center;
+}
+
+.history-result-badge.win {
+  background: rgba(76, 175, 80, 0.2);
+  color: #66bb6a;
+}
+
+.history-result-badge.loss {
+  background: rgba(244, 67, 54, 0.2);
+  color: #ef5350;
+}
+
+.history-result-badge.pending {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+}
+
+.history-match-room {
+  font-weight: 700;
+  color: var(--text-light);
+  min-width: 60px;
+}
+
+.history-match-players {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.history-match-levels {
+  color: var(--text-muted);
+  font-weight: 600;
+  flex: 1;
+}
+
+.history-match-date {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-left: auto;
+}
+
+.history-load-more {
+  margin-top: 8px;
+  width: 100%;
+  padding: 6px;
+  font-size: 12px;
+}
+
 .lobby-footer {
   display: flex;
   align-items: center;
@@ -376,6 +503,7 @@ input::placeholder {
   height: 100dvh;
   overflow: hidden;
   padding: 0;
+  position: relative;
 }
 
 .game-body {
@@ -386,6 +514,19 @@ input::placeholder {
   min-height: 0;
   padding: 4px;
   position: relative;
+  overflow: visible;
+  gap: 8px;
+}
+
+.game-body > .chat-panel {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: var(--z-overlay-ui);
+  width: 260px;
+  max-height: 50vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .game-footer {
@@ -394,6 +535,7 @@ input::placeholder {
   flex-direction: column;
   gap: 2px;
   padding: 0 4px 4px;
+  overflow: visible;
 }
 
 /* ===== ScoreBoard (team VS header) ===== */
@@ -591,10 +733,10 @@ input::placeholder {
 
 /* ===== Event Log (floating overlay) ===== */
 .event-log-sidebar {
-  position: fixed;
+  position: absolute;
   top: 60px;
   left: 8px;
-  z-index: 100;
+  z-index: var(--z-overlay-subtle);
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -685,17 +827,17 @@ input::placeholder {
   display: flex;
   flex-direction: column;
   align-items: center;
-  z-index: 10;
+  z-index: var(--z-seat);
 }
 
-.seat-slot.pos-bottom { bottom: -50px; left: 50%; transform: translateX(-50%); }
-.seat-slot.pos-top { top: -50px; left: 50%; transform: translateX(-50%); }
-.seat-slot.pos-left { left: -60px; top: 50%; transform: translateY(-50%); }
-.seat-slot.pos-right { right: -60px; top: 50%; transform: translateY(-50%); }
-.seat-slot.pos-top-left { top: -30px; left: 10%; }
-.seat-slot.pos-top-right { top: -30px; right: 10%; }
-.seat-slot.pos-bottom-left { bottom: -30px; left: 10%; }
-.seat-slot.pos-bottom-right { bottom: -30px; right: 10%; }
+.seat-slot.pos-bottom { bottom: -30px; left: 20%; transform: translateX(-50%); }
+.seat-slot.pos-top { top: -30px; left: 50%; transform: translateX(-50%); }
+.seat-slot.pos-left { left: -40px; top: 50%; transform: translateY(-50%); }
+.seat-slot.pos-right { right: -40px; top: 50%; transform: translateY(-50%); }
+.seat-slot.pos-top-left { top: -20px; left: 10%; }
+.seat-slot.pos-top-right { top: -20px; right: 10%; }
+.seat-slot.pos-bottom-left { bottom: -20px; left: 10%; }
+.seat-slot.pos-bottom-right { bottom: -20px; right: 10%; }
 
 .seat-card {
   display: flex;
@@ -786,6 +928,18 @@ input::placeholder {
   color: var(--text-muted);
 }
 
+.seat-turns-away {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--card-glow-gold);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 215, 0, 0.15);
+  border: 1px solid rgba(255, 215, 0, 0.35);
+  min-width: 22px;
+  text-align: center;
+}
+
 .seat-connection {
   width: 6px;
   height: 6px;
@@ -844,7 +998,7 @@ input::placeholder {
   align-items: center;
   justify-content: center;
   pointer-events: none;
-  z-index: 5;
+  z-index: var(--z-table-content);
 }
 
 .table-center-inner {
@@ -870,7 +1024,11 @@ input::placeholder {
 .trick-play.pos-bottom-left { bottom: 18%; left: 15%; }
 .trick-play.pos-bottom-right { bottom: 18%; right: 15%; }
 
-.trick-play .card-face { pointer-events: none; }
+.trick-play .card-face {
+  pointer-events: none;
+  width: clamp(100px, 13vw, 170px);
+  height: clamp(140px, 18.2vw, 238px);
+}
 .trick-play .card-face + .card-face { margin-left: -20px; }
 
 .trick-player-label {
@@ -942,7 +1100,7 @@ input::placeholder {
 
 .card-face.clickable:hover {
   transform: translateY(-8px);
-  z-index: 100;
+  z-index: var(--z-card-hover);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
 }
 
@@ -950,7 +1108,7 @@ input::placeholder {
   border-color: var(--card-glow-gold);
   box-shadow: 0 0 12px var(--card-glow-gold), 0 4px 12px rgba(0, 0, 0, 0.3);
   transform: translateY(-12px);
-  z-index: 50;
+  z-index: var(--z-card-hover);
 }
 
 .card-face.hinted:not(.selected) {
@@ -1041,22 +1199,63 @@ input::placeholder {
   text-align: center;
 }
 
+.hand-scroll-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  position: relative;
+}
+
+.hand-scroll-btn {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 48px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--panel-border);
+  color: var(--card-glow-gold);
+  font-size: 18px;
+  font-weight: 900;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: var(--z-overlay-subtle);
+  opacity: 0.7;
+  transition: opacity 0.15s, background 0.15s;
+  min-height: auto;
+}
+
+.hand-scroll-btn:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.6);
+}
+
 .hand-container {
   display: flex;
   justify-content: center;
   align-items: flex-end;
   padding: 4px 0 8px;
-  min-height: 90px;
+  min-height: 15vh;
   position: relative;
   perspective: 800px;
+  flex: 1 1 auto;
+  min-width: 0;
   max-width: 100%;
   overflow-x: auto;
+  overflow-y: visible;
   -webkit-overflow-scrolling: touch;
 }
 
 .hand-card-wrap {
   display: inline-block;
   transform-origin: bottom center;
+}
+
+.hand-container .card-face {
+  height: clamp(90px, 13vh, 150px);
+  width: clamp(64px, 9.3vh, 107px);
 }
 
 /* ===== Action Panel ===== */
@@ -1158,6 +1357,81 @@ input::placeholder {
   min-width: 110px;
 }
 
+/* Surrender vote */
+.surrender-btn {
+  background: #8b2020 !important;
+  border-color: #6b1515 !important;
+}
+
+.surrender-btn:hover {
+  background: #a52a2a !important;
+}
+
+.surrender-vote-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(192, 57, 43, 0.12);
+  border: 1px solid rgba(192, 57, 43, 0.4);
+  border-radius: 8px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.surrender-vote-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--team-attacker);
+}
+
+.surrender-countdown {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--team-attacker);
+  font-variant-numeric: tabular-nums;
+}
+
+.surrender-vote-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.surrender-vote-chip {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.surrender-vote-chip.yes {
+  background: rgba(76, 175, 80, 0.25);
+  color: #66bb6a;
+  border: 1px solid rgba(76, 175, 80, 0.4);
+}
+
+.surrender-vote-chip.no {
+  background: rgba(244, 67, 54, 0.25);
+  color: #ef5350;
+  border: 1px solid rgba(244, 67, 54, 0.4);
+}
+
+.surrender-vote-chip.pending {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  border: 1px solid var(--panel-border);
+}
+
+.surrender-vote-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
 .action-status {
   font-size: 13px;
   font-weight: 700;
@@ -1177,11 +1451,10 @@ input::placeholder {
 
 /* ===== Chat ===== */
 .chat-panel {
-  position: fixed;
-  bottom: 8px;
-  left: 8px;
-  z-index: 100;
-  width: 240px;
+  z-index: var(--z-overlay-ui);
+  width: 320px;
+  max-width: 100%;
+  margin: 0 auto;
   padding: 6px 8px;
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
@@ -1298,7 +1571,7 @@ input::placeholder {
   top: 30%;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 900;
+  z-index: var(--z-modal);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1324,7 +1597,7 @@ input::placeholder {
   position: fixed;
   bottom: 16px;
   right: 16px;
-  z-index: 800;
+  z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1396,7 +1669,7 @@ input::placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: var(--z-modal);
   padding: 16px;
   backdrop-filter: blur(2px);
 }
@@ -1520,7 +1793,7 @@ input::placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 950;
+  z-index: var(--z-banner);
   pointer-events: none;
 }
 
@@ -1797,7 +2070,7 @@ input::placeholder {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  z-index: 850;
+  z-index: var(--z-floating);
   pointer-events: none;
   display: flex;
   flex-direction: column;
@@ -1821,9 +2094,9 @@ input::placeholder {
 /* ===== Game Badges ===== */
 .game-badges-container {
   position: fixed;
-  top: 80px;
+  top: 4rem;
   right: 16px;
-  z-index: 850;
+  z-index: var(--z-floating);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1889,7 +2162,7 @@ input::placeholder {
   position: absolute;
   top: 100%;
   right: 0;
-  z-index: 500;
+  z-index: var(--z-dropdown);
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
   border-radius: 6px;
@@ -1914,7 +2187,7 @@ input::placeholder {
   gap: 4px;
   padding: 8px;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 2000;
+  z-index: var(--z-debug);
   flex-wrap: wrap;
 }
 
@@ -1941,6 +2214,16 @@ input::placeholder {
   color: var(--text-light);
 }
 
+.debug-game-wrapper {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.debug-game-wrapper .game-layout {
+  height: 100%;
+}
+
 /* ===== Responsive: Tablet ===== */
 @media (max-width: 900px) {
   .game-table {
@@ -1954,7 +2237,7 @@ input::placeholder {
   .team-score { font-size: 18px; }
 
   .chat-panel {
-    display: none;
+    width: 260px;
   }
 
   .event-log-sidebar {
@@ -2025,7 +2308,7 @@ input::placeholder {
   }
 
   .chat-panel {
-    display: none;
+    width: 100%;
   }
 
   .action-panel button {
@@ -2061,6 +2344,27 @@ input::placeholder {
   .leave-btn {
     width: auto !important;
     min-height: auto !important;
+  }
+
+  .seat-slot.pos-bottom { bottom: -20px; left: 20%; }
+  .seat-slot.pos-top { top: -20px; }
+  .seat-slot.pos-left { left: -25px; }
+  .seat-slot.pos-right { right: -25px; }
+
+  .game-body > .chat-panel {
+    position: fixed;
+    right: 4px;
+    bottom: 4px;
+    width: 220px;
+  }
+  .seat-slot.pos-top-left { top: -15px; }
+  .seat-slot.pos-top-right { top: -15px; }
+  .seat-slot.pos-bottom-left { bottom: -15px; }
+  .seat-slot.pos-bottom-right { bottom: -15px; }
+
+  .game-badges-container {
+    top: auto;
+    bottom: 60px;
   }
 
   .seat-card {

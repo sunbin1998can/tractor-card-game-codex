@@ -16,6 +16,7 @@ import RoundEndOverlay from './components/RoundEndOverlay';
 import FloatingPoints from './components/FloatingPoints';
 import GameBadges from './components/GameBadges';
 import DebugPage from './components/DebugPage';
+import MatchHistory from './components/MatchHistory';
 
 export default function App() {
   // Debug mode: /#/debug
@@ -197,18 +198,9 @@ export default function App() {
                   )}
                 </div>
               )}
-              <div className="profile-stats-row">
-                <div className="stat-box">
-                  <span className="stat-label">{t('lobby.gamesPlayed')}</span>
-                  <span className="stat-value">&mdash;</span>
-                </div>
-                <div className="stat-box">
-                  <span className="stat-label">{t('lobby.winRate')}</span>
-                  <span className="stat-value">&mdash;</span>
-                </div>
-              </div>
             </div>
           </div>
+          <MatchHistory />
           <div className="lobby-footer">
             <button className="lang-toggle" onClick={toggleLang}>{t('lang.toggle')}</button>
             <span className="lobby-version">v0.1</span>
@@ -223,13 +215,13 @@ export default function App() {
       <ScoreBoard playerLabel={playerLabel} seatLabel={seatLabel} roomId={roomId} />
       <div className="game-body">
         <GameTable />
+        <ChatBox />
       </div>
       <div className="game-footer">
         <ActionPanel />
         <Hand />
       </div>
       <EventLog />
-      <ChatBox />
       <FloatingPoints />
       <GameBadges />
       <Toasts />

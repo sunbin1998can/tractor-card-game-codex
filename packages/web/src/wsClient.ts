@@ -51,6 +51,34 @@ class WsClient {
     }
   }
 
+  /** Short pop sound for incoming chat messages */
+  private playChatSound() {
+    const store = useStore.getState();
+    if (store.muted) return;
+    if (typeof window === 'undefined') return;
+    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!Ctx) return;
+    try {
+      const ctx = new Ctx();
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1200, now);
+      osc.frequency.exponentialRampToValueAtTime(800, now + 0.08);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.12, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.2);
+      window.setTimeout(() => { void ctx.close(); }, 300);
+    } catch {
+      // ignore audio errors
+    }
+  }
+
   /** Short satisfying chime when your team wins a trick */
   private playTrickWinSound(isMyTeam: boolean) {
     const store = useStore.getState();
@@ -684,6 +712,19 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
     }
   }
 
+  private speakSurrenderVote(prevState: any, nextState: any) {
+    if (!prevState || !nextState || prevState.id !== nextState.id) return;
+    const prevVote = prevState.surrenderVote;
+    const nextVote = nextState.surrenderVote;
+    const en = this.isEn();
+    if (!prevVote && nextVote) {
+      const name = this.seatName(nextVote.proposerSeat);
+      this.speak(en ? `${name} proposed surrender` : `${name}提议投降`);
+    } else if (prevVote && !nextVote && nextState.phase === 'TRICK_PLAY') {
+      this.speak(en ? 'surrender vote cancelled' : '投降投票取消');
+    }
+  }
+
   private speakKouDi(pointSteps: number[], total: number) {
     const steps = Array.isArray(pointSteps) && pointSteps.length > 0 ? pointSteps : [total];
     this.speak(this.isEn() ? `kitty points: ${steps.join(', ')}` : `抠底${steps.join('，')}`);
@@ -830,6 +871,7 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
         }
         this.maybeShowRoundPopupFromState(msg.state);
         this.speakPhasePrompts(prevState, msg.state);
+        this.speakSurrenderVote(prevState, msg.state);
         this.speakPlayersReady(prevState, msg.state);
         // Play turn notification when it becomes this player's turn
         if (
@@ -838,6 +880,19 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
           prevState?.turnSeat !== msg.state.turnSeat
         ) {
           this.playTurnNotification();
+        }
+        // Auto-play last card
+        if (
+          msg.state.phase === 'TRICK_PLAY' &&
+          msg.state.turnSeat === store.youSeat &&
+          store.hand.length === 1
+        ) {
+          setTimeout(() => {
+            const s = useStore.getState();
+            if (s.hand.length === 1) {
+              this.send({ type: 'PLAY', cardIds: [s.hand[0]] });
+            }
+          }, 300);
         }
         if (
           prevState &&
@@ -858,6 +913,9 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
         store.setLegalActions(msg.legalActions);
       } else if (msg.type === 'CHAT') {
         store.pushChatMessage({ seat: msg.seat, name: msg.name, text: msg.text, atMs: msg.atMs });
+        if (msg.seat !== store.youSeat) {
+          this.playChatSound();
+        }
       } else if (msg.type === 'KOU_DI') {
         this.waitingKouDiAck = true;
         this.pendingRoundResultText = null;

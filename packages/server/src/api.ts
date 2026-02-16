@@ -11,7 +11,7 @@ import {
   linkEmail,
   createEmailUser,
 } from '@tractor/models';
-import { getUserStats, getUserMatches } from '@tractor/models';
+import { getUserStats, getUserMatches, getUserRating, ensureUserRating } from '@tractor/models';
 
 function json(res: ServerResponse, status: number, body: unknown) {
   res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -185,6 +185,25 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       }
       const stats = await getUserStats(db, auth.userId);
       json(res, 200, { stats });
+      return true;
+    }
+
+    // GET /api/rating
+    if (req.method === 'GET' && path === '/api/rating') {
+      const auth = parseAuthHeader(req);
+      if (!auth) {
+        json(res, 401, { error: 'Unauthorized' });
+        return true;
+      }
+      const rating = await ensureUserRating(db, auth.userId);
+      json(res, 200, {
+        rating: {
+          rating: rating.rating,
+          deviation: rating.deviation,
+          matchesRated: rating.matches_rated,
+          peakRating: rating.peak_rating,
+        },
+      });
       return true;
     }
 

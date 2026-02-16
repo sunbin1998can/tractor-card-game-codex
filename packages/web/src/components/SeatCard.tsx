@@ -46,6 +46,13 @@ export default function SeatCard({ seat }: Props) {
   const totalCards = state.seats.reduce((sum, s) => sum + (s.cardsLeft ?? 0), 0);
   const isPreDealLobby = state.phase === 'FLIP_TRUMP' && totalCards === 0;
 
+  // Compute turns-away during trick play
+  let turnsAway: number | null = null;
+  if (state.phase === 'TRICK_PLAY' && state.turnSeat !== undefined) {
+    const diff = (seat.seat - state.turnSeat + state.players) % state.players;
+    turnsAway = diff; // 0 = it's their turn now
+  }
+
   const name = seat.name || `${t('seat.seat')} ${seat.seat + 1}`;
   const initial = name.charAt(0).toUpperCase();
 
@@ -62,6 +69,9 @@ export default function SeatCard({ seat }: Props) {
         <span className="seat-badge">
           {isBanker ? t('seat.banker') : ''}{isBanker && isLeader ? ' / ' : ''}{isLeader ? t('seat.leader') : ''}
         </span>
+      )}
+      {turnsAway !== null && turnsAway > 0 && seat.cardsLeft > 0 && (
+        <span className="seat-turns-away">{turnsAway}</span>
       )}
       {marker?.seat === seat.seat && (
         <div className="declare-marker">

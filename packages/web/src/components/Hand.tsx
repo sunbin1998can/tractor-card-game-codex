@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { useStore } from '../store';
 import { useT } from '../i18n';
 import { motion, AnimatePresence } from 'motion/react';
@@ -211,6 +211,13 @@ export default function Hand() {
     );
   }
 
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const scrollBy = useCallback((dir: number) => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * 200, behavior: 'smooth' });
+  }, []);
+
   const totalCards = sorted.length;
   const maxArc = isMobile ? 0 : Math.min(40, totalCards * 2);
   const arcPerCard = totalCards > 1 ? maxArc / (totalCards - 1) : 0;
@@ -219,48 +226,52 @@ export default function Hand() {
   return (
     <div className="hand-section">
       <div className="hand-label">{t('hand.title')} ({totalCards})</div>
-      <div className="hand-container">
-        <AnimatePresence initial={false}>
-          {sorted.map((id, i) => {
-            const angle = isMobile ? 0 : -maxArc / 2 + i * arcPerCard;
-            const yOffset = isMobile ? 0 : Math.abs(angle) * 0.4;
-            const isSelected = selected.has(id);
+      <div className="hand-scroll-wrapper">
+        <button className="hand-scroll-btn hand-scroll-left" onClick={() => scrollBy(-1)} aria-label="Scroll left">&laquo;</button>
+        <div className="hand-container" ref={containerRef}>
+          <AnimatePresence initial={false}>
+            {sorted.map((id, i) => {
+              const angle = isMobile ? 0 : -maxArc / 2 + i * arcPerCard;
+              const yOffset = isMobile ? 0 : Math.abs(angle) * 0.4;
+              const isSelected = selected.has(id);
 
-            return (
-              <motion.div
-                key={id}
-                className="hand-card-wrap"
-                style={{
-                  marginLeft: i === 0 ? 0 : overlap,
-                  zIndex: i,
-                  transform: `rotate(${angle}deg) translateY(${yOffset - (isSelected ? 12 : 0)}px)`,
-                  transformOrigin: 'bottom center',
-                }}
-                layout
-                drag
-                dragConstraints={{ top: -30, bottom: 30, left: -40, right: 40 }}
-                dragElastic={0.3}
-                dragSnapToOrigin
-                whileDrag={{ zIndex: 200, scale: 1.08 }}
-                initial={{ y: -60, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: -40, opacity: 0 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 30, delay: i * 0.02 }}
-                whileHover={isMobile ? undefined : { y: -10, zIndex: 100 }}
-              >
-                <CardFace
-                  id={id}
-                  selected={isSelected}
-                  hinted={hintedIds.has(id)}
-                  pairHinted={pairHintedIds.has(id)}
-                  dimmed={isYourTurn && inPlayablePhase && hintedIds.size < hand.length && !hintedIds.has(id)}
-                  isTrump={hasTrumpContext && suitGroupForCard(id, levelRank as Rank, trumpSuit as Suit) === 'TRUMP'}
-                  onClick={handleToggle(id)}
-                />
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
+              return (
+                <motion.div
+                  key={id}
+                  className="hand-card-wrap"
+                  style={{
+                    marginLeft: i === 0 ? 0 : overlap,
+                    zIndex: i,
+                    transform: `rotate(${angle}deg) translateY(${yOffset - (isSelected ? 12 : 0)}px)`,
+                    transformOrigin: 'bottom center',
+                  }}
+                  layout
+                  drag
+                  dragConstraints={{ top: -30, bottom: 30, left: -40, right: 40 }}
+                  dragElastic={0.3}
+                  dragSnapToOrigin
+                  whileDrag={{ zIndex: 200, scale: 1.08 }}
+                  initial={{ y: -60, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: -40, opacity: 0 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 30, delay: i * 0.02 }}
+                  whileHover={isMobile ? undefined : { y: -10, zIndex: 100 }}
+                >
+                  <CardFace
+                    id={id}
+                    selected={isSelected}
+                    hinted={hintedIds.has(id)}
+                    pairHinted={pairHintedIds.has(id)}
+                    dimmed={isYourTurn && inPlayablePhase && hintedIds.size < hand.length && !hintedIds.has(id)}
+                    isTrump={hasTrumpContext && suitGroupForCard(id, levelRank as Rank, trumpSuit as Suit) === 'TRUMP'}
+                    onClick={handleToggle(id)}
+                  />
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+        </div>
+        <button className="hand-scroll-btn hand-scroll-right" onClick={() => scrollBy(1)} aria-label="Scroll right">&raquo;</button>
       </div>
     </div>
   );

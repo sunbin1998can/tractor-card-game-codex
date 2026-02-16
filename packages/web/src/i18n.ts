@@ -23,6 +23,16 @@ const translations: Record<string, Record<Lang, string>> = {
   'lobby.sendCode': { en: 'Send Code', zh: '发送验证码' },
   'lobby.verify': { en: 'Verify', zh: '验证' },
   'lobby.logout': { en: 'Logout', zh: '退出' },
+  'lobby.elo': { en: 'ELO', zh: 'ELO' },
+  'lobby.peak': { en: 'Peak', zh: '最高' },
+  'lobby.history': { en: 'Match History', zh: '对局记录' },
+  'lobby.noHistory': { en: 'No matches yet', zh: '暂无对局' },
+  'lobby.win': { en: 'Win', zh: '胜' },
+  'lobby.loss': { en: 'Loss', zh: '负' },
+  'lobby.inProgress': { en: 'In Progress', zh: '进行中' },
+  'lobby.loadMore': { en: 'Load More', zh: '加载更多' },
+  'lobby.rounds': { en: 'Rounds', zh: '局数' },
+  'lobby.levelUps': { en: 'Level Ups', zh: '升级数' },
 
   // ScoreBoard
   'score.trump': { en: 'Trump', zh: '主牌' },
@@ -71,6 +81,11 @@ const translations: Record<string, Record<Lang, string>> = {
   'action.snatchCountdown': { en: 'Snatch countdown', zh: '反主倒计时' },
   'action.noSnatch': { en: 'Pass', zh: '不反主' },
   'action.noSnatched': { en: 'Passed', zh: '已选不反主' },
+  'action.surrender': { en: 'Surrender', zh: '投降' },
+  'surrender.proposed': { en: '{name} proposed surrender', zh: '{name}提议投降' },
+  'surrender.accept': { en: 'Accept', zh: '同意' },
+  'surrender.reject': { en: 'Reject', zh: '拒绝' },
+  'surrender.opponentVoting': { en: 'Opponents voting to surrender', zh: '对方正在投票投降' },
 
   // Chat
   'chat.title': { en: 'Chat', zh: '聊天' },

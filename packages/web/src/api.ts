@@ -72,3 +72,70 @@ export async function getMe(authToken: string): Promise<{ user: ApiUser }> {
   if (!res.ok) throw new Error('Not authenticated');
   return res.json();
 }
+
+export interface ApiStats {
+  totalMatches: number;
+  wins: number;
+  winRate: number;
+  roundsPlayed: number;
+  avgPointsAsAttacker: number;
+  avgPointsAsDefender: number;
+  totalLevelUps: number;
+  biggestLevelJump: number;
+}
+
+export interface ApiRating {
+  rating: number;
+  deviation: number;
+  matchesRated: number;
+  peakRating: number;
+}
+
+export interface ApiMatch {
+  match: {
+    id: string;
+    room_id: string;
+    player_count: number;
+    winning_team: number | null;
+    team_levels_start: string;
+    team_levels_end: string | null;
+    started_at: string;
+    ended_at: string | null;
+  };
+  seat: number;
+  team: number;
+}
+
+export async function getStats(authToken: string): Promise<{ stats: ApiStats }> {
+  const res = await apiFetch('/api/stats', {
+    method: 'GET',
+    headers: authHeaders(authToken),
+  });
+  if (!res.ok) throw new Error('Failed to fetch stats');
+  return res.json();
+}
+
+export async function getRating(authToken: string): Promise<{ rating: ApiRating }> {
+  const res = await apiFetch('/api/rating', {
+    method: 'GET',
+    headers: authHeaders(authToken),
+  });
+  if (!res.ok) throw new Error('Failed to fetch rating');
+  return res.json();
+}
+
+export async function getMatches(
+  authToken: string,
+  opts?: { limit?: number; offset?: number },
+): Promise<{ matches: ApiMatch[] }> {
+  const params = new URLSearchParams();
+  if (opts?.limit) params.set('limit', String(opts.limit));
+  if (opts?.offset) params.set('offset', String(opts.offset));
+  const qs = params.toString();
+  const res = await apiFetch(`/api/matches${qs ? `?${qs}` : ''}`, {
+    method: 'GET',
+    headers: authHeaders(authToken),
+  });
+  if (!res.ok) throw new Error('Failed to fetch matches');
+  return res.json();
+}
