@@ -632,6 +632,23 @@ function resetRoomAfterGameOver(room: Room) {
   room.engine.startTrumpPhase();
 }
 
+export function getActiveRooms(): { id: string; players: number; seated: number; phase: string; seats: { name: string; isConnected: boolean }[] }[] {
+  const result: { id: string; players: number; seated: number; phase: string; seats: { name: string; isConnected: boolean }[] }[] = [];
+  const staleThreshold = now() - DISCONNECT_GRACE_MS;
+  for (const room of rooms.values()) {
+    const allStale = room.seats.length > 0 && room.seats.every((s) => !s.isConnected && s.lastSeen < staleThreshold);
+    if (allStale) continue;
+    result.push({
+      id: room.id,
+      players: room.players,
+      seated: room.seats.length,
+      phase: room.engine.phase,
+      seats: room.seats.map((s) => ({ name: s.name, isConnected: s.isConnected })),
+    });
+  }
+  return result;
+}
+
 export function createWsServer(server: import('http').Server, path = '/ws') {
   const wss = new WebSocketServer({ server, path });
 

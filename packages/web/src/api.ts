@@ -73,6 +73,21 @@ export async function getMe(authToken: string): Promise<{ user: ApiUser }> {
   return res.json();
 }
 
+export interface ApiRoom {
+  id: string;
+  players: number;
+  seated: number;
+  phase: string;
+  seats: { name: string; isConnected: boolean }[];
+}
+
+export async function getRooms(): Promise<ApiRoom[]> {
+  const res = await apiFetch('/api/rooms', { method: 'GET' });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.rooms ?? [];
+}
+
 export interface ApiStats {
   totalMatches: number;
   wins: number;

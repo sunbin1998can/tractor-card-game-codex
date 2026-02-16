@@ -37,6 +37,14 @@ const translations: Record<string, Record<Lang, string>> = {
   'lobby.codeSent': { en: 'Code sent! Check your email', zh: '验证码已发送，请查看邮箱' },
   'lobby.sendFailed': { en: 'Failed to send code', zh: '发送验证码失败' },
   'lobby.verifyFailed': { en: 'Invalid or expired code', zh: '验证码无效或已过期' },
+  'lobby.activeRooms': { en: 'Active Rooms', zh: '活跃房间' },
+  'lobby.noRooms': { en: 'No active rooms — create one!', zh: '暂无活跃房间 — 创建一个吧！' },
+  'lobby.playerCount': { en: 'players', zh: '人' },
+  'lobby.phase.FLIP_TRUMP': { en: 'Waiting', zh: '等待中' },
+  'lobby.phase.BURY_KITTY': { en: 'Burying', zh: '扣底中' },
+  'lobby.phase.TRICK_PLAY': { en: 'Playing', zh: '游戏中' },
+  'lobby.phase.ROUND_SCORE': { en: 'Scoring', zh: '计分中' },
+  'lobby.phase.GAME_OVER': { en: 'Finished', zh: '已结束' },
 
   // ScoreBoard
   'score.trump': { en: 'Trump', zh: '主牌' },

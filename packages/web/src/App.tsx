@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useStore } from './store';
 import { wsClient } from './wsClient';
 import { useT } from './i18n';
-import { guestLogin, sendEmailCode, verifyEmailCode as apiVerifyEmail, getMe } from './api';
+import { guestLogin, sendEmailCode, verifyEmailCode as apiVerifyEmail, getMe, getRooms } from './api';
+import type { ApiRoom } from './api';
 import GameTable, { SeatSidebar } from './components/GameTable';
 import Hand from './components/Hand';
 import ActionPanel from './components/ActionPanel';
@@ -24,10 +25,27 @@ import LevelUpOverlay from './components/LevelUpOverlay';
 import ThrowPunishedFlash from './components/ThrowPunishedFlash';
 
 export default function App() {
+  const [isDebug, setIsDebug] = useState(
+    () => typeof window !== 'undefined' && window.location.hash.startsWith('#/debug'),
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const syncHash = () => setIsDebug(window.location.hash.startsWith('#/debug'));
+    window.addEventListener('hashchange', syncHash);
+    window.addEventListener('popstate', syncHash);
+    return () => {
+      window.removeEventListener('hashchange', syncHash);
+      window.removeEventListener('popstate', syncHash);
+    };
+  }, []);
+
   // Debug mode: /#/debug
-  if (typeof window !== 'undefined' && window.location.hash.startsWith('#/debug')) {
-    return <DebugPage />;
-  }
+  if (isDebug) return <DebugPage />;
+  return <MainApp />;
+}
+
+function MainApp() {
   const roomId = useStore((s) => s.roomId);
   const youSeat = useStore((s) => s.youSeat);
   const publicState = useStore((s) => s.publicState);
@@ -49,6 +67,7 @@ export default function App() {
   const [codeInput, setCodeInput] = useState('');
   const [emailSent, setEmailSent] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
+  const [activeRooms, setActiveRooms] = useState<ApiRoom[]>([]);
 
   // Auto-guest login and auth validation on mount
   useEffect(() => {
@@ -76,6 +95,18 @@ export default function App() {
   useEffect(() => {
     wsClient.connect();
   }, []);
+
+  // Poll active rooms while in lobby
+  useEffect(() => {
+    if (roomId) return;
+    let cancelled = false;
+    const poll = () => {
+      getRooms().then((rooms) => { if (!cancelled) setActiveRooms(rooms); }).catch(() => {});
+    };
+    poll();
+    const id = setInterval(poll, 5000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [roomId]);
 
   const seatName =
     youSeat === null ? null : publicState?.seats.find((s) => s.seat === youSeat)?.name ?? null;
@@ -208,6 +239,37 @@ export default function App() {
               )}
             </div>
           </div>
+          <div className="panel room-list-panel">
+            <h3 className="lobby-panel-heading">{t('lobby.activeRooms')}</h3>
+            {activeRooms.length === 0 ? (
+              <div className="room-list-empty">{t('lobby.noRooms')}</div>
+            ) : (
+              <div className="room-list">
+                {activeRooms.map((room) => (
+                  <div key={room.id} className="room-list-row">
+                    <span className="room-list-id">{room.id}</span>
+                    <span className="room-list-players">{room.seated}/{room.players}</span>
+                    <span className="room-list-phase">{t(`lobby.phase.${room.phase}`)}</span>
+                    <div className="room-list-seats">
+                      {room.seats.map((s, i) => (
+                        <span key={i} className={`room-list-dot ${s.isConnected ? 'online' : 'offline'}`} title={s.name} />
+                      ))}
+                    </div>
+                    <button
+                      className="room-list-join-btn"
+                      onClick={() => {
+                        setRoomInput(room.id);
+                        setPlayers(room.players);
+                        wsClient.joinRoom({ roomId: room.id, name: nickname || 'Player', players: room.players });
+                      }}
+                    >
+                      {t('lobby.join')}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <MatchHistory />
           <div className="lobby-footer">
             <button className="lang-toggle" onClick={toggleLang}>{t('lang.toggle')}</button>
@@ -218,8 +280,13 @@ export default function App() {
     );
   }
 
+  const layoutStyle = {
+    '--card-scale': cardScale,
+    '--card-scale-trick': 'calc(var(--card-scale-trick-base) * var(--card-scale, 1))',
+  } as React.CSSProperties;
+
   return (
-    <div className="game-layout" style={{ '--card-scale': cardScale } as React.CSSProperties}>
+    <div className="game-layout" style={layoutStyle}>
       <DevDebugHint />
       <ScoreBoard playerLabel={playerLabel} seatLabel={seatLabel} roomId={roomId} />
       <div className="game-main">

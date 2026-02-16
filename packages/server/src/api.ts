@@ -12,6 +12,7 @@ import {
   createEmailUser,
 } from '@tractor/models';
 import { getUserStats, getUserMatches, getUserRating, ensureUserRating } from '@tractor/models';
+import { getActiveRooms } from './server/ws.js';
 
 function json(res: ServerResponse, status: number, body: unknown) {
   res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -75,6 +76,12 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
     res.end();
+    return true;
+  }
+
+  // GET /api/rooms — no DB required
+  if (req.method === 'GET' && path === '/api/rooms') {
+    json(res, 200, { rooms: getActiveRooms() });
     return true;
   }
 
