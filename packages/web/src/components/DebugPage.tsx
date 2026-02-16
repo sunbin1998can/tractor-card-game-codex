@@ -452,38 +452,68 @@ export default function DebugPage() {
 
 function DebugContent({ tab }: { tab: Tab }) {
   const roomId = useStore((s) => s.roomId);
+  const nickname = useStore((s) => s.nickname);
   const cardScale = useStore((s) => s.cardScale);
 
   if (tab === 'lobby') {
-    // The main App will render lobby since roomId is null
-    return null;
+    // Render a lightweight lobby preview inline
+    return (
+      <div className="app lobby-screen">
+        <div className="lobby-particles" />
+        <div className="lobby-container">
+          <div className="lobby-hero">
+            <h1 className="lobby-title">Tractor</h1>
+            <p className="lobby-subtitle">Debug Lobby Preview</p>
+          </div>
+          <div className="lobby-main">
+            <div className="panel lobby-join-panel">
+              <h3 className="lobby-panel-heading">Quick Play</h3>
+              <div className="form-group">
+                <input placeholder="Nickname" defaultValue={nickname || 'Player'} readOnly />
+              </div>
+              <div className="form-group">
+                <input placeholder="Room ID" defaultValue="room1" readOnly />
+              </div>
+              <div className="form-row">
+                <select defaultValue={4}><option value={4}>4 players</option></select>
+                <button className="btn-primary">Join</button>
+              </div>
+            </div>
+            <div className="panel lobby-profile-panel">
+              <div className="profile-avatar">A</div>
+              <div className="profile-name">Alice</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (!roomId) return null;
 
   return (
-    <>
-      <div className="game-layout" style={{ '--card-scale': cardScale } as React.CSSProperties}>
-        <ScoreBoard playerLabel="Alice" seatLabel="Seat 1" roomId="debug-room" />
-        <div className="game-body">
-          <div className="game-side-col">
+    <div className="game-layout" style={{ '--card-scale': cardScale } as React.CSSProperties}>
+      <ScoreBoard playerLabel="Alice" seatLabel="Seat 1" roomId="debug-room" />
+      <div className="game-main">
+        <div className="game-content">
+          <div className="game-body">
             <SeatSidebar />
-            <EventLog />
+            <GameTable />
           </div>
-          <GameTable />
-        </div>
-        <div className="game-footer">
-          <ActionPanel />
-          <Hand />
+          <div className="game-footer">
+            <ActionPanel />
+            <Hand />
+          </div>
+          <EventLog />
         </div>
         <ChatBox />
-        <FloatingPoints />
-        <GameBadges />
-        <Toasts />
-        <KouDiPopup />
-        <RoundEndOverlay />
-        <RoundPopup />
       </div>
-    </>
+      <FloatingPoints />
+      <GameBadges />
+      <Toasts />
+      <KouDiPopup />
+      <RoundEndOverlay />
+      <RoundPopup />
+    </div>
   );
 }
