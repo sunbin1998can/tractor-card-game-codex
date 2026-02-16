@@ -87,6 +87,9 @@ importers:
 
   packages/server:
     dependencies:
+      '@tractor/bot':
+        specifier: workspace:*
+        version: link:../bot
       '@tractor/db':
         specifier: workspace:*
         version: link:../db

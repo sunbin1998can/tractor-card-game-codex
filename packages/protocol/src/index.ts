@@ -1,3 +1,7 @@
+// ── Bot difficulty ──
+
+export type BotDifficulty = 'simple' | 'medium' | 'tough' | 'cheater';
+
 // ── Client → Server messages ──
 
 export type ClientMessage =
@@ -15,7 +19,11 @@ export type ClientMessage =
   | { type: 'PLAY'; cardIds: string[] }
   | { type: 'FORCE_END_ROUND' }
   | { type: 'SURRENDER_PROPOSE' }
-  | { type: 'SURRENDER_VOTE'; accept: boolean };
+  | { type: 'SURRENDER_VOTE'; accept: boolean }
+  | { type: 'ADD_BOT'; seat: number; difficulty: BotDifficulty }
+  | { type: 'REMOVE_BOT'; seat: number }
+  | { type: 'STAND_UP' }
+  | { type: 'SWAP_SEAT'; targetSeat: number };
 
 // ── Server → Client messages ──
 
@@ -25,7 +33,7 @@ export type ServerMessage =
   | { type: 'REQUEST_ACTION'; legalActions: { count: number }[] }
   | { type: 'CHAT'; seat: number; name: string; text: string; atMs: number }
   | { type: 'KOU_DI'; cards: string[]; pointSteps: number[]; total: number; multiplier: number }
-  | { type: 'ACTION_REJECTED'; action: 'PLAY' | 'BURY' | 'DECLARE' | 'SNATCH'; reason: string; expectedIds?: string[] }
+  | { type: 'ACTION_REJECTED'; action: 'PLAY' | 'BURY' | 'DECLARE' | 'SNATCH' | 'ADD_BOT' | 'REMOVE_BOT' | 'STAND_UP' | 'SWAP_SEAT'; reason: string; expectedIds?: string[] }
   | { type: 'TRUMP_DECLARED'; seat: number; trumpSuit: string; cardIds: string[] }
   | { type: 'TRUMP_LED'; seat: number }
   | { type: 'LEAD_PATTERN'; seat: number; kind: 'PAIR' | 'TRACTOR' }
@@ -74,6 +82,8 @@ export type PublicSeat = {
   connected: boolean;
   ready: boolean;
   cardsLeft: number;
+  isBot?: boolean;
+  botDifficulty?: BotDifficulty;
 };
 
 export type RoundResult = {

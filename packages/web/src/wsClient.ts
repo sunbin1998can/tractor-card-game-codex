@@ -988,6 +988,22 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     this.ws.send(JSON.stringify(msg));
   }
+
+  addBot(seat: number, difficulty: 'simple' | 'medium' | 'tough' | 'cheater') {
+    this.send({ type: 'ADD_BOT', seat, difficulty });
+  }
+
+  removeBot(seat: number) {
+    this.send({ type: 'REMOVE_BOT', seat });
+  }
+
+  standUp() {
+    this.send({ type: 'STAND_UP' });
+  }
+
+  swapSeat(targetSeat: number) {
+    this.send({ type: 'SWAP_SEAT', targetSeat });
+  }
 }
 
 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';

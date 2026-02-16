@@ -131,6 +131,19 @@ const translations: Record<string, Record<Lang, string>> = {
   'joker.small': { en: 'S', zh: '小' },
   'joker.big': { en: 'B', zh: '大' },
 
+  // Bots & Seat Management
+  'bot.addBot': { en: 'Add Bot', zh: '添加机器人' },
+  'bot.removeBot': { en: 'Remove', zh: '移除' },
+  'bot.simple': { en: 'Simple', zh: '简单' },
+  'bot.medium': { en: 'Medium', zh: '中等' },
+  'bot.tough': { en: 'Tough', zh: '困难' },
+  'bot.cheater': { en: 'Cheater', zh: '作弊' },
+  'bot.label': { en: 'Bot', zh: '机器人' },
+  'seat.standUp': { en: 'Stand Up', zh: '站起' },
+  'seat.sitHere': { en: 'Sit Here', zh: '坐下' },
+  'seat.swap': { en: 'Swap', zh: '换座' },
+  'seat.empty': { en: 'Empty', zh: '空座' },
+
   // Language
   'lang.toggle': { en: '中文', zh: 'EN' },
 };
