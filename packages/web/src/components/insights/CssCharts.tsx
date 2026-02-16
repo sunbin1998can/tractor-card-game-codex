@@ -50,7 +50,7 @@ export function RoleBarChart({ roles }: { roles: RoleData[] }) {
 
 type HistBucket = { bucket: string; attacker: number; defender: number };
 
-export function PointsHistogram({ data }: { data: HistBucket[] }) {
+export function PointsHistogram({ data, attackerLabel = 'Attacker', defenderLabel = 'Defender' }: { data: HistBucket[]; attackerLabel?: string; defenderLabel?: string }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { requestAnimationFrame(() => setMounted(true)); }, []);
 
@@ -78,8 +78,8 @@ export function PointsHistogram({ data }: { data: HistBucket[] }) {
         ))}
       </div>
       <div className="insights-histogram-legend">
-        <span className="insights-legend-item"><span className="insights-legend-dot attacker" /> Attacker</span>
-        <span className="insights-legend-item"><span className="insights-legend-dot defender" /> Defender</span>
+        <span className="insights-legend-item"><span className="insights-legend-dot attacker" /> {attackerLabel}</span>
+        <span className="insights-legend-item"><span className="insights-legend-dot defender" /> {defenderLabel}</span>
       </div>
     </div>
   );

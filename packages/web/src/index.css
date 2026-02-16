@@ -1118,6 +1118,63 @@ input::placeholder {
   border-color: #1b5e20;
 }
 
+.seat-ready-btn.remove-bot-btn {
+  background: #c62828;
+  border-color: #b71c1c;
+}
+
+.seat-ready-btn.stand-up-btn {
+  background: #e65100;
+  border-color: #bf360c;
+}
+
+.seat-avatar.is-bot {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.seat-badge.bot-difficulty {
+  font-size: 9px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+.empty-seat {
+  opacity: 0.7;
+}
+
+.empty-seat .seat-avatar.empty {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.empty-seat-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.bot-difficulty-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.bot-diff-btn {
+  flex: 1;
+  min-width: 0;
+  font-size: 10px !important;
+  padding: 2px 4px !important;
+}
+
+.lobby-ready-bar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
 .lobby-ready-btn.is-ready {
   background: #2e7d32;
   border-color: #1b5e20;
@@ -3030,17 +3087,36 @@ input::placeholder {
   min-height: 100vh;
 }
 
-/* ─── Back link ─── */
+/* ─── Top bar ─── */
+.insights-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
 .insights-back {
-  display: inline-block;
   color: var(--text-muted);
   text-decoration: none;
   font-size: 0.85rem;
-  margin-bottom: 16px;
   transition: color 0.2s;
 }
 .insights-back:hover {
   color: var(--card-glow-gold);
+}
+.insights-lang-toggle {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+.insights-lang-toggle:hover {
+  color: var(--card-glow-gold);
+  border-color: rgba(255, 215, 0, 0.3);
 }
 
 /* ─── Header ─── */
@@ -3447,6 +3523,293 @@ input::placeholder {
 }
 .insights-legend-dot.defender {
   background: var(--team-defender);
+}
+
+/* ─── Improvement Plan ─── */
+.insights-improve-panel {
+  margin-bottom: 24px;
+}
+.insights-improve-header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.insights-improve-header .insights-panel-title {
+  margin-bottom: 0;
+}
+.insights-improve-subtitle {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+.insights-improve-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.insights-improve-item {
+  display: flex;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.02);
+  transition: border-color 0.2s;
+}
+.insights-improve-item:hover {
+  border-color: rgba(255, 215, 0, 0.15);
+}
+.insights-improve-rank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-width: 44px;
+}
+.insights-improve-priority {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.insights-improve-impact {
+  font-size: 0.55rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: 8px;
+}
+.insights-improve-impact.high {
+  background: rgba(192, 57, 43, 0.2);
+  color: var(--team-attacker);
+}
+.insights-improve-impact.medium {
+  background: rgba(255, 152, 0, 0.15);
+  color: #ff9800;
+}
+.insights-improve-body {
+  flex: 1;
+  min-width: 0;
+}
+.insights-improve-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+.insights-improve-title {
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+.insights-improve-grades {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.insights-improve-grade {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.insights-improve-grade.current {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+}
+.insights-improve-grade.target {
+  background: rgba(76, 175, 80, 0.2);
+  color: var(--card-glow-green);
+}
+.insights-improve-arrow {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+.insights-improve-desc {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0 0 8px;
+}
+.insights-improve-drill {
+  font-size: 0.72rem;
+  color: var(--card-glow-gold);
+  background: rgba(255, 215, 0, 0.05);
+  border: 1px solid rgba(255, 215, 0, 0.1);
+  border-radius: 6px;
+  padding: 8px 10px;
+  line-height: 1.45;
+}
+.insights-improve-drill-label {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+}
+
+/* ─── Game Replay Highlights ─── */
+.insights-replay-panel {
+  margin-bottom: 24px;
+}
+.insights-replay-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: -8px 0 16px;
+}
+.insights-replay-game {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 14px;
+  background: rgba(255, 255, 255, 0.015);
+}
+.insights-replay-game:last-child {
+  margin-bottom: 0;
+}
+.insights-replay-game.win {
+  border-left: 3px solid var(--card-glow-green);
+}
+.insights-replay-game.loss {
+  border-left: 3px solid var(--team-attacker);
+}
+.insights-replay-game-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.insights-replay-result {
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+.insights-replay-result.win { color: var(--card-glow-green); }
+.insights-replay-result.loss { color: var(--team-attacker); }
+.insights-replay-role {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-light);
+}
+.insights-replay-vs,
+.insights-replay-score,
+.insights-replay-date {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.insights-replay-summary {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0 0 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.insights-replay-moves {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.insights-replay-move {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border-left: 3px solid transparent;
+}
+.insights-replay-move.brilliant {
+  background: rgba(255, 215, 0, 0.06);
+  border-left-color: var(--card-glow-gold);
+}
+.insights-replay-move.great {
+  background: rgba(76, 175, 80, 0.05);
+  border-left-color: var(--card-glow-green);
+}
+.insights-replay-move.mistake {
+  background: rgba(255, 152, 0, 0.05);
+  border-left-color: #ff9800;
+}
+.insights-replay-move.blunder {
+  background: rgba(192, 57, 43, 0.08);
+  border-left-color: var(--team-attacker);
+}
+.insights-replay-move-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.insights-replay-verdict {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.insights-replay-verdict-icon {
+  font-size: 0.75rem;
+}
+.insights-replay-verdict.brilliant {
+  background: rgba(255, 215, 0, 0.2);
+  color: var(--card-glow-gold);
+}
+.insights-replay-verdict.great {
+  background: rgba(76, 175, 80, 0.2);
+  color: var(--card-glow-green);
+}
+.insights-replay-verdict.mistake {
+  background: rgba(255, 152, 0, 0.2);
+  color: #ff9800;
+}
+.insights-replay-verdict.blunder {
+  background: rgba(192, 57, 43, 0.2);
+  color: var(--team-attacker);
+}
+.insights-replay-trick,
+.insights-replay-seat {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.insights-replay-cards {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-light);
+  letter-spacing: 0.02em;
+}
+.insights-replay-swing {
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-left: auto;
+}
+.insights-replay-swing.positive {
+  color: var(--card-glow-green);
+}
+.insights-replay-swing.negative {
+  color: var(--team-attacker);
+}
+.insights-replay-explanation {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+@media (max-width: 480px) {
+  .insights-improve-item {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .insights-improve-rank {
+    flex-direction: row;
+    min-width: auto;
+  }
 }
 
 /* ─── Play Style ─── */
