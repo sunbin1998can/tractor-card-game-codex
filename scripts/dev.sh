@@ -187,9 +187,9 @@ WEB_PID=$!
 echo ""
 echo -e "${GREEN}${BOLD}=== Development Environment Ready ===${NC}"
 echo ""
-echo -e "  ${CYAN}Web client:${NC}  http://localhost:$WEB_PORT"
-echo -e "  ${CYAN}WS server:${NC}   ws://localhost:$SERVER_PORT/ws"
-echo -e "  ${CYAN}API base:${NC}    http://localhost:$SERVER_PORT/api"
+echo -e "  ${BOLD}Open in browser:${NC}  ${GREEN}http://localhost:$WEB_PORT${NC}  (Vite – hot reload)"
+echo ""
+echo -e "  ${CYAN}Server:${NC}      http://localhost:$SERVER_PORT      (API + WebSocket)"
 if [ "$SKIP_DB" = false ]; then
   echo -e "  ${CYAN}PostgreSQL:${NC}  $DATABASE_URL"
   echo ""
