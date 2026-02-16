@@ -29,7 +29,7 @@ export async function initDb(): Promise<Db | null> {
     // Resolve the migrations folder from @tractor/db package
     const require = createRequire(import.meta.url);
     const dbPkgDir = path.dirname(require.resolve('@tractor/db/package.json'));
-    const migrationsFolder = path.join(dbPkgDir, 'migrations');
+    const migrationsFolder = path.join(dbPkgDir, 'dist', 'migrations');
 
     const migrator = new Migrator({
       db: instance,

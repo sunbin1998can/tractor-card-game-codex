@@ -13,7 +13,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc -p tsconfig.migrations.json",
     "db:migrate": "tsx src/migrate.ts"
   },
   "dependencies": {
