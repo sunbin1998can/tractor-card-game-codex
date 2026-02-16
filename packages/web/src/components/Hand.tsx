@@ -159,7 +159,45 @@ export default function Hand() {
     return { hintedIds: hinted, pairHintedIds: pairHinted };
   }, [hand, publicState?.phase, publicState?.trick, isYourTurn, inPlayablePhase, hasTrumpContext, levelRank, trumpSuit, legalActions]);
 
-  const handleToggle = useCallback((id: string) => () => toggle(id), [toggle]);
+  // When following a pair lead, auto-select both cards of a pair together
+  const pairPartners = useMemo(() => {
+    if (!hasTrumpContext || pairHintedIds.size === 0) return new Map<string, string>();
+    const partners = new Map<string, string>();
+    const byKey = new Map<string, string[]>();
+    for (const id of pairHintedIds) {
+      const key = pairKeyForCard(id, levelRank as Rank, trumpSuit as Suit);
+      if (!key) continue;
+      const list = byKey.get(key) ?? [];
+      list.push(id);
+      byKey.set(key, list);
+    }
+    for (const ids of byKey.values()) {
+      if (ids.length === 2) {
+        partners.set(ids[0], ids[1]);
+        partners.set(ids[1], ids[0]);
+      }
+    }
+    return partners;
+  }, [pairHintedIds, hasTrumpContext, levelRank, trumpSuit]);
+
+  const handleToggle = useCallback((id: string) => () => {
+    const partner = pairPartners.get(id);
+    if (partner) {
+      // Auto-select/deselect both cards of the pair
+      const isSelected = selected.has(id);
+      if (isSelected) {
+        // Deselect both
+        if (selected.has(id)) toggle(id);
+        if (selected.has(partner)) toggle(partner);
+      } else {
+        // Select both
+        if (!selected.has(id)) toggle(id);
+        if (!selected.has(partner)) toggle(partner);
+      }
+    } else {
+      toggle(id);
+    }
+  }, [toggle, pairPartners, selected]);
   const t = useT();
 
   if (!hand.length) {
@@ -199,6 +237,11 @@ export default function Hand() {
                   transformOrigin: 'bottom center',
                 }}
                 layout
+                drag
+                dragConstraints={{ top: -30, bottom: 30, left: -40, right: 40 }}
+                dragElastic={0.3}
+                dragSnapToOrigin
+                whileDrag={{ zIndex: 200, scale: 1.08 }}
                 initial={{ y: -60, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: -40, opacity: 0 }}
@@ -211,6 +254,7 @@ export default function Hand() {
                   hinted={hintedIds.has(id)}
                   pairHinted={pairHintedIds.has(id)}
                   dimmed={isYourTurn && inPlayablePhase && hintedIds.size < hand.length && !hintedIds.has(id)}
+                  isTrump={hasTrumpContext && suitGroupForCard(id, levelRank as Rank, trumpSuit as Suit) === 'TRUMP'}
                   onClick={handleToggle(id)}
                 />
               </motion.div>

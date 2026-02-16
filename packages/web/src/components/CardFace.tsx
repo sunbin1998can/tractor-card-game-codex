@@ -8,6 +8,7 @@ type CardFaceProps = {
   pairHinted?: boolean;
   dimmed?: boolean;
   mini?: boolean;
+  isTrump?: boolean;
   onClick?: () => void;
 };
 
@@ -40,6 +41,7 @@ export default function CardFace({
   pairHinted = false,
   dimmed = false,
   mini = false,
+  isTrump = false,
   onClick
 }: CardFaceProps) {
   const t = useT();
@@ -50,6 +52,7 @@ export default function CardFace({
     hinted ? 'hinted' : '',
     pairHinted ? 'pair-hinted' : '',
     dimmed ? 'dimmed' : '',
+    isTrump ? 'is-trump' : '',
     onClick ? 'clickable' : ''
   ].filter(Boolean).join(' ');
 
@@ -68,11 +71,10 @@ export default function CardFace({
   }
 
   const libCard = cardIdToLibFormat(id);
-  const height = mini ? '56px' : '92px';
 
   return (
     <button type="button" className={cls} onClick={onClick}>
-      {libCard && <Card card={libCard} height={height} />}
+      {libCard && <Card card={libCard} height="100%" />}
     </button>
   );
 }

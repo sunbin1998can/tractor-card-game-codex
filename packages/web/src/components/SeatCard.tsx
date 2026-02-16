@@ -63,18 +63,10 @@ export default function SeatCard({ seat }: Props) {
           {isBanker ? t('seat.banker') : ''}{isBanker && isLeader ? ' / ' : ''}{isLeader ? t('seat.leader') : ''}
         </span>
       )}
-      {seat.cardsLeft > 0 && (
-        <span className="seat-cards-pill">{seat.cardsLeft} {t('seat.cards')}</span>
-      )}
       {marker?.seat === seat.seat && (
         <div className="declare-marker">
           {t('seat.declare')} {markerLabel(marker.cardId)}
         </div>
-      )}
-      {!isPreDealLobby && (
-        <span className={`ready-state ${seat.ready ? 'ready' : 'not-ready'}`}>
-          {seat.ready ? t('seat.ready') : t('seat.notReady')}
-        </span>
       )}
       {isPreDealLobby && isYou && (
         <button

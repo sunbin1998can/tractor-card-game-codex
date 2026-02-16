@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useStore } from '../store';
 import { useT } from '../i18n';
-import { getRelativePosition } from './GameTable';
+import { getRelativePosition, type RelativePosition } from './GameTable';
 import CardFace from './CardFace';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -59,13 +59,10 @@ function computeTrickWinner(
   for (let i = 1; i < trick.length; i++) {
     const play = trick[i];
     const playGroup = suitGroup(play.cards[0], levelRank, trumpSuit);
-    // Must be in lead suit group or trump to win
     if (playGroup !== leadGroup && playGroup !== 'TRUMP') continue;
-    // If lead is non-trump and this is trump, it beats non-trump
     if (leadGroup !== 'TRUMP' && playGroup === 'TRUMP') {
       const str = Math.max(...play.cards.map((c) => cardStrength(c, levelRank, trumpSuit)));
       if (bestStrength < 700) {
-        // Current best isn't trump, so trump wins
         bestSeat = play.seat;
         bestStrength = str;
       } else if (str > bestStrength) {
@@ -83,6 +80,20 @@ function computeTrickWinner(
   return bestSeat;
 }
 
+/** Get directional offset vector for a relative position */
+function positionOffset(pos: RelativePosition): { x: number; y: number } {
+  switch (pos) {
+    case 'bottom': return { x: 0, y: 80 };
+    case 'top': return { x: 0, y: -80 };
+    case 'left': return { x: -80, y: 0 };
+    case 'right': return { x: 80, y: 0 };
+    case 'top-left': return { x: -60, y: -60 };
+    case 'top-right': return { x: 60, y: -60 };
+    case 'bottom-left': return { x: -60, y: 60 };
+    case 'bottom-right': return { x: 60, y: 60 };
+  }
+}
+
 export default function TableCenter() {
   const trick = useStore((s) => s.trickDisplay);
   const seats = useStore((s) => s.publicState?.seats ?? []);
@@ -90,14 +101,24 @@ export default function TableCenter() {
   const totalPlayers = useStore((s) => s.publicState?.players ?? 4);
   const trumpSuit = useStore((s) => s.publicState?.trumpSuit ?? 'N');
   const levelRank = useStore((s) => s.publicState?.levelRank ?? '2');
+  const serverWinnerSeat = useStore((s) => s.trickWinnerSeat);
 
   const mySeat = youSeat ?? 0;
   const t = useT();
 
+  // Use server-authoritative winner when available (from TRICK_END),
+  // fall back to client estimate while trick is still being played
   const winningSeat = useMemo(() => {
-    if (!trick || trick.length < 1 || trumpSuit === 'N') return null;
+    if (serverWinnerSeat !== null) return serverWinnerSeat;
+    if (!trick || trick.length < 2 || trumpSuit === 'N') return null;
     return computeTrickWinner(trick, levelRank, trumpSuit);
-  }, [trick, levelRank, trumpSuit]);
+  }, [serverWinnerSeat, trick, levelRank, trumpSuit]);
+
+  // Compute exit target: direction of winner seat
+  const winnerPos = winningSeat !== null
+    ? getRelativePosition(mySeat, winningSeat, totalPlayers)
+    : null;
+  const exitTarget = winnerPos ? positionOffset(winnerPos) : { x: 0, y: 0 };
 
   return (
     <div className="table-center">
@@ -112,13 +133,15 @@ export default function TableCenter() {
               const pos = getRelativePosition(mySeat, play.seat, totalPlayers);
               const name = seats.find((s) => s.seat === play.seat)?.name || `${t('seat.seat')} ${play.seat + 1}`;
               const isWinning = winningSeat === play.seat && trick.length > 1;
+              // Directional initial offset based on seat position
+              const entryOffset = positionOffset(pos);
               return (
                 <motion.div
                   key={`trick-${play.seat}`}
                   className={`trick-play pos-${pos} ${isWinning ? 'trick-winning' : ''}`}
-                  initial={{ scale: 0.5, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
+                  initial={{ x: entryOffset.x * 0.75, y: entryOffset.y * 0.75, opacity: 0 }}
+                  animate={{ x: 0, y: 0, opacity: 1 }}
+                  exit={{ ...exitTarget, opacity: 0, scale: 0.6 }}
                   transition={{ type: 'spring', stiffness: 300, damping: 25 }}
                 >
                   <div>

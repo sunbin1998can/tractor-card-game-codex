@@ -49,6 +49,7 @@ export type ServerMessage =
       nextBankerSeat: number;
       playedBySeat: string[][];
       kittyCards: string[];
+      trickHistory: { plays: { seat: number; cards: string[] }[]; winnerSeat: number }[];
     }
   | { type: 'GAME_OVER'; winnerTeam: number }
   | { type: 'AUTH_INFO'; userId: string | null; displayName: string; isGuest: boolean };
@@ -79,6 +80,7 @@ export type RoundResult = {
   newBankerSeat: number;
   playedBySeat: string[][];
   kittyCards: string[];
+  trickHistory?: { plays: { seat: number; cards: string[] }[]; winnerSeat: number }[];
 };
 
 export type PublicRoomState = {

@@ -3,6 +3,17 @@ import { useStore } from '../store';
 import { useT } from '../i18n';
 import { wsClient } from '../wsClient';
 
+const QUICK_REACTIONS = [
+  { emoji: '\uD83D\uDC4D', label: 'thumbs up' },
+  { emoji: '\uD83D\uDC4E', label: 'thumbs down' },
+  { emoji: '\uD83D\uDE02', label: 'laugh' },
+  { emoji: '\uD83D\uDE22', label: 'cry' },
+  { emoji: '\uD83D\uDE31', label: 'wow' },
+  { emoji: '\uD83D\uDD25', label: 'fire' },
+  { emoji: '\uD83C\uDF89', label: 'party' },
+  { emoji: '\uD83D\uDCAF', label: '100' },
+];
+
 export default function ChatBox() {
   const messages = useStore((s) => s.chatMessages);
   const [text, setText] = useState('');
@@ -22,6 +33,10 @@ export default function ChatBox() {
     setText('');
   };
 
+  const sendReaction = (emoji: string) => {
+    wsClient.sendChat(emoji);
+  };
+
   return (
     <div className={`panel chat-panel compact ${collapsed ? 'collapsed' : ''}`}>
       <button className="chat-toggle" onClick={() => setCollapsed(!collapsed)}>
@@ -39,8 +54,20 @@ export default function ChatBox() {
           ))
         )}
       </div>
+      <div className="chat-reactions">
+        {QUICK_REACTIONS.map((r) => (
+          <button
+            key={r.label}
+            className="chat-reaction-btn"
+            onClick={() => sendReaction(r.emoji)}
+            aria-label={r.label}
+            title={r.label}
+          >
+            {r.emoji}
+          </button>
+        ))}
+      </div>
       <div className="chat-input-row">
-        <span className="chat-inline-label">{t('chat.title')}</span>
         <input
           value={text}
           maxLength={200}

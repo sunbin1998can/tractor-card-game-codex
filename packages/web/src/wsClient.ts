@@ -21,6 +21,150 @@ class WsClient {
     this.url = url;
   }
 
+  private playTurnNotification() {
+    const store = useStore.getState();
+    if (store.muted) return;
+    if (typeof window === 'undefined') return;
+    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!Ctx) return;
+    try {
+      const ctx = new Ctx();
+      const now = ctx.currentTime;
+      // Two-tone chime: ascending notes
+      const notes = [587.33, 880]; // D5, A5
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + i * 0.12);
+        gain.gain.setValueAtTime(0.0001, now + i * 0.12);
+        gain.gain.exponentialRampToValueAtTime(0.15, now + i * 0.12 + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.12 + 0.25);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + i * 0.12);
+        osc.stop(now + i * 0.12 + 0.3);
+      });
+      window.setTimeout(() => { void ctx.close(); }, 600);
+    } catch {
+      // ignore audio errors
+    }
+  }
+
+  /** Short satisfying chime when your team wins a trick */
+  private playTrickWinSound(isMyTeam: boolean) {
+    const store = useStore.getState();
+    if (store.muted) return;
+    if (typeof window === 'undefined') return;
+    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!Ctx) return;
+    try {
+      const ctx = new Ctx();
+      const now = ctx.currentTime;
+      if (isMyTeam) {
+        // Bright ascending arpeggio: C5 → E5 → G5 → C6
+        const notes = [523.25, 659.25, 783.99, 1046.50];
+        notes.forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now + i * 0.08);
+          gain.gain.setValueAtTime(0.0001, now + i * 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.18, now + i * 0.08 + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.08 + 0.2);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + i * 0.08);
+          osc.stop(now + i * 0.08 + 0.25);
+        });
+        window.setTimeout(() => { void ctx.close(); }, 600);
+      } else {
+        // Subtle low tone for opponent trick win
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(330, now);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.08, now + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.35);
+        window.setTimeout(() => { void ctx.close(); }, 500);
+      }
+    } catch {
+      // ignore audio errors
+    }
+  }
+
+  /** Celebratory fanfare for round victory */
+  private playVictoryFanfare() {
+    const store = useStore.getState();
+    if (store.muted) return;
+    if (typeof window === 'undefined') return;
+    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!Ctx) return;
+    try {
+      const ctx = new Ctx();
+      const now = ctx.currentTime;
+      // Victory fanfare: C5 → E5 → G5 → (pause) → C6 (held)
+      const fanfare = [
+        { freq: 523.25, start: 0, dur: 0.15 },
+        { freq: 659.25, start: 0.12, dur: 0.15 },
+        { freq: 783.99, start: 0.24, dur: 0.15 },
+        { freq: 1046.50, start: 0.5, dur: 0.5 },
+      ];
+      fanfare.forEach(({ freq, start, dur }) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now + start);
+        gain.gain.setValueAtTime(0.0001, now + start);
+        gain.gain.exponentialRampToValueAtTime(0.2, now + start + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + start);
+        osc.stop(now + start + dur + 0.05);
+      });
+      window.setTimeout(() => { void ctx.close(); }, 1200);
+    } catch {
+      // ignore audio errors
+    }
+  }
+
+  /** Descending tone for round loss */
+  private playDefeatSound() {
+    const store = useStore.getState();
+    if (store.muted) return;
+    if (typeof window === 'undefined') return;
+    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!Ctx) return;
+    try {
+      const ctx = new Ctx();
+      const now = ctx.currentTime;
+      // Gentle descending: G4 → E4 → C4
+      const notes = [392.00, 329.63, 261.63];
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + i * 0.2);
+        gain.gain.setValueAtTime(0.0001, now + i * 0.2);
+        gain.gain.exponentialRampToValueAtTime(0.1, now + i * 0.2 + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.2 + 0.35);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + i * 0.2);
+        osc.stop(now + i * 0.2 + 0.4);
+      });
+      window.setTimeout(() => { void ctx.close(); }, 1000);
+    } catch {
+      // ignore audio errors
+    }
+  }
+
   private bindSpeechLifecycle() {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     if (this.speechLifecycleBound) return;
@@ -46,7 +190,14 @@ class WsClient {
     if (!text) return;
     try {
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'zh-CN';
+      const storeState = useStore.getState();
+      utterance.lang = storeState.lang === 'en' ? 'en-US' : 'zh-CN';
+      // Apply user-selected voice if available
+      if (storeState.ttsVoiceName) {
+        const voices = window.speechSynthesis.getVoices();
+        const selected = voices.find((v) => v.name === storeState.ttsVoiceName);
+        if (selected) utterance.voice = selected;
+      }
       utterance.volume = 0.75;
       utterance.rate = 0.85;
       utterance.pitch = 1;
@@ -80,8 +231,12 @@ class WsClient {
     this.flushSpeechQueue();
   }
 
+  private isEn(): boolean {
+    return useStore.getState().lang === 'en';
+  }
+
   announceNextRound() {
-    this.speak('下一局开始');
+    this.speak(this.isEn() ? 'Next round' : '下一局开始');
   }
 
   private attackerScore(state: any): number {
@@ -91,6 +246,13 @@ class WsClient {
   }
 
   private suitLabel(suit: string): string {
+    if (this.isEn()) {
+      if (suit === 'S') return 'spades';
+      if (suit === 'H') return 'hearts';
+      if (suit === 'D') return 'diamonds';
+      if (suit === 'C') return 'clubs';
+      return '';
+    }
     if (suit === 'S') return '黑桃';
     if (suit === 'H') return '红桃';
     if (suit === 'D') return '方块';
@@ -238,17 +400,36 @@ class WsClient {
     return !this.isStandardLeadPattern(msg.cards, state.levelRank, state.trumpSuit);
   }
 
+  private rankSpoken(rank: string): string {
+    if (this.isEn()) {
+      if (rank === 'A') return 'ace';
+      if (rank === 'K') return 'king';
+      if (rank === 'Q') return 'queen';
+      if (rank === 'J') return 'jack';
+      return rank;
+    }
+    if (rank === 'Q') return '嘎哒';
+    if (rank === 'J') return '勾子';
+    if (rank === 'A') return '腰';
+    return rank;
+  }
+
   private cardSpokenName(cardId: string): string {
     const card = this.parsedCard(cardId);
     if (!card) return cardId;
+    if (this.isEn()) {
+      if (card.rank === 'BJ') return 'big joker';
+      if (card.rank === 'SJ') return 'small joker';
+      return `${this.rankSpoken(card.rank)} of ${this.suitLabel(card.suit)}`;
+    }
     if (card.rank === 'BJ') return '大王';
     if (card.rank === 'SJ') return '小王';
-    const spokenRank =
-      card.rank === 'Q' ? '嘎哒' :
-      card.rank === 'J' ? '勾子' :
-      card.rank === 'A' ? '腰' :
-      card.rank;
-    return `${this.suitLabel(card.suit)}${spokenRank}`;
+    return `${this.suitLabel(card.suit)}${this.rankSpoken(card.rank)}`;
+  }
+
+  private seatName(seat: number): string {
+    const store = useStore.getState();
+    return store.publicState?.seats.find((s) => s.seat === seat)?.name || (this.isEn() ? `Seat ${seat + 1}` : `座位${seat + 1}`);
   }
 
   private maybeSpeakPlayedCards(
@@ -261,20 +442,25 @@ class WsClient {
     const trumpSuit = `${state?.trumpSuit ?? ''}`.trim();
     if (!levelRank || !trumpSuit) return;
 
+    const name = this.seatName(msg.seat);
+
+    const en = this.isEn();
+    const sep = en ? ', ' : '，';
+
     if (this.isThrowLead(msg, state, trickSoFar)) {
-      this.speak(`甩牌，${msg.cards.map((id) => this.cardSpokenName(id)).join('，')}`);
+      this.speak(`${name}${sep}${en ? 'throw' : '甩牌'}${sep}${msg.cards.map((id) => this.cardSpokenName(id)).join(sep)}`);
       return;
     }
 
     if (msg.cards.length === 1) {
       const singleRank = this.rankFromCardId(msg.cards[0]);
       if (singleRank === 'BJ' || singleRank === 'SJ') return;
-      this.speak(this.cardSpokenName(msg.cards[0]));
+      this.speak(`${name}${sep}${this.cardSpokenName(msg.cards[0])}`);
       return;
     }
 
     if (msg.cards.length === 2 && this.isPair(msg.cards)) {
-      this.speak(this.cardSpokenName(msg.cards[0]));
+      this.speak(en ? `${name}, pair of ${this.cardSpokenName(msg.cards[0])}s` : `${name}，${this.cardSpokenName(msg.cards[0])}`);
       return;
     }
 
@@ -289,14 +475,14 @@ class WsClient {
       }
       const labels = [...groups.entries()]
         .sort((a, b) => this.rankValue(a[0].split('|')[0]) - this.rankValue(b[0].split('|')[0]))
-        .map((x) => `对${x[1]}`);
+        .map((x) => en ? `pair of ${x[1]}s` : `对${x[1]}`);
       if (labels.length >= 2) {
-        this.speak(`拖拉机，${labels.join('，')}`);
+        this.speak(`${name}${sep}${en ? 'tractor' : '拖拉机'}${sep}${labels.join(sep)}`);
         return;
       }
     }
 
-    this.speak(msg.cards.map((id) => this.cardSpokenName(id)).join('，'));
+    this.speak(`${name}${sep}${msg.cards.map((id) => this.cardSpokenName(id)).join(sep)}`);
   }
 
   private cardSuitGroup(cardId: string, levelRank: string, trumpSuit: string): string | null {
@@ -344,23 +530,26 @@ class WsClient {
       if (priorBestKey === null || k > priorBestKey) priorBestKey = k;
     }
 
+    const killName = this.seatName(msg.seat);
     if (priorBestKey !== null && incomingKey > priorBestKey) {
-      this.speak('大毙');
+      this.speak(this.isEn() ? `${killName}, big trump kill` : `${killName}，大毙`);
       return;
     }
-    this.speak('毙了');
+    this.speak(this.isEn() ? `${killName}, trump kill` : `${killName}，毙了`);
   }
 
-  private maybeSpeakJokers(msg: { cards: string[] }) {
+  private maybeSpeakJokers(msg: { seat: number; cards: string[] }) {
     if (!Array.isArray(msg.cards) || msg.cards.length === 0) return;
     const ranks = msg.cards.map((id) => this.rankFromCardId(id)).filter(Boolean);
     if (ranks.length !== msg.cards.length) return;
+    const name = this.seatName(msg.seat);
+    const en = this.isEn();
     if (ranks.every((r) => r === 'BJ')) {
-      this.speak('大王');
+      this.speak(en ? `${name}, big joker` : `${name}，大王`);
       return;
     }
     if (ranks.every((r) => r === 'SJ')) {
-      this.speak('小王');
+      this.speak(en ? `${name}, small joker` : `${name}，小王`);
     }
   }
 
@@ -375,21 +564,27 @@ class WsClient {
       return !!card && card.rank === levelRank && card.suit === trumpSuit;
     });
     if (!hasDeclaredSuitLevel) return;
-    this.speak(`主${levelRank}`);
+    this.speak(this.isEn() ? `trump ${this.rankSpoken(levelRank)}` : `主${levelRank}`);
   }
 
   private trumpDeclaredSpeech(msg: { trumpSuit: string; cardIds: string[] }): string {
+    const en = this.isEn();
     const cardIds = msg.cardIds ?? [];
     if (cardIds.length === 2) {
       const r0 = this.rankFromCardId(cardIds[0]);
       const r1 = this.rankFromCardId(cardIds[1]);
-      if (r0 === 'BJ' && r1 === 'BJ') return '对大王，无将';
-      if (r0 === 'SJ' && r1 === 'SJ') return '对小王，无将';
+      if (r0 === 'BJ' && r1 === 'BJ') return en ? 'pair of big jokers, no trump' : '对大王，无将';
+      if (r0 === 'SJ' && r1 === 'SJ') return en ? 'pair of small jokers, no trump' : '对小王，无将';
     }
 
     const rank = cardIds.length > 0 ? this.rankFromCardId(cardIds[0]) : '';
     const suit = this.suitLabel(msg.trumpSuit);
-    if (!rank || !suit) return '亮主';
+    if (!rank || !suit) return en ? 'trump declared' : '亮主';
+    if (en) {
+      return cardIds.length === 2
+        ? `trump declared, pair of ${this.rankSpoken(rank)} of ${suit}`
+        : `trump declared, ${this.rankSpoken(rank)} of ${suit}`;
+    }
     if (cardIds.length === 2) return `亮主对${suit}${rank}`;
     return `亮主${suit}${rank}`;
   }
@@ -461,12 +656,13 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
         ? nextState.seats.reduce((sum: number, s: any) => sum + (s.cardsLeft ?? 0), 0)
         : 0;
 
+    const en = this.isEn();
     // Speak once when trump-declare window effectively starts: first dealt cards appear.
     if (nextState.phase === 'FLIP_TRUMP' && prevCards === 0 && nextCards > 0) {
       useStore.getState().setTrumpDeclareMarker(null);
       const rank = `${nextState.levelRank ?? ''}`.trim();
-      if (rank) this.speak(`打${rank}`);
-      this.speak('等待亮主');
+      if (rank) this.speak(en ? `playing ${this.rankSpoken(rank)}` : `打${rank}`);
+      this.speak(en ? 'waiting for trump declaration' : '等待亮主');
     }
 
     const prevDeclareUntil = Number(prevState?.declareUntilMs ?? 0);
@@ -476,21 +672,21 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
       nextDeclareUntil > Date.now() &&
       nextDeclareUntil > prevDeclareUntil;
     if (enteredOrExtendedDeclareWindow) {
-      this.speak('有人反主吗？');
+      this.speak(en ? 'anyone want to override trump?' : '有人反主吗？');
     }
 
     if (prevState.phase !== 'BURY_KITTY' && nextState.phase === 'BURY_KITTY') {
-      this.speak('等待扣底牌');
+      this.speak(en ? 'waiting for kitty burial' : '等待扣底牌');
     }
 
     if (prevState.phase === 'BURY_KITTY' && nextState.phase === 'TRICK_PLAY') {
-      this.speak('扣底牌完毕');
+      this.speak(en ? 'kitty buried, let\'s play' : '扣底牌完毕');
     }
   }
 
   private speakKouDi(pointSteps: number[], total: number) {
     const steps = Array.isArray(pointSteps) && pointSteps.length > 0 ? pointSteps : [total];
-    this.speak(`抠底${steps.join('，')}`);
+    this.speak(this.isEn() ? `kitty points: ${steps.join(', ')}` : `抠底${steps.join('，')}`);
   }
 
   onKouDiAcknowledged() {
@@ -499,7 +695,7 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
     const store = useStore.getState();
     const text = this.pendingRoundResultText;
     this.pendingRoundResultText = null;
-    this.speak('凯旋');
+    this.speak(this.isEn() ? 'victory' : '凯旋');
     store.setRoundPopup(text);
     store.pushToast(text.replace(/\n/g, ' '));
   }
@@ -516,7 +712,7 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
       const isReady = !!seat?.ready;
       if (!wasReady && isReady) {
         const name = (seat?.name || '').trim();
-        if (name) this.speak(`${name}准备好了`);
+        if (name) this.speak(this.isEn() ? `${name} is ready` : `${name}准备好了`);
       }
     }
   }
@@ -533,7 +729,7 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
       const isConnected = !!nextSeat?.connected;
       if (wasConnected && !isConnected) {
         const name = (seat?.name || '').trim();
-        if (name) this.speak(`${name}走了`);
+        if (name) this.speak(this.isEn() ? `${name} left` : `${name}走了`);
       }
     }
   }
@@ -624,9 +820,25 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
           this.clearTrickClearTimer();
           store.setTrickDisplay(msg.state.trick);
         }
+        // Clear trick display when transitioning out of TRICK_PLAY
+        if (
+          prevState?.phase === 'TRICK_PLAY' &&
+          msg.state.phase !== 'TRICK_PLAY'
+        ) {
+          this.clearTrickClearTimer();
+          store.clearTrickDisplay();
+        }
         this.maybeShowRoundPopupFromState(msg.state);
         this.speakPhasePrompts(prevState, msg.state);
         this.speakPlayersReady(prevState, msg.state);
+        // Play turn notification when it becomes this player's turn
+        if (
+          msg.state.turnSeat === store.youSeat &&
+          msg.state.turnSeat !== undefined &&
+          prevState?.turnSeat !== msg.state.turnSeat
+        ) {
+          this.playTurnNotification();
+        }
         if (
           prevState &&
           prevState.id === msg.state.id &&
@@ -636,7 +848,8 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
           const prevAttacker = this.attackerScore(prevState);
           const nextAttacker = this.attackerScore(msg.state);
           if (nextAttacker > prevAttacker) {
-            this.speak(`得分${nextAttacker}`);
+            this.speak(this.isEn() ? `score ${nextAttacker}` : `得分${nextAttacker}`);
+            store.pushFloatingPoint(nextAttacker - prevAttacker);
           }
         }
       } else if (msg.type === 'DEAL') {
@@ -669,24 +882,27 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
           store.setTrumpDeclareMarker({ seat: msg.seat, cardId: markerCard });
         }
         this.speak(this.trumpDeclaredSpeech(msg));
+        if (msg.seat === store.youSeat) {
+          store.pushBadge('Trump Master');
+        }
       } else if (msg.type === 'TRUMP_LED') {
         const speakerName =
           store.publicState?.seats.find((s) => s.seat === msg.seat)?.name || `Seat ${msg.seat + 1}`;
         store.pushToast(`${speakerName} 调主`);
-        this.speak('调主');
+        this.speak(this.isEn() ? 'trump override' : '调主');
       } else if (msg.type === 'LEAD_PATTERN') {
         const speakerName =
           store.publicState?.seats.find((s) => s.seat === msg.seat)?.name || `Seat ${msg.seat + 1}`;
         if (msg.kind === 'PAIR') {
           store.pushToast(`${speakerName} 对`);
-          this.speak('对');
+          this.speak(this.isEn() ? 'pair' : '对');
         } else {
           store.pushToast(`${speakerName} 拖拉机`);
-          this.speak('拖拉机');
+          this.speak(this.isEn() ? 'tractor' : '拖拉机');
         }
       } else if (msg.type === 'THROW_PUNISHED') {
         store.pushToast(`Throw punished: ${msg.reason}`);
-        this.speak('捡小的出');
+        this.speak(this.isEn() ? 'throw punished, play smallest' : '捡小的出');
       } else if (msg.type === 'TRICK_UPDATE') {
         this.clearTrickClearTimer();
         const current = useStore.getState().trickDisplay;
@@ -701,12 +917,45 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
         this.maybeSpeakPlayedCards(msg, store.publicState, current);
       } else if (msg.type === 'TRICK_END') {
         this.clearTrickClearTimer();
+        store.setTrickWinnerSeat(msg.winnerSeat);
+        // Play trick-win sound effect
+        const myTeam = (store.youSeat ?? -1) % 2;
+        const winnerTeam = msg.winnerSeat % 2;
+        this.playTrickWinSound(myTeam === winnerTeam);
         this.trickClearTimer = window.setTimeout(() => {
           useStore.getState().clearTrickDisplay();
           this.trickClearTimer = null;
         }, 2000);
       } else if (msg.type === 'ROUND_RESULT') {
+        // Clear any remaining trick display when round ends
+        this.clearTrickClearTimer();
+        store.clearTrickDisplay();
         const text = this.roundResultText(msg, store.publicState);
+        // Determine win/loss for round-end effect
+        const youSeat = store.youSeat;
+        if (youSeat !== null) {
+          const myTeam = youSeat % 2;
+          const didWin = myTeam === msg.winnerTeam;
+          store.setRoundEndEffect(didWin ? 'win' : 'loss');
+          // Play victory or defeat sound
+          if (didWin) this.playVictoryFanfare();
+          else this.playDefeatSound();
+          // Update win streak
+          if (didWin) {
+            const prev = (store as any).winStreak ?? 0;
+            const next = prev + 1;
+            useStore.setState({ winStreak: next });
+            if (next === 3) store.pushBadge('Streak x3');
+            if (next === 5) store.pushBadge('Streak x5');
+          } else {
+            useStore.setState({ winStreak: 0 });
+          }
+          // Sweep badge: attacker scored 0 and player is defender
+          const defenderTeam = store.publicState?.bankerSeat !== undefined ? store.publicState.bankerSeat % 2 : -1;
+          if (msg.attackerPoints === 0 && myTeam === defenderTeam) {
+            store.pushBadge('Sweep');
+          }
+        }
         if (this.waitingKouDiAck || store.kouDiPopup) {
           this.pendingRoundResultText = text;
         } else {

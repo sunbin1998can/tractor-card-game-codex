@@ -12,8 +12,16 @@ import KouDiPopup from './components/KouDiPopup';
 import ChatBox from './components/ChatBox';
 import Toasts from './components/Toasts';
 import EventLog from './components/EventLog';
+import RoundEndOverlay from './components/RoundEndOverlay';
+import FloatingPoints from './components/FloatingPoints';
+import GameBadges from './components/GameBadges';
+import DebugPage from './components/DebugPage';
 
 export default function App() {
+  // Debug mode: /#/debug
+  if (typeof window !== 'undefined' && window.location.hash.startsWith('#/debug')) {
+    return <DebugPage />;
+  }
   const roomId = useStore((s) => s.roomId);
   const youSeat = useStore((s) => s.youSeat);
   const publicState = useStore((s) => s.publicState);
@@ -76,107 +84,135 @@ export default function App() {
   }, [playerLabel, roomId, seatLabel]);
 
   if (!roomId) {
+    const avatarLetter = (nickname || email || 'G').charAt(0).toUpperCase();
+
     return (
       <div className="app lobby-screen">
-        <div className="panel lobby-card">
-          <div className="lobby-header">
-            <h2>{t('lobby.title')}</h2>
-            <button className="lang-toggle" onClick={toggleLang}>{t('lang.toggle')}</button>
+        <div className="lobby-particles" />
+        <div className="lobby-container">
+          <div className="lobby-hero">
+            <h1 className="lobby-title">{t('lobby.title')}</h1>
+            <p className="lobby-subtitle">{t('lobby.subtitle')}</p>
           </div>
-          <div className="identity-bar">
-            <span className="identity-chip">{t('lobby.thisTab')}: {playerLabel}</span>
-            <span className="identity-chip">{t('lobby.status')}</span>
-          </div>
-          <div className="row">
-            <input
-              placeholder={t('lobby.nickname')}
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-            />
-            <input
-              placeholder={t('lobby.roomId')}
-              value={roomInput}
-              onChange={(e) => setRoomInput(e.target.value)}
-            />
-            <select value={players} onChange={(e) => setPlayers(Number(e.target.value))}>
-              <option value={4}>{t('lobby.4players')}</option>
-              <option value={6}>{t('lobby.6players')}</option>
-            </select>
-            <button
-              onClick={() => {
-                const room = roomInput.trim();
-                if (!room) return;
-                setRoomId(room);
-                wsClient.joinRoom({ roomId: room, name: nickname || 'Player', players });
-              }}
-            >
-              {t('lobby.join')}
-            </button>
-          </div>
-          {email ? (
-            <div className="identity-bar">
-              <span className="identity-chip">Email: {email}</span>
-              <button onClick={clearAuth}>Logout</button>
+          <div className="lobby-main">
+            <div className="panel lobby-join-panel">
+              <h3 className="lobby-panel-heading">{t('lobby.quickPlay')}</h3>
+              <div className="form-group">
+                <input
+                  placeholder={t('lobby.nickname')}
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <input
+                  placeholder={t('lobby.roomId')}
+                  value={roomInput}
+                  onChange={(e) => setRoomInput(e.target.value)}
+                />
+              </div>
+              <div className="form-row">
+                <select value={players} onChange={(e) => setPlayers(Number(e.target.value))}>
+                  <option value={4}>{t('lobby.4players')}</option>
+                  <option value={6}>{t('lobby.6players')}</option>
+                </select>
+                <button
+                  className="btn-primary"
+                  aria-label={t('lobby.join')}
+                  onClick={() => {
+                    const room = roomInput.trim();
+                    if (!room) return;
+                    setRoomId(room);
+                    wsClient.joinRoom({ roomId: room, name: nickname || 'Player', players });
+                  }}
+                >
+                  {t('lobby.join')}
+                </button>
+              </div>
             </div>
-          ) : (
-            <div className="row" style={{ marginTop: 8 }}>
-              {!emailSent ? (
-                <>
-                  <input
-                    placeholder="Email"
-                    type="email"
-                    value={emailInput}
-                    onChange={(e) => setEmailInput(e.target.value)}
-                  />
-                  <button
-                    disabled={authLoading}
-                    onClick={async () => {
-                      if (!emailInput.trim()) return;
-                      setAuthLoading(true);
-                      try {
-                        await sendEmailCode(emailInput.trim());
-                        setEmailSent(true);
-                      } catch {
-                        // Email service unavailable
-                      } finally {
-                        setAuthLoading(false);
-                      }
-                    }}
-                  >
-                    Send Code
-                  </button>
-                </>
+            <div className="panel lobby-profile-panel">
+              <div className="profile-avatar">{avatarLetter}</div>
+              <div className="profile-name">{nickname || email || t('lobby.guest')}</div>
+              {email ? (
+                <div className="profile-email-section">
+                  <span className="profile-email-badge">{email}</span>
+                  <button className="profile-logout-btn" onClick={clearAuth}>{t('lobby.logout')}</button>
+                </div>
               ) : (
-                <>
-                  <input
-                    placeholder="Code"
-                    value={codeInput}
-                    onChange={(e) => setCodeInput(e.target.value)}
-                  />
-                  <button
-                    disabled={authLoading}
-                    onClick={async () => {
-                      if (!codeInput.trim()) return;
-                      setAuthLoading(true);
-                      try {
-                        const { authToken: token, user } = await apiVerifyEmail(emailInput.trim(), codeInput.trim());
-                        setAuth(token, user.id, user.isGuest, user.email);
-                        setEmailSent(false);
-                        setEmailInput('');
-                        setCodeInput('');
-                      } catch {
-                        // Verification failed
-                      } finally {
-                        setAuthLoading(false);
-                      }
-                    }}
-                  >
-                    Verify
-                  </button>
-                </>
+                <div className="profile-email-form">
+                  {!emailSent ? (
+                    <div className="form-row">
+                      <input
+                        placeholder="Email"
+                        type="email"
+                        value={emailInput}
+                        onChange={(e) => setEmailInput(e.target.value)}
+                      />
+                      <button
+                        disabled={authLoading}
+                        onClick={async () => {
+                          if (!emailInput.trim()) return;
+                          setAuthLoading(true);
+                          try {
+                            await sendEmailCode(emailInput.trim());
+                            setEmailSent(true);
+                          } catch {
+                            // Email service unavailable
+                          } finally {
+                            setAuthLoading(false);
+                          }
+                        }}
+                      >
+                        {t('lobby.sendCode')}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="form-row">
+                      <input
+                        placeholder="Code"
+                        value={codeInput}
+                        onChange={(e) => setCodeInput(e.target.value)}
+                      />
+                      <button
+                        disabled={authLoading}
+                        onClick={async () => {
+                          if (!codeInput.trim()) return;
+                          setAuthLoading(true);
+                          try {
+                            const { authToken: token, user } = await apiVerifyEmail(emailInput.trim(), codeInput.trim());
+                            setAuth(token, user.id, user.isGuest, user.email);
+                            setEmailSent(false);
+                            setEmailInput('');
+                            setCodeInput('');
+                          } catch {
+                            // Verification failed
+                          } finally {
+                            setAuthLoading(false);
+                          }
+                        }}
+                      >
+                        {t('lobby.verify')}
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
+              <div className="profile-stats-row">
+                <div className="stat-box">
+                  <span className="stat-label">{t('lobby.gamesPlayed')}</span>
+                  <span className="stat-value">&mdash;</span>
+                </div>
+                <div className="stat-box">
+                  <span className="stat-label">{t('lobby.winRate')}</span>
+                  <span className="stat-value">&mdash;</span>
+                </div>
+              </div>
             </div>
-          )}
+          </div>
+          <div className="lobby-footer">
+            <button className="lang-toggle" onClick={toggleLang}>{t('lang.toggle')}</button>
+            <span className="lobby-version">v0.1</span>
+          </div>
         </div>
       </div>
     );
@@ -185,13 +221,20 @@ export default function App() {
   return (
     <div className="game-layout">
       <ScoreBoard playerLabel={playerLabel} seatLabel={seatLabel} roomId={roomId} />
+      <div className="game-body">
+        <GameTable />
+      </div>
+      <div className="game-footer">
+        <ActionPanel />
+        <Hand />
+      </div>
       <EventLog />
-      <GameTable />
-      <Hand />
-      <ActionPanel />
       <ChatBox />
+      <FloatingPoints />
+      <GameBadges />
       <Toasts />
       <KouDiPopup />
+      <RoundEndOverlay />
       <RoundPopup />
     </div>
   );

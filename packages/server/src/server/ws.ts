@@ -49,7 +49,8 @@ interface Room {
 const rooms = new Map<string, Room>();
 const DISCONNECT_GRACE_MS = 120_000;
 const DEAL_STEP_MS = 80;
-const FINAL_DECLARE_PAUSE_MS = 3000;
+const FINAL_DECLARE_PAUSE_MS = 30_000;
+const TRUMP_FAIRNESS_WINDOW_MS = 30_000;
 
 function now() {
   return Date.now();
@@ -97,10 +98,23 @@ function createDeck(): Card[] {
   return cards;
 }
 
+function cryptoRandom(): number {
+  // Use crypto for better entropy when available
+  if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.getRandomValues) {
+    const buf = new Uint32Array(1);
+    globalThis.crypto.getRandomValues(buf);
+    return buf[0] / 0x100000000;
+  }
+  return Math.random();
+}
+
 function shuffle(cards: Card[]) {
-  for (let i = cards.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [cards[i], cards[j]] = [cards[j], cards[i]];
+  // Fisher-Yates with crypto-grade randomness, 3 passes for thorough mixing
+  for (let pass = 0; pass < 3; pass++) {
+    for (let i = cards.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(cryptoRandom() * (i + 1));
+      [cards[i], cards[j]] = [cards[j], cards[i]];
+    }
   }
 }
 
@@ -369,7 +383,11 @@ function flushEngineEvents(room: Room) {
         rolesSwapped: ev.rolesSwapped,
         newBankerSeat: ev.newBankerSeat,
         playedBySeat: ev.playedBySeat.map((cards) => cards.map((c) => c.id)),
-        kittyCards: ev.kittyCards.map((c) => c.id)
+        kittyCards: ev.kittyCards.map((c) => c.id),
+        trickHistory: ev.trickHistory.map((t: { plays: { seat: number; cards: Card[] }[]; winnerSeat: number }) => ({
+          plays: t.plays.map((p: { seat: number; cards: Card[] }) => ({ seat: p.seat, cards: p.cards.map((c: Card) => c.id) })),
+          winnerSeat: t.winnerSeat,
+        })),
       };
       broadcast(room, {
         type: 'ROUND_RESULT',
@@ -387,7 +405,11 @@ function flushEngineEvents(room: Room) {
         newBankerSeat: ev.newBankerSeat,
         nextBankerSeat: ev.nextBankerSeat,
         playedBySeat: ev.playedBySeat.map((cards: Card[]) => cards.map((c: Card) => c.id)),
-        kittyCards: ev.kittyCards.map((c: Card) => c.id)
+        kittyCards: ev.kittyCards.map((c: Card) => c.id),
+        trickHistory: ev.trickHistory.map((t: { plays: { seat: number; cards: Card[] }[]; winnerSeat: number }) => ({
+          plays: t.plays.map((p: { seat: number; cards: Card[] }) => ({ seat: p.seat, cards: p.cards.map((c: Card) => c.id) })),
+          winnerSeat: t.winnerSeat,
+        })),
       });
     } else if (ev.type === 'GAME_OVER') {
       onMatchEnd(room.persistence, ev.winnerTeam, [...room.engine.teamLevels]);
@@ -429,7 +451,8 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
       bankerSeat: 0,
       levelRank: '2',
       trumpSuit: 'H',
-      kittySize
+      kittySize,
+      fairnessWindowMs: TRUMP_FAIRNESS_WINDOW_MS
     });
     room = {
       id: roomId,
@@ -546,7 +569,8 @@ function resetRoomAfterGameOver(room: Room) {
     bankerSeat,
     levelRank: '2',
     trumpSuit: 'H',
-    kittySize: room.kittySize
+    kittySize: room.kittySize,
+    fairnessWindowMs: TRUMP_FAIRNESS_WINDOW_MS
   });
   room.lastRoundResult = undefined;
   room.persistence = createRoomPersistence();
@@ -673,13 +697,28 @@ export function createWsServer(server: import('http').Server, path = '/ws') {
         broadcastState(room);
 
         const connectedCount = room.seats.filter((s) => s.isConnected).length;
-        if (
-          room.dealingInProgress &&
-          room.finalDeclarePauseDone &&
-          room.resumeTailDeal &&
-          room.noSnatchSeats.size >= connectedCount
-        ) {
-          room.resumeTailDeal();
+        if (room.noSnatchSeats.size >= connectedCount) {
+          // All connected players confirmed — skip remaining wait
+          if (room.dealingInProgress && room.finalDeclarePauseDone && room.resumeTailDeal) {
+            // Still dealing: resume tail deal immediately
+            room.resumeTailDeal();
+          } else if (!room.dealingInProgress && room.engine.trumpCandidate) {
+            // Dealing finished: finalize trump immediately
+            room.engine.trumpCandidate.expiresAt = now();
+            room.engine.finalizeTrump(now());
+            flushEngineEvents(room);
+            if ((room.engine.phase as string) === 'BURY_KITTY') {
+              room.declareSeat = undefined;
+              room.declareUntilMs = undefined;
+              if (room.fairnessTimer) {
+                clearInterval(room.fairnessTimer);
+                room.fairnessTimer = undefined;
+              }
+              sendHand(room, room.engine.config.bankerSeat);
+              broadcastState(room);
+              requestAction(room, room.engine.config.bankerSeat);
+            }
+          }
         }
         return;
       }
