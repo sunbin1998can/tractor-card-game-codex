@@ -294,7 +294,9 @@ function deal(room: Room) {
 
     const remaining = rest.length - index;
     const tailDealCount = room.tailDealCount ?? room.kittySize;
+    const allowFinalDeclarePause = false;
     const shouldPauseForFinalDeclare =
+      allowFinalDeclarePause &&
       room.engine.phase === 'FLIP_TRUMP' &&
       !!room.engine.trumpCandidate &&
       !room.finalDeclarePauseDone &&
@@ -343,8 +345,12 @@ function publicState(room: Room): PublicRoomState {
     levelRank: room.engine.config.levelRank,
     scores: room.engine.capturedPoints,
     capturedPointCards: [
-      room.engine.capturedPointCards[0].map((c) => c.id),
-      room.engine.capturedPointCards[1].map((c) => c.id)
+      ((room.engine as unknown as { capturedPointCards?: Card[][] }).capturedPointCards?.[0] ?? []).map(
+        (c) => c.id
+      ),
+      ((room.engine as unknown as { capturedPointCards?: Card[][] }).capturedPointCards?.[1] ?? []).map(
+        (c) => c.id
+      )
     ],
     kittyCount: room.engine.kitty.length,
     declareSeat: room.declareSeat,
@@ -677,8 +683,12 @@ export function createWsServer(port: number, path = '/ws') {
           return;
         }
         if (after) {
-          room.declareSeat = after.seat;
-          room.declareUntilMs = after.expiresAt;
+          if (room.engine.trumpCandidate) {
+            room.engine.trumpCandidate.expiresAt = now();
+          }
+          room.declareSeat = undefined;
+          room.declareUntilMs = undefined;
+          room.declareEnabled = false;
           room.noSnatchSeats?.clear();
           broadcast(room, {
             type: 'TRUMP_DECLARED',

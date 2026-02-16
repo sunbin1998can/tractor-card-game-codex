@@ -510,16 +510,6 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
       this.speak('等待亮主');
     }
 
-    const prevDeclareUntil = Number(prevState?.declareUntilMs ?? 0);
-    const nextDeclareUntil = Number(nextState?.declareUntilMs ?? 0);
-    const enteredOrExtendedDeclareWindow =
-      nextState.phase === 'FLIP_TRUMP' &&
-      nextDeclareUntil > Date.now() &&
-      nextDeclareUntil > prevDeclareUntil;
-    if (enteredOrExtendedDeclareWindow) {
-      this.speak('有人反主吗？');
-    }
-
     if (prevState.phase !== 'BURY_KITTY' && nextState.phase === 'BURY_KITTY') {
       this.speak('等待扣底牌');
     }
@@ -648,6 +638,10 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
       } else if (msg.type === 'ROOM_STATE') {
         const prevState = store.publicState;
         store.setPublicState(msg.state);
+        if (prevState?.id === msg.state?.id && prevState.phase !== msg.state.phase) {
+          // Clear stale selections when moving across phases (e.g. DECLARE -> BURY).
+          store.clearSelect();
+        }
         if (Array.isArray(msg.state?.trick) && msg.state.trick.length > 0) {
           this.clearTrickClearTimer();
           store.setTrickDisplay(msg.state.trick);
@@ -732,7 +726,7 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
         this.trickClearTimer = window.setTimeout(() => {
           useStore.getState().clearTrickDisplay();
           this.trickClearTimer = null;
-        }, 2000);
+        }, 3000);
       } else if (msg.type === 'ROUND_RESULT') {
         const text = this.roundResultText(msg, store.publicState);
         if (this.waitingKouDiAck || store.kouDiPopup) {

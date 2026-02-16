@@ -1,0 +1,10 @@
+{
+  "name": "tractor-card-game",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,green \"npm --prefix server run dev\" \"npm --prefix web run dev\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

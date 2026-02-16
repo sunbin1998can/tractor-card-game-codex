@@ -1,7 +1,11 @@
 import { useStore } from '../store';
+import CardFace from './CardFace';
 
 export default function TableCenter() {
-  const trick = useStore((s) => s.publicState?.trick);
+  const liveTrick = useStore((s) => s.publicState?.trick ?? []);
+  const trickDisplay = useStore((s) => s.trickDisplay);
+  const seats = useStore((s) => s.publicState?.seats ?? []);
+  const trick = liveTrick.length > 0 ? liveTrick : trickDisplay;
 
   if (!trick || trick.length === 0) {
     return <div className="panel">No trick in progress.</div>;
@@ -11,10 +15,12 @@ export default function TableCenter() {
     <div className="panel table">
       {trick.map((play) => (
         <div key={play.seat}>
-          <div>Seat {play.seat}</div>
+          <div>
+            Seat {play.seat + 1}: {seats.find((s) => s.seat === play.seat)?.name || 'Player'}
+          </div>
           <div>
             {play.cards.map((c) => (
-              <span key={c} className="card">{c}</span>
+              <CardFace key={c} cardId={c} mini />
             ))}
           </div>
         </div>

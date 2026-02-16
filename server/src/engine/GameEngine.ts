@@ -169,6 +169,11 @@ export class GameEngine {
 
     this.config.trumpSuit = this.trumpCandidate.trumpSuit;
     this.trumpCandidate = null;
+    // Banker takes the original kitty into hand, then buries the same count.
+    this.hands[this.config.bankerSeat] = [
+      ...this.hands[this.config.bankerSeat],
+      ...this.kitty
+    ];
     this.phase = 'BURY_KITTY';
     this.emit({ type: 'PHASE', phase: this.phase });
   }

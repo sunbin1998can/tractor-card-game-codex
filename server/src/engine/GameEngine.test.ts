@@ -63,6 +63,42 @@ describe('GameEngine trick resolution', () => {
   });
 });
 
+describe('GameEngine trump to bury transition', () => {
+  it('adds kitty cards to banker hand when entering bury phase', () => {
+    const engine = new GameEngine({
+      numPlayers: 4,
+      bankerSeat: 0,
+      levelRank: '2',
+      trumpSuit: 'H',
+      kittySize: 2
+    });
+
+    const hands = [
+      [makeCard('S', '9', 1)],
+      [makeCard('S', '10', 1)],
+      [makeCard('S', '3', 1)],
+      [makeCard('S', '4', 1)]
+    ];
+    const kitty = [makeCard('H', '5', 1), makeCard('D', '6', 1)];
+    engine.setHands(hands, kitty);
+    engine.startTrumpPhase();
+    engine.trumpCandidate = {
+      seat: 0,
+      strength: 1,
+      trumpSuit: 'S',
+      expiresAt: 0
+    };
+
+    engine.finalizeTrump(1);
+
+    expect(engine.phase).toBe('BURY_KITTY');
+    expect(engine.hands[0].map((c) => c.id)).toEqual(
+      expect.arrayContaining(kitty.map((c) => c.id))
+    );
+    expect(engine.hands[0]).toHaveLength(3);
+  });
+});
+
 describe('GameEngine round scoring', () => {
   it('applies kitty kill multiplier 2x', () => {
     const engine = new GameEngine({

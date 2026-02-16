@@ -386,11 +386,16 @@ input, select {
 }
 
 .card-face.mini .card-center.joker {
-  font-size: 7px;
+  font-size: 8px;
 }
 
 .card-face.mini .joker-mark {
-  font-size: 14px;
+  font-size: 10px;
+}
+
+.card-face.mini .joker-label {
+  font-size: 7px;
+  line-height: 1;
 }
 
 .card-face.clickable {
@@ -457,16 +462,22 @@ input, select {
 }
 
 .card-center.joker {
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 1px;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  text-transform: uppercase;
 }
 
 .joker-mark {
-  font-size: 24px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.joker-label {
+  font-size: 10px;
   line-height: 1;
 }
 
