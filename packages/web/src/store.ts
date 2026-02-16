@@ -52,12 +52,15 @@ type StoreState = {
   toasts: Toast[];
   announcements: Toast[];
   chatMessages: { seat: number; name: string; text: string; atMs: number }[];
+  chatHidden: boolean;
   kouDiPopup: { cards: string[]; pointSteps: number[]; total: number; multiplier: number } | null;
   roundPopup: string | null;
   roundEndEffect: 'win' | 'loss' | null;
+  cardScale: number;
   winStreak: number;
   badges: Badge[];
   floatingPoints: FloatingPoint[];
+  setCardScale: (scale: number) => void;
   setNickname: (name: string) => void;
   setRoomId: (roomId: string) => void;
   setPlayers: (players: number) => void;
@@ -82,6 +85,7 @@ type StoreState = {
   pushEvent: (msg: string) => void;
   pushChatMessage: (msg: { seat: number; name: string; text: string; atMs: number }) => void;
   clearChatMessages: () => void;
+  toggleChatHidden: () => void;
   setRoundPopup: (msg: string | null) => void;
   setKouDiPopup: (msg: { cards: string[]; pointSteps: number[]; total: number; multiplier: number } | null) => void;
   setAuth: (token: string, userId: string, isGuest: boolean, email?: string | null) => void;
@@ -118,12 +122,18 @@ export const useStore = create<StoreState>((set, get) => ({
   toasts: [],
   announcements: [],
   chatMessages: [],
+  chatHidden: sessionStorage.getItem('chatHidden') === 'true',
   kouDiPopup: null,
   roundPopup: null,
   roundEndEffect: null,
+  cardScale: Number(sessionStorage.getItem('cardScale')) || 1,
   winStreak: 0,
   badges: [],
   floatingPoints: [],
+  setCardScale: (scale) => {
+    sessionStorage.setItem('cardScale', String(scale));
+    set({ cardScale: scale });
+  },
   setNickname: (name) => {
     sessionStorage.setItem('nickname', name);
     set({ nickname: name });
@@ -208,6 +218,11 @@ export const useStore = create<StoreState>((set, get) => ({
     set({ chatMessages: next });
   },
   clearChatMessages: () => set({ chatMessages: [] }),
+  toggleChatHidden: () => {
+    const next = !get().chatHidden;
+    sessionStorage.setItem('chatHidden', String(next));
+    set({ chatHidden: next });
+  },
   setKouDiPopup: (msg) => set({ kouDiPopup: msg }),
   setRoundPopup: (msg) => set({ roundPopup: msg }),
   setAuth: (token, userId, isGuest, email) => {
