@@ -859,7 +859,11 @@ input::placeholder {
   gap: 4px;
   flex: 0 0 180px;
   width: 180px;
+  min-width: 180px;
+  max-width: 180px;
   padding: 4px;
+  box-sizing: border-box;
+  overflow: hidden;
   overflow-y: auto;
   max-height: 100%;
   scrollbar-width: thin;
@@ -885,6 +889,7 @@ input::placeholder {
   backdrop-filter: blur(4px);
   width: 100%;
   box-sizing: border-box;
+  overflow: hidden;
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
@@ -1060,16 +1065,10 @@ input::placeholder {
 
 .trick-play .card-face {
   pointer-events: none;
-  width: clamp(150px, 19.5vw, 255px);
-  height: clamp(210px, 27.3vw, 357px);
-}
-.trick-play .card-face + .card-face { margin-left: -30px; }
-
-.trick-play.pos-right .card-face {
   width: min(39vw, 27vh);
   height: min(54.6vw, 38vh);
 }
-.trick-play.pos-right .card-face + .card-face { margin-left: -5vw; }
+.trick-play .card-face + .card-face { margin-left: -5vw; }
 
 .trick-player-label {
   font-size: 10px;
@@ -1925,9 +1924,16 @@ input::placeholder {
   margin: 0;
 }
 
-.round-result-card .trick-cell-cards,
 .round-result-card .round-seat-cards {
   gap: 0;
+}
+
+.round-result-card .trick-table-td {
+  padding: 2px 1px;
+}
+
+.round-result-card .trick-table-td .card-face.mini {
+  margin: 0 -1px;
 }
 
 .round-result-card button {
@@ -1978,11 +1984,22 @@ input::placeholder {
 }
 
 /* ===== Round Result Enhanced ===== */
+.round-summary-group {
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .round-result-banner {
   text-align: center;
-  padding: 20px 24px;
-  margin-bottom: 16px;
-  border-radius: 12px;
+  padding: 10px 16px;
+  margin-bottom: 0;
+  border-radius: 8px;
 }
 
 .round-result-banner.defender {
@@ -1996,7 +2013,7 @@ input::placeholder {
 }
 
 .round-result-winner-text {
-  font-size: clamp(24px, 3vw, 36px);
+  font-size: clamp(18px, 2.5vw, 28px);
   font-weight: 800;
   color: var(--card-glow-gold);
 }
@@ -2011,17 +2028,17 @@ input::placeholder {
 
 .round-result-scores {
   display: flex;
-  gap: 16px;
+  gap: 10px;
   justify-content: center;
-  margin-bottom: 10px;
+  margin-bottom: 0;
 }
 
 .round-score-col {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 8px 16px;
-  border-radius: 8px;
+  padding: 4px 12px;
+  border-radius: 6px;
   background: rgba(0, 0, 0, 0.2);
   border: 1px solid var(--panel-border);
 }
@@ -2033,7 +2050,7 @@ input::placeholder {
 }
 
 .round-score-value {
-  font-size: clamp(28px, 4vw, 42px);
+  font-size: clamp(22px, 3vw, 32px);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
@@ -2137,10 +2154,10 @@ input::placeholder {
 
 .round-roles-swapped {
   text-align: center;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
-  margin-bottom: 10px;
+  margin-bottom: 0;
   padding: 6px 14px;
   border-radius: 999px;
   background: rgba(255, 215, 0, 0.1);
@@ -2152,17 +2169,17 @@ input::placeholder {
 /* Round Analytics */
 .round-analytics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 8px;
-  margin-bottom: 12px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin-bottom: 0;
 }
 
 .round-analytics-stat {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 10px 8px;
-  border-radius: 8px;
+  padding: 4px 4px;
+  border-radius: 6px;
   background: rgba(0, 0, 0, 0.25);
   border: 1px solid var(--panel-border);
 }
@@ -2175,7 +2192,7 @@ input::placeholder {
 }
 
 .round-analytics-value {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 800;
   color: var(--card-glow-gold);
   font-variant-numeric: tabular-nums;
@@ -2573,9 +2590,14 @@ input::placeholder {
 
   .seat-sidebar {
     flex-direction: row;
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+    max-width: 100%;
+    min-height: auto;
+    max-height: none;
     overflow-x: auto;
     overflow-y: visible;
-    max-height: none;
   }
 
   .game-badges-container {
@@ -2599,7 +2621,7 @@ input::placeholder {
   .seat-badge { font-size: 8px; padding: 0 4px; }
   .seat-cards-pill { font-size: 9px; }
 
-  .trick-play .card-face + .card-face { margin-left: -24px; }
+  .trick-play .card-face + .card-face { margin-left: -5vw; }
 
   /* Touch-friendly targets */
   button {
@@ -2623,8 +2645,8 @@ input::placeholder {
   }
 
   .trick-play .card-face {
-    width: clamp(90px, 15vw, 150px);
-    height: clamp(126px, 21vw, 210px);
+    width: min(30vw, 21vh);
+    height: min(42vw, 29vh);
   }
 
   .history-match-list {

@@ -19,6 +19,8 @@ async function main() {
   ): Promise<string> {
     const page = await browser.newPage({ viewport: { width, height } });
     await page.goto(url, { waitUntil: "networkidle" });
+    // Wait for debug simulation to deal cards and start playing a trick
+    await page.waitForTimeout(5000);
     const dest = resolve(outDir, name);
     await page.screenshot({ path: dest, fullPage: true });
     await page.close();

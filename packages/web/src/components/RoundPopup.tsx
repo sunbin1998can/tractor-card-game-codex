@@ -52,52 +52,54 @@ export default function RoundPopup() {
         <div className="round-result-scroll">
           {rr ? (
             <>
-              <div className={`round-result-banner ${winnerSide === 'DEFENDER' ? 'defender' : 'attacker'}`}>
-                <span className="round-result-winner-text">
-                  {winnerNames} {t('round.won')}
-                </span>
-                {isFinal && <span className="round-result-game-over">{t('round.gameOver')}</span>}
-              </div>
-
-              <div className="round-result-scores">
-                <div className="round-score-col defender">
-                  <span className="round-score-label">{t('round.defenderPts')}</span>
-                  <span className="round-score-value">{rr.defenderPoints}</span>
-                </div>
-                <div className="round-score-col attacker">
-                  <span className="round-score-label">{t('round.attackerPts')}</span>
-                  <span className="round-score-value">{rr.attackerPoints}</span>
-                </div>
-              </div>
-
-              <div className="round-analytics">
-                <div className="round-analytics-stat">
-                  <span className="round-analytics-label">{t('round.levelChange')}</span>
-                  <span className="round-analytics-value">
-                    {rr.levelFrom} &rarr; {rr.levelTo}
+              <div className="round-summary-group">
+                <div className={`round-result-banner ${winnerSide === 'DEFENDER' ? 'defender' : 'attacker'}`}>
+                  <span className="round-result-winner-text">
+                    {winnerNames} {t('round.won')}
                   </span>
+                  {isFinal && <span className="round-result-game-over">{t('round.gameOver')}</span>}
                 </div>
-                <div className="round-analytics-stat">
-                  <span className="round-analytics-label">{t('round.delta')}</span>
-                  <span className="round-analytics-value">+{rr.delta}</span>
-                </div>
-                <div className="round-analytics-stat">
-                  <span className="round-analytics-label">{t('round.kittyPts')}</span>
-                  <span className="round-analytics-value">{kittyPts}</span>
-                </div>
-                <div className="round-analytics-stat">
-                  <span className="round-analytics-label">{t('round.totalPts')}</span>
-                  <span className="round-analytics-value">{rr.defenderPoints + rr.attackerPoints}</span>
-                </div>
-              </div>
 
-              {rr.rolesSwapped && (
-                <div style={{ textAlign: 'center' }}>
-                  <span className="round-roles-swapped">
-                    {t('round.rolesSwapped')} &middot; {t('round.newBanker')} {rr.newBankerSeat + 1}
-                  </span>
+                <div className="round-result-scores">
+                  <div className="round-score-col defender">
+                    <span className="round-score-label">{t('round.defenderPts')}</span>
+                    <span className="round-score-value">{rr.defenderPoints}</span>
+                  </div>
+                  <div className="round-score-col attacker">
+                    <span className="round-score-label">{t('round.attackerPts')}</span>
+                    <span className="round-score-value">{rr.attackerPoints}</span>
+                  </div>
                 </div>
-              )}
+
+                <div className="round-analytics">
+                  <div className="round-analytics-stat">
+                    <span className="round-analytics-label">{t('round.levelChange')}</span>
+                    <span className="round-analytics-value">
+                      {rr.levelFrom} &rarr; {rr.levelTo}
+                    </span>
+                  </div>
+                  <div className="round-analytics-stat">
+                    <span className="round-analytics-label">{t('round.delta')}</span>
+                    <span className="round-analytics-value">+{rr.delta}</span>
+                  </div>
+                  <div className="round-analytics-stat">
+                    <span className="round-analytics-label">{t('round.kittyPts')}</span>
+                    <span className="round-analytics-value">{kittyPts}</span>
+                  </div>
+                  <div className="round-analytics-stat">
+                    <span className="round-analytics-label">{t('round.totalPts')}</span>
+                    <span className="round-analytics-value">{rr.defenderPoints + rr.attackerPoints}</span>
+                  </div>
+                </div>
+
+                {rr.rolesSwapped && (
+                  <div style={{ textAlign: 'center' }}>
+                    <span className="round-roles-swapped">
+                      {t('round.rolesSwapped')} &middot; {t('round.newBanker')} {rr.newBankerSeat + 1}
+                    </span>
+                  </div>
+                )}
+              </div>
 
               {/* Trick-by-trick table */}
               {trickHistory.length > 0 && (
@@ -126,11 +128,9 @@ export default function RoundPopup() {
                                 className={`trick-table-td ${isWinner ? 'trick-winner-cell' : ''}`}
                               >
                                 {play ? (
-                                  <div className="trick-cell-cards">
-                                    {play.cards.map((c, ci) => (
-                                      <CardFace key={`${trickIdx}-${seat.seat}-${c}-${ci}`} id={c} mini />
-                                    ))}
-                                  </div>
+                                  play.cards.map((c, ci) => (
+                                    <CardFace key={`${trickIdx}-${seat.seat}-${c}-${ci}`} id={c} mini />
+                                  ))
                                 ) : (
                                   <span className="trick-cell-empty">&mdash;</span>
                                 )}
