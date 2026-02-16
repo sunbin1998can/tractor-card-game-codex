@@ -212,7 +212,7 @@ export default function ActionPanel() {
             <span className="surrender-countdown">{surrenderRemainSeconds}s</span>
           </div>
           <div className="surrender-vote-chips">
-            {Object.entries(surrenderVote.votes).map(([seatStr, vote]) => {
+            {Object.entries(surrenderVote.votes).filter(([s]) => /^\d+$/.test(s)).map(([seatStr, vote]) => {
               const seatNum = Number(seatStr);
               const name = publicState?.seats?.find((s) => s.seat === seatNum)?.name ?? `Seat ${seatNum + 1}`;
               const cls =

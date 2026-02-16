@@ -320,6 +320,21 @@ body {
   gap: 4px;
   max-height: 300px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--card-glow-gold) transparent;
+}
+
+.history-match-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.history-match-list::-webkit-scrollbar-thumb {
+  background: var(--card-glow-gold);
+  border-radius: 3px;
+}
+
+.history-match-list::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .history-empty {
@@ -519,9 +534,9 @@ input::placeholder {
 }
 
 .game-body > .chat-panel {
-  position: absolute;
+  position: fixed;
   right: 8px;
-  bottom: 8px;
+  bottom: 100px;
   z-index: var(--z-overlay-ui);
   width: 260px;
   max-height: 50vh;
@@ -830,7 +845,7 @@ input::placeholder {
   z-index: var(--z-seat);
 }
 
-.seat-slot.pos-bottom { bottom: -30px; left: 20%; transform: translateX(-50%); }
+.seat-slot.pos-bottom { bottom: -30px; left: 50%; transform: translateX(-50%); }
 .seat-slot.pos-top { top: -30px; left: 50%; transform: translateX(-50%); }
 .seat-slot.pos-left { left: -40px; top: 50%; transform: translateY(-50%); }
 .seat-slot.pos-right { right: -40px; top: 50%; transform: translateY(-50%); }
@@ -1204,6 +1219,8 @@ input::placeholder {
   align-items: center;
   gap: 0;
   position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .hand-scroll-btn {
@@ -2346,13 +2363,12 @@ input::placeholder {
     min-height: auto !important;
   }
 
-  .seat-slot.pos-bottom { bottom: -20px; left: 20%; }
+  .seat-slot.pos-bottom { bottom: -20px; left: 50%; }
   .seat-slot.pos-top { top: -20px; }
   .seat-slot.pos-left { left: -25px; }
   .seat-slot.pos-right { right: -25px; }
 
   .game-body > .chat-panel {
-    position: fixed;
     right: 4px;
     bottom: 4px;
     width: 220px;
@@ -2396,6 +2412,23 @@ input::placeholder {
 
   .btn-primary {
     min-height: 44px;
+  }
+
+  .hand-scroll-btn {
+    width: 24px;
+  }
+
+  .surrender-vote-bar {
+    max-width: 100%;
+  }
+
+  .trick-play .card-face {
+    width: clamp(60px, 10vw, 100px);
+    height: clamp(84px, 14vw, 140px);
+  }
+
+  .history-match-list {
+    max-height: 200px;
   }
 
   .round-end-banner.win .round-end-text { font-size: 32px; }

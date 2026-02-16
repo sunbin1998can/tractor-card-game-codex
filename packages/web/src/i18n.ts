@@ -33,6 +33,7 @@ const translations: Record<string, Record<Lang, string>> = {
   'lobby.loadMore': { en: 'Load More', zh: '加载更多' },
   'lobby.rounds': { en: 'Rounds', zh: '局数' },
   'lobby.levelUps': { en: 'Level Ups', zh: '升级数' },
+  'lobby.loading': { en: 'Loading...', zh: '加载中...' },
 
   // ScoreBoard
   'score.trump': { en: 'Trump', zh: '主牌' },

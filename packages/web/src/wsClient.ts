@@ -887,10 +887,11 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
           msg.state.turnSeat === store.youSeat &&
           store.hand.length === 1
         ) {
+          const cardToPlay = store.hand[0];
           setTimeout(() => {
             const s = useStore.getState();
-            if (s.hand.length === 1) {
-              this.send({ type: 'PLAY', cardIds: [s.hand[0]] });
+            if (s.hand.length === 1 && s.hand[0] === cardToPlay) {
+              this.send({ type: 'PLAY', cardIds: [cardToPlay] });
             }
           }, 300);
         }

@@ -51,6 +51,7 @@ interface Room {
     timer: NodeJS.Timeout;
     expiresAtMs: number;
   } | null;
+  lastSurrenderProposeByTeam?: Map<number, number>;
 }
 
 const rooms = new Map<string, Room>();
@@ -59,6 +60,7 @@ const DEAL_STEP_MS = 80;
 const FINAL_DECLARE_PAUSE_MS = 30_000;
 const TRUMP_FAIRNESS_WINDOW_MS = 30_000;
 const SURRENDER_VOTE_TIMEOUT_MS = 60_000;
+const SURRENDER_COOLDOWN_MS = 120_000;
 
 function now() {
   return Date.now();
@@ -290,6 +292,7 @@ function checkSurrenderVoteResult(room: Room) {
   if (allYes) {
     clearTimeout(room.surrenderVote.timer);
     room.surrenderVote = null;
+    if (room.engine.phase !== 'TRICK_PLAY') return;
     (room.engine as any).finishRound();
     flushEngineEvents(room);
     broadcastState(room);
@@ -610,6 +613,9 @@ function resetRoomAfterGameOver(room: Room) {
   room.resumeTailDeal = null;
   room.finalDeclarePauseDone = false;
   room.tailDealCount = undefined;
+  if (room.surrenderVote?.timer) { clearTimeout(room.surrenderVote.timer); }
+  room.surrenderVote = null;
+  room.lastSurrenderProposeByTeam = undefined;
 
   const bankerSeat = room.lastRoundResult?.newBankerSeat ?? room.engine.config.bankerSeat;
   room.engine = new GameEngine({
@@ -847,6 +853,10 @@ export function createWsServer(server: import('http').Server, path = '/ws') {
         if (room.engine.phase !== 'TRICK_PLAY') return;
         if (room.surrenderVote) return;
         const team = seatState.team;
+        if (!room.lastSurrenderProposeByTeam) room.lastSurrenderProposeByTeam = new Map();
+        const lastPropose = room.lastSurrenderProposeByTeam.get(team) ?? 0;
+        if (now() - lastPropose < SURRENDER_COOLDOWN_MS) return;
+        room.lastSurrenderProposeByTeam.set(team, now());
         const teammates = room.seats.filter((s) => s.team === team);
         const votes = new Map<number, boolean | null>();
         for (const tm of teammates) {
@@ -871,6 +881,7 @@ export function createWsServer(server: import('http').Server, path = '/ws') {
       }
 
       if (msg.type === 'FORCE_END_ROUND') {
+        if (room.engine.phase !== 'TRICK_PLAY') return;
         (room.engine as any).finishRound();
         flushEngineEvents(room);
         broadcastState(room);
