@@ -4,7 +4,7 @@
 # Start Tractor card game local development environment:
 # - PostgreSQL via Docker (auto-created, migrated, seeded)
 # - WebSocket server (default port 3000)
-# - Vite web client  (default port 5173)
+# - Vite web client  (default port 4200)
 #
 # Ports auto-increment if already in use.
 #
@@ -41,7 +41,7 @@ DATABASE_URL="postgres://${PG_USER}:${PG_PASS}@localhost:${PG_PORT}/${PG_DB}"
 AUTH_SECRET="dev-secret-do-not-use-in-production"
 
 DEFAULT_SERVER_PORT=3000
-DEFAULT_WEB_PORT=5173
+DEFAULT_WEB_PORT=4200
 
 SERVER_PID=""
 WEB_PID=""

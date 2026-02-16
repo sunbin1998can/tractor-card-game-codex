@@ -17,9 +17,11 @@ export default function KouDiPopup() {
       <div className="panel modal-card">
         <div className="modal-title">{t('koudi.title')}</div>
         <div className="modal-text">{t('koudi.title')}{stepText}</div>
-        <div>
-          {data.cards.map((id) => (
-            <CardFace key={id} id={id} />
+        <div style={{ display: 'flex', gap: 4 }}>
+          {data.cards.map((id, i) => (
+            <div key={id} className="koudi-card-flip" style={{ animationDelay: `${i * 0.15}s` }}>
+              <CardFace id={id} />
+            </div>
           ))}
         </div>
         <button

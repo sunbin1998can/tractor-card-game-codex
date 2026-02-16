@@ -59,11 +59,12 @@ export function SeatSidebar() {
 
 export default function GameTable() {
   const state = useStore((s) => s.publicState);
+  const screenShake = useStore((s) => s.screenShake);
 
   if (!state) return null;
 
   return (
-    <div className="game-table">
+    <div className={`game-table${screenShake ? ' screen-shake' : ''}`}>
       <TableCenter />
     </div>
   );

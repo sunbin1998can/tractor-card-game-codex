@@ -18,6 +18,10 @@ import GameBadges from './components/GameBadges';
 import DebugPage from './components/DebugPage';
 import MatchHistory from './components/MatchHistory';
 import DevDebugHint from './components/DevDebugHint';
+import CardImpactParticles from './components/CardImpactParticles';
+import TrumpDeclareOverlay from './components/TrumpDeclareOverlay';
+import LevelUpOverlay from './components/LevelUpOverlay';
+import ThrowPunishedFlash from './components/ThrowPunishedFlash';
 
 export default function App() {
   // Debug mode: /#/debug
@@ -236,6 +240,10 @@ export default function App() {
       </div>
       <FloatingPoints />
       <GameBadges />
+      <CardImpactParticles />
+      <TrumpDeclareOverlay />
+      <LevelUpOverlay />
+      <ThrowPunishedFlash />
       <Toasts />
       <KouDiPopup />
       <RoundEndOverlay />

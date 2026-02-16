@@ -60,6 +60,11 @@ type StoreState = {
   winStreak: number;
   badges: Badge[];
   floatingPoints: FloatingPoint[];
+  screenShake: boolean;
+  impactBurst: { id: number; suitColor: string } | null;
+  trumpDeclareFlash: { suit: string; isOverride: boolean } | null;
+  levelUpEffect: { delta: number } | null;
+  throwPunishedFlash: boolean;
   setCardScale: (scale: number) => void;
   setNickname: (name: string) => void;
   setRoomId: (roomId: string) => void;
@@ -96,6 +101,11 @@ type StoreState = {
   expireBadges: () => void;
   pushFloatingPoint: (value: number) => void;
   expireFloatingPoints: () => void;
+  triggerScreenShake: () => void;
+  triggerImpactBurst: (suitColor: string) => void;
+  setTrumpDeclareFlash: (flash: { suit: string; isOverride: boolean } | null) => void;
+  setLevelUpEffect: (effect: { delta: number } | null) => void;
+  triggerThrowPunished: () => void;
 };
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -130,6 +140,11 @@ export const useStore = create<StoreState>((set, get) => ({
   winStreak: 0,
   badges: [],
   floatingPoints: [],
+  screenShake: false,
+  impactBurst: null,
+  trumpDeclareFlash: null,
+  levelUpEffect: null,
+  throwPunishedFlash: false,
   setCardScale: (scale) => {
     sessionStorage.setItem('cardScale', String(scale));
     set({ cardScale: scale });
@@ -263,6 +278,26 @@ export const useStore = create<StoreState>((set, get) => ({
     const filtered = get().floatingPoints.filter((p) => p.expiresAt > now);
     if (filtered.length !== get().floatingPoints.length) set({ floatingPoints: filtered });
   },
+  triggerScreenShake: () => {
+    set({ screenShake: true });
+    setTimeout(() => useStore.setState({ screenShake: false }), 300);
+  },
+  triggerImpactBurst: (suitColor) => {
+    set({ impactBurst: { id: ++toastIdCounter, suitColor } });
+    setTimeout(() => useStore.setState({ impactBurst: null }), 500);
+  },
+  setTrumpDeclareFlash: (flash) => {
+    set({ trumpDeclareFlash: flash });
+    if (flash) setTimeout(() => useStore.setState({ trumpDeclareFlash: null }), 1000);
+  },
+  setLevelUpEffect: (effect) => {
+    set({ levelUpEffect: effect });
+    if (effect) setTimeout(() => useStore.setState({ levelUpEffect: null }), 2500);
+  },
+  triggerThrowPunished: () => {
+    set({ throwPunishedFlash: true });
+    setTimeout(() => useStore.setState({ throwPunishedFlash: false }), 600);
+  },
   leaveRoom: () => {
     sessionStorage.removeItem('roomId');
     const prevToken = get().sessionToken || sessionStorage.getItem('sessionToken');
@@ -285,7 +320,12 @@ export const useStore = create<StoreState>((set, get) => ({
       roundPopup: null,
       roundEndEffect: null,
       badges: [],
-      floatingPoints: []
+      floatingPoints: [],
+      screenShake: false,
+      impactBurst: null,
+      trumpDeclareFlash: null,
+      levelUpEffect: null,
+      throwPunishedFlash: false
     });
   }
 }));

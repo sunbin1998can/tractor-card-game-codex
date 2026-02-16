@@ -255,8 +255,8 @@ export default function Hand() {
                   dragElastic={0.3}
                   dragSnapToOrigin
                   whileDrag={{ zIndex: 200, scale: 1.08 }}
-                  initial={{ y: -60, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
+                  initial={{ y: -60, opacity: 0, scale: 0.5 }}
+                  animate={{ y: 0, opacity: 1, scale: 1 }}
                   exit={{ y: -40, opacity: 0 }}
                   transition={{ type: 'spring', stiffness: 400, damping: 30, delay: i * 0.02 }}
                   whileHover={isMobile ? undefined : { y: -10, zIndex: 100 }}
