@@ -378,10 +378,35 @@ function seedGameState(store: ReturnType<typeof useStore.getState>) {
   store.setLegalActions([{ count: 2 }]);
 }
 
+const VALID_TABS = new Set<Tab>(['lobby', 'game', 'round-result', 'kou-di', 'badges']);
+
+function getTabFromHash(): Tab {
+  try {
+    const hash = window.location.hash; // e.g. "#/debug?view=kou-di"
+    const qIdx = hash.indexOf('?');
+    if (qIdx === -1) return 'game';
+    const params = new URLSearchParams(hash.slice(qIdx + 1));
+    const view = params.get('view') as Tab | null;
+    return view && VALID_TABS.has(view) ? view : 'game';
+  } catch {
+    return 'game';
+  }
+}
+
+function setTabInHash(tab: Tab) {
+  const base = '#/debug';
+  window.history.replaceState(null, '', tab === 'game' ? base : `${base}?view=${tab}`);
+}
+
 export default function DebugPage() {
-  const [tab, setTab] = useState<Tab>('game');
+  const [tab, setTabState] = useState<Tab>(getTabFromHash);
   const [open, setOpen] = useState(false);
   const store = useStore.getState();
+
+  const setTab = useCallback((t: Tab) => {
+    setTabState(t);
+    setTabInHash(t);
+  }, []);
 
   // Run simulation when game tab is active
   useSimulation(tab === 'game');
