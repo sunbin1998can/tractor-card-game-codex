@@ -1828,7 +1828,7 @@ input::placeholder {
   flex-direction: column;
   justify-content: space-between;
   backdrop-filter: blur(8px);
-  padding: 16px clamp(12px, 3vw, 48px);
+  padding: 12px clamp(8px, 2vw, 24px);
 }
 
 .round-result-scroll {
@@ -1882,7 +1882,7 @@ input::placeholder {
   margin-top: 2px;
   margin-bottom: 0;
   color: var(--card-glow-gold);
-  min-width: 80px;
+  min-width: 60px;
   flex: 0 0 auto;
 }
 
@@ -1894,6 +1894,9 @@ input::placeholder {
 }
 
 .round-result-card .card-face.mini {
+  --cs: 1;
+  width: clamp(44px, 4.5vw, 68px);
+  height: clamp(62px, 6.3vw, 95px);
   border-color: rgba(255, 255, 255, 0.2);
   background: #fff;
   box-shadow: none;
