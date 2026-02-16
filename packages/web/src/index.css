@@ -541,6 +541,18 @@ input::placeholder {
   overflow: hidden;
 }
 
+/* Side column: seats + event log */
+.game-side-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--card-glow-gold) transparent;
+}
+
 /* Game content column takes remaining space */
 .game-content {
   flex: 1 1 auto;
@@ -768,18 +780,14 @@ input::placeholder {
 
 /* ===== Event Log (floating overlay) ===== */
 .event-log-sidebar {
-  position: absolute;
-  top: 60px;
-  left: 8px;
-  z-index: var(--z-overlay-subtle);
   display: flex;
   flex-direction: column;
   gap: 3px;
   max-width: 200px;
-  max-height: 40vh;
   overflow-y: auto;
-  pointer-events: none;
   scrollbar-width: none;
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 .event-log-sidebar::-webkit-scrollbar { display: none; }
@@ -2472,7 +2480,7 @@ input::placeholder {
   .team-score { font-size: 16px; }
   .score-vs { font-size: 10px; }
 
-  .event-log-sidebar {
+  .game-side-col {
     display: none;
   }
 

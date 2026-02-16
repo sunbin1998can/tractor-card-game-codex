@@ -466,14 +466,16 @@ function DebugContent({ tab }: { tab: Tab }) {
       <div className="game-layout" style={{ '--card-scale': cardScale } as React.CSSProperties}>
         <ScoreBoard playerLabel="Alice" seatLabel="Seat 1" roomId="debug-room" />
         <div className="game-body">
-          <SeatSidebar />
+          <div className="game-side-col">
+            <SeatSidebar />
+            <EventLog />
+          </div>
           <GameTable />
         </div>
         <div className="game-footer">
           <ActionPanel />
           <Hand />
         </div>
-        <EventLog />
         <ChatBox />
         <FloatingPoints />
         <GameBadges />
