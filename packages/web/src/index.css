@@ -829,23 +829,25 @@ input::placeholder {
   opacity: 0.3;
 }
 
-/* ===== Seat Card ===== */
+/* ===== Seat Sidebar ===== */
+.seat-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 4px;
+  overflow-y: auto;
+  max-height: 100%;
+  scrollbar-width: thin;
+  scrollbar-color: var(--card-glow-gold) transparent;
+}
+
+/* Legacy seat-slot (unused — seats now in sidebar) */
 .seat-slot {
-  position: absolute;
   display: flex;
   flex-direction: column;
   align-items: center;
-  z-index: var(--z-seat);
 }
-
-.seat-slot.pos-bottom { bottom: -30px; left: 50%; transform: translateX(-50%); }
-.seat-slot.pos-top { top: -30px; left: 50%; transform: translateX(-50%); }
-.seat-slot.pos-left { left: -40px; top: 50%; transform: translateY(-50%); }
-.seat-slot.pos-right { right: -40px; top: 50%; transform: translateY(-50%); }
-.seat-slot.pos-top-left { top: -20px; left: 10%; }
-.seat-slot.pos-top-right { top: -20px; right: 10%; }
-.seat-slot.pos-bottom-left { bottom: -20px; left: 10%; }
-.seat-slot.pos-bottom-right { bottom: -20px; right: 10%; }
 
 .seat-card {
   display: flex;
@@ -1067,12 +1069,13 @@ input::placeholder {
 
 /* ===== Card Face ===== */
 .card-face {
+  --cs: var(--card-scale, 1);
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: clamp(72px, 7vw, 110px);
-  height: clamp(100px, 9.8vw, 154px);
+  width: calc(clamp(72px, 7vw, 110px) * var(--cs));
+  height: calc(clamp(100px, 9.8vw, 154px) * var(--cs));
   margin: 0;
   border: 2px solid transparent;
   border-radius: 8px;
@@ -1264,8 +1267,8 @@ input::placeholder {
 }
 
 .hand-container .card-face {
-  height: clamp(90px, 13vh, 150px);
-  width: clamp(64px, 9.3vh, 107px);
+  height: calc(clamp(90px, 13vh, 150px) * var(--cs));
+  width: calc(clamp(64px, 9.3vh, 107px) * var(--cs));
 }
 
 /* ===== Action Panel ===== */
@@ -1286,6 +1289,11 @@ input::placeholder {
   z-index: var(--z-overlay-ui);
   pointer-events: auto;
   white-space: nowrap;
+}
+
+/* Hide empty action panel (no visible children) */
+.action-panel:not(:has(button, .action-status, .surrender-vote-bar, .declare-timer-bar, .bury-confirm-bar)) {
+  display: none;
 }
 
 .lobby-ready-btn {
@@ -2472,15 +2480,12 @@ input::placeholder {
     min-height: auto !important;
   }
 
-  .seat-slot.pos-bottom { bottom: -20px; left: 50%; }
-  .seat-slot.pos-top { top: -20px; }
-  .seat-slot.pos-left { left: -25px; }
-  .seat-slot.pos-right { right: -25px; }
-
-  .seat-slot.pos-top-left { top: -15px; }
-  .seat-slot.pos-top-right { top: -15px; }
-  .seat-slot.pos-bottom-left { bottom: -15px; }
-  .seat-slot.pos-bottom-right { bottom: -15px; }
+  .seat-sidebar {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: visible;
+    max-height: none;
+  }
 
   .game-badges-container {
     top: auto;

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useStore } from '../store';
-import GameTable from './GameTable';
+import { playTurnNotification, playTrickWinSound, playVictoryFanfare, playCardPlaySound } from '../audio';
+import GameTable, { SeatSidebar } from './GameTable';
 import Hand from './Hand';
 import ActionPanel from './ActionPanel';
 import ScoreBoard from './ScoreBoard';
@@ -278,6 +279,7 @@ function useSimulation(active: boolean) {
 
             // Update turn seat
             updatePublic({ turnSeat: seatIdx });
+            if (seatIdx === 0) playTurnNotification();
 
             await delay(600);
 
@@ -285,6 +287,7 @@ function useSimulation(active: boolean) {
             trickPlays.push(play);
             store().setTrickDisplay([...trickPlays]);
             updatePublic({ trick: [...trickPlays] });
+            playCardPlaySound();
 
             // If seat 0, remove cards from hand
             if (seatIdx === 0) {
@@ -301,6 +304,7 @@ function useSimulation(active: boolean) {
           // All plays in — show winner
           store().setTrickWinnerSeat(trick.winnerSeat);
           updatePublic({ turnSeat: -1 });
+          playTrickWinSound(trick.winnerSeat % 2 === 0);
           await delay(2000);
 
           // Update scores
@@ -321,6 +325,7 @@ function useSimulation(active: boolean) {
         if (cancelledRef.current) return;
 
         store().setRoundEndEffect('win');
+        playVictoryFanfare();
         store().pushBadge('Trump Master');
         await delay(300);
         store().pushBadge('Streak x3');
@@ -447,6 +452,7 @@ export default function DebugPage() {
 
 function DebugContent({ tab }: { tab: Tab }) {
   const roomId = useStore((s) => s.roomId);
+  const cardScale = useStore((s) => s.cardScale);
 
   if (tab === 'lobby') {
     // The main App will render lobby since roomId is null
@@ -457,9 +463,10 @@ function DebugContent({ tab }: { tab: Tab }) {
 
   return (
     <>
-      <div className="game-layout">
+      <div className="game-layout" style={{ '--card-scale': cardScale } as React.CSSProperties}>
         <ScoreBoard playerLabel="Alice" seatLabel="Seat 1" roomId="debug-room" />
         <div className="game-body">
+          <SeatSidebar />
           <GameTable />
         </div>
         <div className="game-footer">

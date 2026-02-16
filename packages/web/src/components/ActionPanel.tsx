@@ -179,27 +179,17 @@ export default function ActionPanel() {
         {publicState?.phase === 'BURY_KITTY' && !isBanker && (
           <div className="action-status">{t('action.waitBury')}</div>
         )}
-        {publicState?.phase === 'TRICK_PLAY' && (
-          <>
-            <button
-              className="action-btn"
-              onClick={() => {
-                wsClient.send({ type: 'PLAY', cardIds: Array.from(selected) });
-              }}
-              disabled={!isYourTurn || !canPlay}
-              title={!isYourTurn ? t('action.waitTurn') : !canPlay ? t('action.selectCards') : ''}
-            >
-              {isYourTurn ? `${t('action.play')} (${count})` : t('action.waiting')}
-            </button>
-            {!isSurrenderVoteActive && (
-              <button
-                className="action-btn surrender-btn"
-                onClick={() => wsClient.send({ type: 'SURRENDER_PROPOSE' })}
-              >
-                {t('action.surrender')}
-              </button>
-            )}
-          </>
+        {publicState?.phase === 'TRICK_PLAY' && canPlay && (
+          <button
+            className="action-btn"
+            onClick={() => {
+              wsClient.send({ type: 'PLAY', cardIds: Array.from(selected) });
+            }}
+            disabled={!isYourTurn}
+            title={!isYourTurn ? t('action.waitTurn') : ''}
+          >
+            {`${t('action.play')} (${count})`}
+          </button>
         )}
       </div>
       {isSurrenderVoteActive && surrenderVote && (

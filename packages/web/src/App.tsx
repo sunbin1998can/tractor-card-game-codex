@@ -3,7 +3,7 @@ import { useStore } from './store';
 import { wsClient } from './wsClient';
 import { useT } from './i18n';
 import { guestLogin, sendEmailCode, verifyEmailCode as apiVerifyEmail, getMe } from './api';
-import GameTable from './components/GameTable';
+import GameTable, { SeatSidebar } from './components/GameTable';
 import Hand from './components/Hand';
 import ActionPanel from './components/ActionPanel';
 import ScoreBoard from './components/ScoreBoard';
@@ -212,19 +212,22 @@ export default function App() {
     );
   }
 
+  const cardScale = useStore((s) => s.cardScale);
+
   return (
-    <div className="game-layout">
+    <div className="game-layout" style={{ '--card-scale': cardScale } as React.CSSProperties}>
       <DevDebugHint />
       <ScoreBoard playerLabel={playerLabel} seatLabel={seatLabel} roomId={roomId} />
       <div className="game-body">
+        <SeatSidebar />
         <GameTable />
-        <ChatBox />
       </div>
       <div className="game-footer">
         <ActionPanel />
         <Hand />
       </div>
       <EventLog />
+      <ChatBox />
       <FloatingPoints />
       <GameBadges />
       <Toasts />
