@@ -712,6 +712,9 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
 
       if (msg.type === 'SESSION') {
         store.setSession(msg.seat, msg.sessionToken);
+        if (this.lastJoin) {
+          store.setRoomId(this.lastJoin.roomId);
+        }
       } else if (msg.type === 'AUTH_INFO') {
         // Server acknowledged our auth status — no store action needed for now
       } else if (msg.type === 'ROOM_STATE') {
@@ -914,9 +917,10 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
 
     this.ws.onclose = () => {
       this.clearPendingJoinFallback();
+      const intentionalLeave = !this.shouldReconnect;
       this.ws = null;
       const store = useStore.getState();
-      if (store.roomId) {
+      if (store.roomId && !intentionalLeave) {
         sessionStorage.removeItem('lastRoomId');
         store.leaveRoom();
         store.pushToast('Disconnected. Returned to lobby.');

@@ -34,6 +34,9 @@ const translations: Record<string, Record<Lang, string>> = {
   'lobby.rounds': { en: 'Rounds', zh: '局数' },
   'lobby.levelUps': { en: 'Level Ups', zh: '升级数' },
   'lobby.loading': { en: 'Loading...', zh: '加载中...' },
+  'lobby.codeSent': { en: 'Code sent! Check your email', zh: '验证码已发送，请查看邮箱' },
+  'lobby.sendFailed': { en: 'Failed to send code', zh: '发送验证码失败' },
+  'lobby.verifyFailed': { en: 'Invalid or expired code', zh: '验证码无效或已过期' },
 
   // ScoreBoard
   'score.trump': { en: 'Trump', zh: '主牌' },

@@ -33,7 +33,7 @@ export default function App() {
   const publicState = useStore((s) => s.publicState);
   const nickname = useStore((s) => s.nickname);
   const setNickname = useStore((s) => s.setNickname);
-  const setRoomId = useStore((s) => s.setRoomId);
+  const pushToast = useStore((s) => s.pushToast);
   const players = useStore((s) => s.players);
   const setPlayers = useStore((s) => s.setPlayers);
   const toggleLang = useStore((s) => s.toggleLang);
@@ -129,7 +129,6 @@ export default function App() {
                   onClick={() => {
                     const room = roomInput.trim();
                     if (!room) return;
-                    setRoomId(room);
                     wsClient.joinRoom({ roomId: room, name: nickname || 'Player', players });
                   }}
                 >
@@ -163,8 +162,10 @@ export default function App() {
                           try {
                             await sendEmailCode(emailInput.trim());
                             setEmailSent(true);
+                            pushToast(t('lobby.codeSent'));
                           } catch {
-                            // Email service unavailable
+                            setEmailSent(true);
+                            pushToast(t('lobby.sendFailed'));
                           } finally {
                             setAuthLoading(false);
                           }
@@ -192,7 +193,7 @@ export default function App() {
                             setEmailInput('');
                             setCodeInput('');
                           } catch {
-                            // Verification failed
+                            pushToast(t('lobby.verifyFailed'));
                           } finally {
                             setAuthLoading(false);
                           }

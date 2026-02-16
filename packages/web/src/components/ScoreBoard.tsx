@@ -96,7 +96,6 @@ export default function ScoreBoard({ playerLabel, seatLabel, roomId }: Props) {
           onClick={() => {
             wsClient.leave();
             leaveRoom();
-            wsClient.connect();
           }}
         >
           {t('score.leave')}
