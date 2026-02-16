@@ -42,6 +42,7 @@ export default function App() {
   const setAuth = useStore((s) => s.setAuth);
   const clearAuth = useStore((s) => s.clearAuth);
   const t = useT();
+  const cardScale = useStore((s) => s.cardScale);
 
   const [roomInput, setRoomInput] = useState('room1');
   const [emailInput, setEmailInput] = useState('');
@@ -216,8 +217,6 @@ export default function App() {
       </div>
     );
   }
-
-  const cardScale = useStore((s) => s.cardScale);
 
   return (
     <div className="game-layout" style={{ '--card-scale': cardScale } as React.CSSProperties}>

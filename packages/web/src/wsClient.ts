@@ -961,6 +961,8 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
     this.lastJoin = null;
     this.forceFreshJoin = false;
     this.shouldReconnect = false;
+    sessionStorage.removeItem('lastRoomId');
+    sessionStorage.removeItem('sessionToken');
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.send({ type: 'LEAVE_ROOM' });
     }
