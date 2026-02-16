@@ -16,6 +16,15 @@ import KouDiPopup from './KouDiPopup';
 
 type Tab = 'lobby' | 'game' | 'round-result' | 'kou-di' | 'badges';
 
+function DebugLabel({ name, children }: { name: string; children: React.ReactNode }) {
+  return (
+    <div className="debug-label-wrap">
+      <span className="debug-label-tag">{name}</span>
+      {children}
+    </div>
+  );
+}
+
 const MOCK_SEATS_4 = [
   { seat: 0, name: 'Alice', team: 0, connected: true, ready: true, cardsLeft: 18 },
   { seat: 1, name: 'Bob', team: 1, connected: true, ready: true, cardsLeft: 18 },
@@ -493,20 +502,34 @@ function DebugContent({ tab }: { tab: Tab }) {
 
   return (
     <div className="game-layout" style={{ '--card-scale': cardScale } as React.CSSProperties}>
-      <ScoreBoard playerLabel="Alice" seatLabel="Seat 1" roomId="debug-room" />
+      <DebugLabel name="ScoreBoard">
+        <ScoreBoard playerLabel="Alice" seatLabel="Seat 1" roomId="debug-room" />
+      </DebugLabel>
       <div className="game-main">
         <div className="game-content">
           <div className="game-body">
-            <SeatSidebar />
-            <GameTable />
+            <DebugLabel name="SeatSidebar">
+              <SeatSidebar />
+            </DebugLabel>
+            <DebugLabel name="GameTable">
+              <GameTable />
+            </DebugLabel>
           </div>
           <div className="game-footer">
-            <ActionPanel />
-            <Hand />
+            <DebugLabel name="ActionPanel">
+              <ActionPanel />
+            </DebugLabel>
+            <DebugLabel name="Hand">
+              <Hand />
+            </DebugLabel>
           </div>
-          <EventLog />
+          <DebugLabel name="EventLog">
+            <EventLog />
+          </DebugLabel>
         </div>
-        <ChatBox />
+        <DebugLabel name="ChatBox">
+          <ChatBox />
+        </DebugLabel>
       </div>
       <FloatingPoints />
       <GameBadges />

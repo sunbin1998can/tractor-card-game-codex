@@ -225,16 +225,14 @@ export default function App() {
       <div className="game-main">
         <div className="game-content">
           <div className="game-body">
-            <div className="game-side-col">
-              <SeatSidebar />
-              <EventLog />
-            </div>
+            <SeatSidebar />
             <GameTable />
           </div>
           <div className="game-footer">
             <ActionPanel />
             <Hand />
           </div>
+          <EventLog />
         </div>
         <ChatBox />
       </div>

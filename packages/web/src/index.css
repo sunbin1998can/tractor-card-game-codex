@@ -541,18 +541,6 @@ input::placeholder {
   overflow: hidden;
 }
 
-/* Side column: seats + event log */
-.game-side-col {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 0 0 auto;
-  min-height: 0;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--card-glow-gold) transparent;
-}
-
 /* Game content column takes remaining space */
 .game-content {
   flex: 1 1 auto;
@@ -782,12 +770,12 @@ input::placeholder {
 .event-log-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  max-width: 200px;
+  gap: 2px;
+  max-height: 60px;
   overflow-y: auto;
   scrollbar-width: none;
-  flex: 1 1 0;
-  min-height: 0;
+  flex: 0 0 auto;
+  padding: 2px 6px;
 }
 
 .event-log-sidebar::-webkit-scrollbar { display: none; }
@@ -1076,6 +1064,12 @@ input::placeholder {
   height: clamp(210px, 27.3vw, 357px);
 }
 .trick-play .card-face + .card-face { margin-left: -30px; }
+
+.trick-play.pos-right .card-face {
+  width: min(39vw, 27vh);
+  height: min(54.6vw, 38vh);
+}
+.trick-play.pos-right .card-face + .card-face { margin-left: -5vw; }
 
 .trick-player-label {
   font-size: 10px;
@@ -2436,6 +2430,45 @@ input::placeholder {
   height: 100%;
 }
 
+/* Debug component labels — wrapper inherits flex behavior from parent */
+.debug-label-wrap {
+  position: relative;
+  flex: inherit;
+  display: flex;
+  flex-direction: inherit;
+  min-width: 0;
+  min-height: 0;
+  overflow: visible;
+}
+
+/* In game-body, game-table should expand; seat-sidebar stays auto */
+.game-body > .debug-label-wrap:has(.game-table) {
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+}
+
+.game-body > .debug-label-wrap:has(.seat-sidebar) {
+  flex: 0 0 auto;
+}
+
+.debug-label-tag {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: var(--z-debug);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #fff;
+  background: rgba(255, 0, 100, 0.7);
+  padding: 1px 5px;
+  border-radius: 0 0 4px 0;
+  pointer-events: none;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
 /* ===== Responsive: Tablet ===== */
 @media (max-width: 900px) {
   .game-table {
@@ -2451,10 +2484,6 @@ input::placeholder {
   .seat-avatar { width: 28px; height: 28px; font-size: 12px; }
   .seat-name { font-size: 12px; }
   .seat-card { padding: 4px 12px; }
-
-  .event-log-sidebar {
-    max-width: 160px;
-  }
 }
 
 /* ===== Responsive: Phone ===== */
@@ -2514,10 +2543,6 @@ input::placeholder {
   .score-teams { gap: 8px; }
   .team-score { font-size: 16px; }
   .score-vs { font-size: 10px; }
-
-  .game-side-col {
-    display: none;
-  }
 
   /* Chat sidebar hidden on mobile — uses fixed popup via .chat-sidebar-mobile */
   .chat-sidebar:not(.chat-sidebar-mobile) {
