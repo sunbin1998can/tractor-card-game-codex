@@ -58,6 +58,7 @@ export default function ActionPanel() {
   const t = useT();
 
   const [buryConfirm, setBuryConfirm] = useState(false);
+  const [surrenderNowMs, setSurrenderNowMs] = useState(() => Date.now());
 
   const count = selected.size;
   const canPlay = count > 0;
@@ -82,6 +83,16 @@ export default function ActionPanel() {
   const youReady = youSeat !== null ? !!publicState?.seats?.find((s) => s.seat === youSeat)?.ready : false;
   const [nowMs, setNowMs] = useState(() => Date.now());
 
+  const surrenderVote = publicState?.surrenderVote;
+  const myTeam = youSeat !== null ? youSeat % 2 : -1;
+  const isSurrenderVoteActive = !!surrenderVote;
+  const isSurrenderMyTeam = surrenderVote ? surrenderVote.team === myTeam : false;
+  const surrenderRemainSeconds = surrenderVote
+    ? Math.max(0, Math.ceil((surrenderVote.expiresAtMs - surrenderNowMs) / 1000))
+    : 0;
+  const myVotePending =
+    isSurrenderMyTeam && youSeat !== null && surrenderVote?.votes[youSeat] === null;
+
   const declareUntilMs = Number(publicState?.declareUntilMs ?? 0);
   const showDeclareCountdown =
     publicState?.phase === 'FLIP_TRUMP' &&
@@ -100,6 +111,12 @@ export default function ActionPanel() {
     const timer = window.setInterval(() => setNowMs(Date.now()), 100);
     return () => window.clearInterval(timer);
   }, [showDeclareCountdown, declareUntilMs]);
+
+  useEffect(() => {
+    if (!isSurrenderVoteActive) return;
+    const timer = window.setInterval(() => setSurrenderNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [isSurrenderVoteActive]);
 
   // Reset bury confirmation when phase changes
   useEffect(() => {
@@ -163,18 +180,71 @@ export default function ActionPanel() {
           <div className="action-status">{t('action.waitBury')}</div>
         )}
         {publicState?.phase === 'TRICK_PLAY' && (
-          <button
-            className="action-btn"
-            onClick={() => {
-              wsClient.send({ type: 'PLAY', cardIds: Array.from(selected) });
-            }}
-            disabled={!isYourTurn || !canPlay}
-            title={!isYourTurn ? t('action.waitTurn') : !canPlay ? t('action.selectCards') : ''}
-          >
-            {isYourTurn ? `${t('action.play')} (${count})` : t('action.waiting')}
-          </button>
+          <>
+            <button
+              className="action-btn"
+              onClick={() => {
+                wsClient.send({ type: 'PLAY', cardIds: Array.from(selected) });
+              }}
+              disabled={!isYourTurn || !canPlay}
+              title={!isYourTurn ? t('action.waitTurn') : !canPlay ? t('action.selectCards') : ''}
+            >
+              {isYourTurn ? `${t('action.play')} (${count})` : t('action.waiting')}
+            </button>
+            {!isSurrenderVoteActive && (
+              <button
+                className="action-btn surrender-btn"
+                onClick={() => wsClient.send({ type: 'SURRENDER_PROPOSE' })}
+              >
+                {t('action.surrender')}
+              </button>
+            )}
+          </>
         )}
       </div>
+      {isSurrenderVoteActive && surrenderVote && (
+        <div className="surrender-vote-bar">
+          <div className="surrender-vote-header">
+            {t('surrender.proposed').replace(
+              '{name}',
+              publicState?.seats?.find((s) => s.seat === surrenderVote.proposerSeat)?.name ?? ''
+            )}
+            <span className="surrender-countdown">{surrenderRemainSeconds}s</span>
+          </div>
+          <div className="surrender-vote-chips">
+            {Object.entries(surrenderVote.votes).map(([seatStr, vote]) => {
+              const seatNum = Number(seatStr);
+              const name = publicState?.seats?.find((s) => s.seat === seatNum)?.name ?? `Seat ${seatNum + 1}`;
+              const cls =
+                vote === true ? 'yes' : vote === false ? 'no' : 'pending';
+              return (
+                <span key={seatStr} className={`surrender-vote-chip ${cls}`}>
+                  {name}
+                </span>
+              );
+            })}
+          </div>
+          {isSurrenderMyTeam && myVotePending && (
+            <div className="surrender-vote-actions">
+              <button
+                className="action-btn bury-yes"
+                onClick={() => wsClient.send({ type: 'SURRENDER_VOTE', accept: true })}
+              >
+                {t('surrender.accept')}
+              </button>
+              <button
+                className="action-btn bury-no"
+                onClick={() => wsClient.send({ type: 'SURRENDER_VOTE', accept: false })}
+              >
+                {t('surrender.reject')}
+              </button>
+            </div>
+          )}
+          {!isSurrenderMyTeam && (
+            <div className="action-status">{t('surrender.opponentVoting')}</div>
+          )}
+        </div>
+      )}
       {showDeclareCountdown && (
         <div className="declare-timer-bar">
           <div className="declare-timer-circle">

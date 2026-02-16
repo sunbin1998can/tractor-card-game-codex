@@ -9,6 +9,8 @@ export interface UsersTable {
   guest_token: string | null;
   oauth_provider: string | null;
   oauth_id: string | null;
+  email: string | null;
+  email_verified_at: Date | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -108,6 +110,21 @@ export type UserRating = Selectable<UserRatingsTable>;
 export type NewUserRating = Insertable<UserRatingsTable>;
 export type UserRatingUpdate = Updateable<UserRatingsTable>;
 
+// ── email_codes ──
+
+export interface EmailCodesTable {
+  id: Generated<string>;
+  email: string;
+  code: string;
+  user_id: string | null;
+  expires_at: Date;
+  used_at: Date | null;
+  created_at: Generated<Date>;
+}
+
+export type EmailCode = Selectable<EmailCodesTable>;
+export type NewEmailCode = Insertable<EmailCodesTable>;
+
 // ── Database ──
 
 export interface Database {
@@ -117,4 +134,5 @@ export interface Database {
   rounds: RoundsTable;
   round_events: RoundEventsTable;
   user_ratings: UserRatingsTable;
+  email_codes: EmailCodesTable;
 }

@@ -16,17 +16,35 @@ export type Toast = {
 
 let toastIdCounter = 0;
 
+export type Badge = {
+  id: number;
+  label: string;
+  expiresAt: number;
+};
+
+export type FloatingPoint = {
+  id: number;
+  value: number;
+  expiresAt: number;
+};
+
 type StoreState = {
   lang: Lang;
   muted: boolean;
+  ttsVoiceName: string;
   eventLog: Toast[];
   roomId: string | null;
   youSeat: number | null;
   sessionToken: string | null;
   nickname: string;
   players: number;
+  authToken: string | null;
+  userId: string | null;
+  isGuest: boolean;
+  email: string | null;
   publicState: PublicState | null;
   trickDisplay: { seat: number; cards: string[] }[];
+  trickWinnerSeat: number | null;
   trumpDeclareMarker: { seat: number; cardId: string } | null;
   hand: string[];
   selected: Set<string>;
@@ -36,12 +54,17 @@ type StoreState = {
   chatMessages: { seat: number; name: string; text: string; atMs: number }[];
   kouDiPopup: { cards: string[]; pointSteps: number[]; total: number; multiplier: number } | null;
   roundPopup: string | null;
+  roundEndEffect: 'win' | 'loss' | null;
+  winStreak: number;
+  badges: Badge[];
+  floatingPoints: FloatingPoint[];
   setNickname: (name: string) => void;
   setRoomId: (roomId: string) => void;
   setPlayers: (players: number) => void;
   setSession: (seat: number, token: string) => void;
   setPublicState: (state: PublicState) => void;
   setTrickDisplay: (plays: { seat: number; cards: string[] }[]) => void;
+  setTrickWinnerSeat: (seat: number | null) => void;
   clearTrickDisplay: () => void;
   setTrumpDeclareMarker: (marker: { seat: number; cardId: string } | null) => void;
   setHand: (hand: string[]) => void;
@@ -55,25 +78,39 @@ type StoreState = {
   setLang: (lang: Lang) => void;
   toggleLang: () => void;
   toggleMuted: () => void;
+  setTtsVoiceName: (name: string) => void;
   pushEvent: (msg: string) => void;
   pushChatMessage: (msg: { seat: number; name: string; text: string; atMs: number }) => void;
   clearChatMessages: () => void;
   setRoundPopup: (msg: string | null) => void;
   setKouDiPopup: (msg: { cards: string[]; pointSteps: number[]; total: number; multiplier: number } | null) => void;
+  setAuth: (token: string, userId: string, isGuest: boolean, email?: string | null) => void;
+  clearAuth: () => void;
   leaveRoom: () => void;
+  setRoundEndEffect: (effect: 'win' | 'loss' | null) => void;
+  pushBadge: (label: string) => void;
+  expireBadges: () => void;
+  pushFloatingPoint: (value: number) => void;
+  expireFloatingPoints: () => void;
 };
 
 export const useStore = create<StoreState>((set, get) => ({
   lang: (sessionStorage.getItem('lang') as Lang) || 'zh',
   muted: sessionStorage.getItem('muted') === 'true',
+  ttsVoiceName: sessionStorage.getItem('ttsVoiceName') || '',
   eventLog: [],
   roomId: sessionStorage.getItem('roomId'),
   youSeat: null,
   sessionToken: null,
   nickname: sessionStorage.getItem('nickname') || '',
   players: 4,
+  authToken: localStorage.getItem('authToken'),
+  userId: localStorage.getItem('userId'),
+  isGuest: localStorage.getItem('isGuest') !== 'false',
+  email: localStorage.getItem('email'),
   publicState: null,
   trickDisplay: [],
+  trickWinnerSeat: null,
   trumpDeclareMarker: null,
   hand: [],
   selected: new Set(),
@@ -83,6 +120,10 @@ export const useStore = create<StoreState>((set, get) => ({
   chatMessages: [],
   kouDiPopup: null,
   roundPopup: null,
+  roundEndEffect: null,
+  winStreak: 0,
+  badges: [],
+  floatingPoints: [],
   setNickname: (name) => {
     sessionStorage.setItem('nickname', name);
     set({ nickname: name });
@@ -99,7 +140,8 @@ export const useStore = create<StoreState>((set, get) => ({
   },
   setPublicState: (state) => set({ publicState: state }),
   setTrickDisplay: (plays) => set({ trickDisplay: plays }),
-  clearTrickDisplay: () => set({ trickDisplay: [] }),
+  setTrickWinnerSeat: (seat) => set({ trickWinnerSeat: seat }),
+  clearTrickDisplay: () => set({ trickDisplay: [], trickWinnerSeat: null }),
   setTrumpDeclareMarker: (marker) => set({ trumpDeclareMarker: marker }),
   setHand: (hand) => {
     const handSet = new Set(hand);
@@ -152,6 +194,10 @@ export const useStore = create<StoreState>((set, get) => ({
       try { window.speechSynthesis.cancel(); } catch {}
     }
   },
+  setTtsVoiceName: (name) => {
+    sessionStorage.setItem('ttsVoiceName', name);
+    set({ ttsVoiceName: name });
+  },
   pushEvent: (msg) => {
     const evt: Toast = { id: ++toastIdCounter, text: msg, expiresAt: Date.now() + 30000 };
     const next = [...get().eventLog, evt].slice(-20);
@@ -164,6 +210,44 @@ export const useStore = create<StoreState>((set, get) => ({
   clearChatMessages: () => set({ chatMessages: [] }),
   setKouDiPopup: (msg) => set({ kouDiPopup: msg }),
   setRoundPopup: (msg) => set({ roundPopup: msg }),
+  setAuth: (token, userId, isGuest, email) => {
+    localStorage.setItem('authToken', token);
+    localStorage.setItem('userId', userId);
+    localStorage.setItem('isGuest', String(isGuest));
+    if (email) localStorage.setItem('email', email);
+    else localStorage.removeItem('email');
+    set({ authToken: token, userId, isGuest, email: email ?? null });
+  },
+  clearAuth: () => {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('isGuest');
+    localStorage.removeItem('email');
+    set({ authToken: null, userId: null, isGuest: true, email: null });
+  },
+  setRoundEndEffect: (effect) => set({ roundEndEffect: effect }),
+  pushBadge: (label) => {
+    const badge: Badge = { id: ++toastIdCounter, label, expiresAt: Date.now() + 4000 };
+    const now = Date.now();
+    const next = [...get().badges.filter((b) => b.expiresAt > now), badge].slice(-5);
+    set({ badges: next });
+  },
+  expireBadges: () => {
+    const now = Date.now();
+    const filtered = get().badges.filter((b) => b.expiresAt > now);
+    if (filtered.length !== get().badges.length) set({ badges: filtered });
+  },
+  pushFloatingPoint: (value) => {
+    const pt: FloatingPoint = { id: ++toastIdCounter, value, expiresAt: Date.now() + 2000 };
+    const now = Date.now();
+    const next = [...get().floatingPoints.filter((p) => p.expiresAt > now), pt].slice(-5);
+    set({ floatingPoints: next });
+  },
+  expireFloatingPoints: () => {
+    const now = Date.now();
+    const filtered = get().floatingPoints.filter((p) => p.expiresAt > now);
+    if (filtered.length !== get().floatingPoints.length) set({ floatingPoints: filtered });
+  },
   leaveRoom: () => {
     sessionStorage.removeItem('roomId');
     const prevToken = get().sessionToken || sessionStorage.getItem('sessionToken');
@@ -173,6 +257,7 @@ export const useStore = create<StoreState>((set, get) => ({
       sessionToken: prevToken,
       publicState: null,
       trickDisplay: [],
+      trickWinnerSeat: null,
       trumpDeclareMarker: null,
       hand: [],
       selected: new Set(),
@@ -182,7 +267,10 @@ export const useStore = create<StoreState>((set, get) => ({
       eventLog: [],
       chatMessages: [],
       kouDiPopup: null,
-      roundPopup: null
+      roundPopup: null,
+      roundEndEffect: null,
+      badges: [],
+      floatingPoints: []
     });
   }
 }));

@@ -39,6 +39,7 @@ export type Event =
       nextBankerSeat: number;
       playedBySeat: Card[][];
       kittyCards: Card[];
+      trickHistory: { plays: { seat: number; cards: Card[] }[]; winnerSeat: number }[];
     }
   | { type: 'GAME_OVER'; winnerTeam: number };
 
@@ -149,6 +150,7 @@ export class GameEngine {
   lastTrickWinnerSeat: number | null = null;
   pendingNextRound: { bankerSeat: number; levelRank: Rank } | null = null;
   roundPlayedCards: Card[][] = [];
+  trickHistory: { plays: { seat: number; cards: Card[] }[]; winnerSeat: number }[] = [];
   teamLevels: [Rank, Rank] = ['2', '2'];
 
   trumpCandidate: TrumpCandidate | null = null;
@@ -164,6 +166,7 @@ export class GameEngine {
     this.config.levelRank = this.teamLevels[bankerTeam];
     this.hands = Array.from({ length: config.numPlayers }, () => []);
     this.roundPlayedCards = Array.from({ length: config.numPlayers }, () => []);
+    this.trickHistory = [];
     this.emit({ type: 'ROOM_STATE', phase: this.phase });
   }
 
@@ -175,6 +178,7 @@ export class GameEngine {
     this.hands = hands.map((h) => [...h]);
     this.kitty = [...kitty];
     this.roundPlayedCards = Array.from({ length: this.config.numPlayers }, () => []);
+    this.trickHistory = [];
   }
 
   startTrumpPhase() {
@@ -200,6 +204,7 @@ export class GameEngine {
     this.kitty = [];
     this.hands = Array.from({ length: this.config.numPlayers }, () => []);
     this.roundPlayedCards = Array.from({ length: this.config.numPlayers }, () => []);
+    this.trickHistory = [];
 
     this.startTrumpPhase();
     return true;
@@ -442,6 +447,12 @@ export class GameEngine {
     }
     this.lastTrickWinnerSeat = winner.seat;
 
+    // Record trick history for round result
+    this.trickHistory.push({
+      plays: this.trick.plays.map((p) => ({ seat: p.seat, cards: [...p.cards] })),
+      winnerSeat: winner.seat,
+    });
+
     this.emit({ type: 'TRICK_END', winnerSeat: winner.seat, cards: trickCards });
 
     if (this.hands.every((h) => h.length === 0)) {
@@ -535,9 +546,16 @@ export class GameEngine {
     const rolesSwapped = advancingTeam !== bankerTeam && advancingTeam !== -1;
     let nextBankerSeat: number;
     if (advancingTeam === bankerTeam) {
+      // Defenders held: same banker continues
       nextBankerSeat = this.config.bankerSeat;
     } else {
-      nextBankerSeat = this.lastTrickWinnerSeat ?? (this.config.bankerSeat + 1) % this.config.numPlayers;
+      // Attackers won: rotate to the next player clockwise on the attacking team
+      const n = this.config.numPlayers;
+      let candidate = (this.config.bankerSeat + 1) % n;
+      while (teamOfSeat(candidate) !== advancingTeam) {
+        candidate = (candidate + 1) % n;
+      }
+      nextBankerSeat = candidate;
     }
     const newBankerSeat = nextBankerSeat;
 
@@ -559,6 +577,10 @@ export class GameEngine {
       nextBankerSeat,
       playedBySeat: this.roundPlayedCards.map((cards) => [...cards]),
       kittyCards: [...this.kitty],
+      trickHistory: this.trickHistory.map((t) => ({
+        plays: t.plays.map((p) => ({ seat: p.seat, cards: [...p.cards] })),
+        winnerSeat: t.winnerSeat,
+      })),
     });
 
     if (levelTo === 'A' && advancingTeam >= 0) {

@@ -8,4 +8,5 @@ export type {
   Round, NewRound,
   RoundEvent, NewRoundEvent,
   UserRating, NewUserRating, UserRatingUpdate,
+  EmailCode, NewEmailCode,
 } from './schema.js';

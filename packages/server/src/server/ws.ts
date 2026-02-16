@@ -1,7 +1,17 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { GameEngine, validateFollowPlay } from '@tractor/engine';
 import type { Card } from '@tractor/engine';
-import type { ClientMessage, ServerMessage, PublicRoomState, RoundResult } from '@tractor/protocol';
+import type { ClientMessage, ServerMessage, PublicRoomState, RoundResult, SurrenderVoteState } from '@tractor/protocol';
+import { verifyAuthToken } from '../auth.js';
+import {
+  createRoomPersistence,
+  onMatchStart,
+  onRoundStart,
+  onRoundEvent,
+  onRoundEnd,
+  onMatchEnd,
+  type RoomPersistence,
+} from '../persistence.js';
 
 interface SeatState {
   seat: number;
@@ -12,6 +22,7 @@ interface SeatState {
   isConnected: boolean;
   lastSeen: number;
   ready: boolean;
+  userId: string | null;
 }
 
 interface Room {
@@ -31,12 +42,23 @@ interface Room {
   tailDealCount?: number;
   fairnessTimer?: NodeJS.Timeout;
   lastRoundResult?: RoundResult;
+  persistence: RoomPersistence | null;
+  matchStarted?: boolean;
+  surrenderVote?: {
+    team: number;
+    proposerSeat: number;
+    votes: Map<number, boolean | null>;
+    timer: NodeJS.Timeout;
+    expiresAtMs: number;
+  } | null;
 }
 
 const rooms = new Map<string, Room>();
 const DISCONNECT_GRACE_MS = 120_000;
 const DEAL_STEP_MS = 80;
-const FINAL_DECLARE_PAUSE_MS = 3000;
+const FINAL_DECLARE_PAUSE_MS = 30_000;
+const TRUMP_FAIRNESS_WINDOW_MS = 30_000;
+const SURRENDER_VOTE_TIMEOUT_MS = 60_000;
 
 function now() {
   return Date.now();
@@ -84,10 +106,23 @@ function createDeck(): Card[] {
   return cards;
 }
 
+function cryptoRandom(): number {
+  // Use crypto for better entropy when available
+  if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.getRandomValues) {
+    const buf = new Uint32Array(1);
+    globalThis.crypto.getRandomValues(buf);
+    return buf[0] / 0x100000000;
+  }
+  return Math.random();
+}
+
 function shuffle(cards: Card[]) {
-  for (let i = cards.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [cards[i], cards[j]] = [cards[j], cards[i]];
+  // Fisher-Yates with crypto-grade randomness, 3 passes for thorough mixing
+  for (let pass = 0; pass < 3; pass++) {
+    for (let i = cards.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(cryptoRandom() * (i + 1));
+      [cards[i], cards[j]] = [cards[j], cards[i]];
+    }
   }
 }
 
@@ -100,6 +135,19 @@ function deal(room: Room) {
 
   room.engine.setHands(Array.from({ length: room.players }, () => []), kitty);
   room.dealingInProgress = true;
+
+  // Persistence hooks
+  if (!room.matchStarted) {
+    room.matchStarted = true;
+    onMatchStart(
+      room.persistence,
+      room.id,
+      room.players,
+      [...room.engine.teamLevels],
+      room.seats.map((s) => ({ userId: s.userId, seat: s.seat, team: s.team, name: s.name })),
+    );
+  }
+  onRoundStart(room.persistence);
   room.declareEnabled = true;
   room.noSnatchSeats = new Set<number>();
   room.resumeTailDeal = null;
@@ -222,6 +270,34 @@ function deal(room: Room) {
   step(0);
 }
 
+function cancelSurrenderVote(room: Room) {
+  if (!room.surrenderVote) return;
+  clearTimeout(room.surrenderVote.timer);
+  room.surrenderVote = null;
+  broadcastState(room);
+}
+
+function checkSurrenderVoteResult(room: Room) {
+  if (!room.surrenderVote) return;
+  const votes = room.surrenderVote.votes;
+  for (const v of votes.values()) {
+    if (v === false) {
+      cancelSurrenderVote(room);
+      return;
+    }
+  }
+  const allYes = [...votes.values()].every((v) => v === true);
+  if (allYes) {
+    clearTimeout(room.surrenderVote.timer);
+    room.surrenderVote = null;
+    (room.engine as any).finishRound();
+    flushEngineEvents(room);
+    broadcastState(room);
+    return;
+  }
+  broadcastState(room);
+}
+
 function publicState(room: Room): PublicRoomState {
   const trick = room.engine.trick?.plays.map((p) => ({ seat: p.seat, cards: p.cards.map((c) => c.id) }));
   return {
@@ -253,7 +329,15 @@ function publicState(room: Room): PublicRoomState {
     declareEnabled: room.declareEnabled ?? room.engine.phase === 'FLIP_TRUMP',
     noSnatchSeats: room.noSnatchSeats ? [...room.noSnatchSeats] : [],
     trick,
-    lastRoundResult: room.lastRoundResult
+    lastRoundResult: room.lastRoundResult,
+    surrenderVote: room.surrenderVote
+      ? {
+          proposerSeat: room.surrenderVote.proposerSeat,
+          team: room.surrenderVote.team,
+          votes: Object.fromEntries(room.surrenderVote.votes) as Record<number, boolean | null>,
+          expiresAtMs: room.surrenderVote.expiresAtMs,
+        }
+      : null
   };
 }
 
@@ -278,6 +362,15 @@ function requestAction(room: Room, seat: number) {
 
 function flushEngineEvents(room: Room) {
   for (const ev of room.engine.events) {
+    // Record every event for persistence
+    onRoundEvent(
+      room.persistence,
+      ev.type,
+      'seat' in ev ? (ev as any).seat ?? null : null,
+      'cards' in ev ? ((ev as any).cards ?? []).map((c: any) => typeof c === 'string' ? c : c.id) : null,
+      ev,
+    );
+
     if (ev.type === 'TRICK_UPDATE') {
       broadcast(room, { type: 'TRICK_UPDATE', seat: ev.seat, cards: ev.cards.map((c) => c.id) });
     } else if (ev.type === 'KOU_DI') {
@@ -303,6 +396,27 @@ function flushEngineEvents(room: Room) {
         reason: ev.reason
       });
     } else if (ev.type === 'ROUND_RESULT') {
+      if (room.surrenderVote) {
+        clearTimeout(room.surrenderVote.timer);
+        room.surrenderVote = null;
+      }
+      onRoundEnd(room.persistence, {
+        bankerSeat: room.engine.config.bankerSeat,
+        levelRank: room.engine.config.levelRank,
+        trumpSuit: room.engine.config.trumpSuit ?? 'N',
+        kittyCards: ev.kittyCards.map((c: Card) => c.id),
+        defenderPoints: ev.defenderPoints,
+        attackerPoints: ev.attackerPoints,
+        kittyPoints: ev.kittyPoints,
+        kittyMultiplier: ev.killMultiplier,
+        winnerTeam: ev.winnerTeam,
+        winnerSide: ev.winnerSide,
+        levelFrom: ev.levelFrom,
+        levelTo: ev.levelTo,
+        levelDelta: ev.delta,
+        rolesSwapped: ev.rolesSwapped,
+        newBankerSeat: ev.newBankerSeat,
+      });
       room.lastRoundResult = {
         seq: (room.lastRoundResult?.seq ?? 0) + 1,
         levelFrom: ev.levelFrom,
@@ -317,7 +431,11 @@ function flushEngineEvents(room: Room) {
         rolesSwapped: ev.rolesSwapped,
         newBankerSeat: ev.newBankerSeat,
         playedBySeat: ev.playedBySeat.map((cards) => cards.map((c) => c.id)),
-        kittyCards: ev.kittyCards.map((c) => c.id)
+        kittyCards: ev.kittyCards.map((c) => c.id),
+        trickHistory: ev.trickHistory.map((t: { plays: { seat: number; cards: Card[] }[]; winnerSeat: number }) => ({
+          plays: t.plays.map((p: { seat: number; cards: Card[] }) => ({ seat: p.seat, cards: p.cards.map((c: Card) => c.id) })),
+          winnerSeat: t.winnerSeat,
+        })),
       };
       broadcast(room, {
         type: 'ROUND_RESULT',
@@ -335,9 +453,14 @@ function flushEngineEvents(room: Room) {
         newBankerSeat: ev.newBankerSeat,
         nextBankerSeat: ev.nextBankerSeat,
         playedBySeat: ev.playedBySeat.map((cards: Card[]) => cards.map((c: Card) => c.id)),
-        kittyCards: ev.kittyCards.map((c: Card) => c.id)
+        kittyCards: ev.kittyCards.map((c: Card) => c.id),
+        trickHistory: ev.trickHistory.map((t: { plays: { seat: number; cards: Card[] }[]; winnerSeat: number }) => ({
+          plays: t.plays.map((p: { seat: number; cards: Card[] }) => ({ seat: p.seat, cards: p.cards.map((c: Card) => c.id) })),
+          winnerSeat: t.winnerSeat,
+        })),
       });
     } else if (ev.type === 'GAME_OVER') {
+      onMatchEnd(room.persistence, ev.winnerTeam, [...room.engine.teamLevels]);
       broadcast(room, { type: 'GAME_OVER', winnerTeam: ev.winnerTeam });
     } else if (ev.type === 'PHASE') {
       broadcast(room, { type: 'PHASE', phase: ev.phase });
@@ -364,7 +487,7 @@ function ensureFairnessTimer(room: Room) {
   }, 200);
 }
 
-function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: number }) {
+function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: number; authToken?: string }) {
   const roomId = msg.roomId.trim();
   const players = msg.players === 6 ? 6 : 4;
 
@@ -376,14 +499,16 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
       bankerSeat: 0,
       levelRank: '2',
       trumpSuit: 'H',
-      kittySize
+      kittySize,
+      fairnessWindowMs: TRUMP_FAIRNESS_WINDOW_MS
     });
     room = {
       id: roomId,
       players,
       engine,
       seats: [],
-      kittySize
+      kittySize,
+      persistence: createRoomPersistence(),
     };
     room.engine.startTrumpPhase();
     rooms.set(roomId, room);
@@ -403,6 +528,8 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
 
   const sessionToken = makeSessionToken();
 
+  const authPayload = msg.authToken ? verifyAuthToken(msg.authToken) : null;
+
   const seatState: SeatState = {
     seat,
     name: msg.name || `Player ${seat + 1}`,
@@ -411,7 +538,8 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
     sessionToken,
     isConnected: true,
     lastSeen: now(),
-    ready: false
+    ready: false,
+    userId: authPayload?.userId ?? null,
   };
 
   if (seatReuse) {
@@ -422,6 +550,12 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
   }
 
   send(ws, { type: 'SESSION', seat, sessionToken });
+  send(ws, {
+    type: 'AUTH_INFO',
+    userId: seatState.userId,
+    displayName: seatState.name,
+    isGuest: !authPayload,
+  });
   send(ws, { type: 'ROOM_STATE', state: publicState(room) });
   maybeStartRound(room);
 }
@@ -483,9 +617,12 @@ function resetRoomAfterGameOver(room: Room) {
     bankerSeat,
     levelRank: '2',
     trumpSuit: 'H',
-    kittySize: room.kittySize
+    kittySize: room.kittySize,
+    fairnessWindowMs: TRUMP_FAIRNESS_WINDOW_MS
   });
   room.lastRoundResult = undefined;
+  room.persistence = createRoomPersistence();
+  room.matchStarted = false;
   room.engine.startTrumpPhase();
 }
 
@@ -608,13 +745,28 @@ export function createWsServer(server: import('http').Server, path = '/ws') {
         broadcastState(room);
 
         const connectedCount = room.seats.filter((s) => s.isConnected).length;
-        if (
-          room.dealingInProgress &&
-          room.finalDeclarePauseDone &&
-          room.resumeTailDeal &&
-          room.noSnatchSeats.size >= connectedCount
-        ) {
-          room.resumeTailDeal();
+        if (room.noSnatchSeats.size >= connectedCount) {
+          // All connected players confirmed — skip remaining wait
+          if (room.dealingInProgress && room.finalDeclarePauseDone && room.resumeTailDeal) {
+            // Still dealing: resume tail deal immediately
+            room.resumeTailDeal();
+          } else if (!room.dealingInProgress && room.engine.trumpCandidate) {
+            // Dealing finished: finalize trump immediately
+            room.engine.trumpCandidate.expiresAt = now();
+            room.engine.finalizeTrump(now());
+            flushEngineEvents(room);
+            if ((room.engine.phase as string) === 'BURY_KITTY') {
+              room.declareSeat = undefined;
+              room.declareUntilMs = undefined;
+              if (room.fairnessTimer) {
+                clearInterval(room.fairnessTimer);
+                room.fairnessTimer = undefined;
+              }
+              sendHand(room, room.engine.config.bankerSeat);
+              broadcastState(room);
+              requestAction(room, room.engine.config.bankerSeat);
+            }
+          }
         }
         return;
       }
@@ -691,6 +843,33 @@ export function createWsServer(server: import('http').Server, path = '/ws') {
         return;
       }
 
+      if (msg.type === 'SURRENDER_PROPOSE') {
+        if (room.engine.phase !== 'TRICK_PLAY') return;
+        if (room.surrenderVote) return;
+        const team = seatState.team;
+        const teammates = room.seats.filter((s) => s.team === team);
+        const votes = new Map<number, boolean | null>();
+        for (const tm of teammates) {
+          votes.set(tm.seat, tm.seat === seatState.seat ? true : null);
+        }
+        const expiresAtMs = now() + SURRENDER_VOTE_TIMEOUT_MS;
+        const timer = setTimeout(() => {
+          cancelSurrenderVote(room);
+        }, SURRENDER_VOTE_TIMEOUT_MS);
+        room.surrenderVote = { team, proposerSeat: seatState.seat, votes, timer, expiresAtMs };
+        broadcastState(room);
+        return;
+      }
+
+      if (msg.type === 'SURRENDER_VOTE') {
+        if (!room.surrenderVote) return;
+        if (seatState.team !== room.surrenderVote.team) return;
+        if (room.surrenderVote.votes.get(seatState.seat) !== null) return;
+        room.surrenderVote.votes.set(seatState.seat, msg.accept);
+        checkSurrenderVoteResult(room);
+        return;
+      }
+
       if (msg.type === 'FORCE_END_ROUND') {
         (room.engine as any).finishRound();
         flushEngineEvents(room);
@@ -723,6 +902,9 @@ export function createWsServer(server: import('http').Server, path = '/ws') {
         seat.isConnected = false;
         seat.ws = undefined;
         seat.lastSeen = now();
+        if (room.surrenderVote && seat.team === room.surrenderVote.team) {
+          cancelSurrenderVote(room);
+        }
         broadcastState(room);
       }
     });

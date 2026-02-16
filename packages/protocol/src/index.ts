@@ -1,7 +1,7 @@
 // ── Client → Server messages ──
 
 export type ClientMessage =
-  | { type: 'JOIN_ROOM'; roomId: string; name: string; players: number }
+  | { type: 'JOIN_ROOM'; roomId: string; name: string; players: number; authToken?: string }
   | { type: 'REJOIN_ROOM'; roomId: string; sessionToken: string }
   | { type: 'LEAVE_ROOM' }
   | { type: 'NEXT_ROUND' }
@@ -13,7 +13,9 @@ export type ClientMessage =
   | { type: 'NO_SNATCH' }
   | { type: 'BURY'; cardIds: string[] }
   | { type: 'PLAY'; cardIds: string[] }
-  | { type: 'FORCE_END_ROUND' };
+  | { type: 'FORCE_END_ROUND' }
+  | { type: 'SURRENDER_PROPOSE' }
+  | { type: 'SURRENDER_VOTE'; accept: boolean };
 
 // ── Server → Client messages ──
 
@@ -49,8 +51,19 @@ export type ServerMessage =
       nextBankerSeat: number;
       playedBySeat: string[][];
       kittyCards: string[];
+      trickHistory: { plays: { seat: number; cards: string[] }[]; winnerSeat: number }[];
     }
-  | { type: 'GAME_OVER'; winnerTeam: number };
+  | { type: 'GAME_OVER'; winnerTeam: number }
+  | { type: 'AUTH_INFO'; userId: string | null; displayName: string; isGuest: boolean };
+
+// ── Surrender vote state ──
+
+export type SurrenderVoteState = {
+  proposerSeat: number;
+  team: number;
+  votes: Record<number, boolean | null>;
+  expiresAtMs: number;
+};
 
 // ── Shared public state types ──
 
@@ -78,6 +91,7 @@ export type RoundResult = {
   newBankerSeat: number;
   playedBySeat: string[][];
   kittyCards: string[];
+  trickHistory?: { plays: { seat: number; cards: string[] }[]; winnerSeat: number }[];
 };
 
 export type PublicRoomState = {
@@ -100,4 +114,5 @@ export type PublicRoomState = {
   noSnatchSeats?: number[];
   trick?: { seat: number; cards: string[] }[];
   lastRoundResult?: RoundResult;
+  surrenderVote?: SurrenderVoteState | null;
 };
