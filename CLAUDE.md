@@ -83,3 +83,9 @@ engine (0 deps)     protocol (0 deps)
 - Pattern analysis and follow templates must be deterministic (tie-break: low-to-high by key, then lexical by cardId).
 - Level-rank cards and jokers do NOT participate in tractor sequences.
 - Trump fairness window (default 2000ms) prevents bot speed advantage.
+
+## UI Review Workflow
+After changing CSS or UI components, screenshot the debug page at both viewports to verify:
+1. Start dev server: `bash scripts/dev.sh --no-db`
+2. Run `npx tsx scripts/screenshot-debug.ts` — produces `screenshots/debug-desktop.png` (1920x1080) and `screenshots/debug-mobile.png` (375x812)
+3. Read both PNGs to review layout, spacing, and readability at desktop and mobile sizes

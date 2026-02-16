@@ -223,6 +223,10 @@ export default function Hand() {
   const arcPerCard = totalCards > 1 ? maxArc / (totalCards - 1) : 0;
   const overlap = isMobile ? -16 : Math.max(-24, -600 / totalCards);
 
+  const bands = hasTrumpContext
+    ? sorted.map((id) => cardGroupKey(id, levelRank as Rank, trumpSuit as Suit)[0])
+    : null;
+
   return (
     <div className="hand-section">
       <div className="hand-label">{t('hand.title')} ({totalCards})</div>
@@ -240,7 +244,7 @@ export default function Hand() {
                   key={id}
                   className="hand-card-wrap"
                   style={{
-                    marginLeft: i === 0 ? 0 : overlap,
+                    marginLeft: i === 0 ? 0 : (bands && bands[i] !== bands[i - 1]) ? overlap + 10 : overlap,
                     zIndex: i,
                     transform: `rotate(${angle}deg) translateY(${yOffset - (isSelected ? 12 : 0)}px)`,
                     transformOrigin: 'bottom center',
