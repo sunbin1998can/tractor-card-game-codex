@@ -1,10 +1,28 @@
 import { useStore } from './store';
 
-function getCtx(): AudioContext | null {
-  if (typeof window === 'undefined') return null;
+let sharedCtx: AudioContext | null = null;
+
+/** Warm up the AudioContext on the first user gesture so later calls can use it. */
+function initOnGesture() {
+  if (sharedCtx) return;
   const Ctor = window.AudioContext || (window as any).webkitAudioContext;
-  if (!Ctor) return null;
-  try { return new Ctor(); } catch { return null; }
+  if (!Ctor) return;
+  try { sharedCtx = new Ctor(); } catch { /* unsupported */ }
+  for (const evt of ['click', 'touchstart', 'keydown'] as const) {
+    window.removeEventListener(evt, initOnGesture, true);
+  }
+}
+
+if (typeof window !== 'undefined') {
+  for (const evt of ['click', 'touchstart', 'keydown'] as const) {
+    window.addEventListener(evt, initOnGesture, { capture: true, once: false });
+  }
+}
+
+function getCtx(): AudioContext | null {
+  if (!sharedCtx || sharedCtx.state === 'closed') return null;
+  if (sharedCtx.state === 'suspended') sharedCtx.resume();
+  return sharedCtx;
 }
 
 function isMuted(): boolean {
@@ -27,7 +45,6 @@ export function playTurnNotification() {
     osc.connect(gain); gain.connect(ctx.destination);
     osc.start(now + i * 0.12); osc.stop(now + i * 0.12 + 0.3);
   });
-  window.setTimeout(() => { void ctx.close(); }, 600);
 }
 
 export function playTrickWinSound(isMyTeam: boolean) {
@@ -47,7 +64,6 @@ export function playTrickWinSound(isMyTeam: boolean) {
       osc.connect(gain); gain.connect(ctx.destination);
       osc.start(now + i * 0.08); osc.stop(now + i * 0.08 + 0.25);
     });
-    window.setTimeout(() => { void ctx.close(); }, 600);
   } else {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -58,7 +74,6 @@ export function playTrickWinSound(isMyTeam: boolean) {
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
     osc.connect(gain); gain.connect(ctx.destination);
     osc.start(now); osc.stop(now + 0.35);
-    window.setTimeout(() => { void ctx.close(); }, 500);
   }
 }
 
@@ -84,7 +99,6 @@ export function playVictoryFanfare() {
     osc.connect(gain); gain.connect(ctx.destination);
     osc.start(now + start); osc.stop(now + start + dur + 0.05);
   });
-  window.setTimeout(() => { void ctx.close(); }, 1200);
 }
 
 export function playDefeatSound() {
@@ -103,7 +117,6 @@ export function playDefeatSound() {
     osc.connect(gain); gain.connect(ctx.destination);
     osc.start(now + i * 0.2); osc.stop(now + i * 0.2 + 0.4);
   });
-  window.setTimeout(() => { void ctx.close(); }, 1000);
 }
 
 export function playChatSound() {
@@ -121,7 +134,6 @@ export function playChatSound() {
   gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
   osc.connect(gain); gain.connect(ctx.destination);
   osc.start(now); osc.stop(now + 0.2);
-  window.setTimeout(() => { void ctx.close(); }, 300);
 }
 
 export function playCardPlaySound() {
@@ -139,5 +151,4 @@ export function playCardPlaySound() {
   gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
   osc.connect(gain); gain.connect(ctx.destination);
   osc.start(now); osc.stop(now + 0.15);
-  window.setTimeout(() => { void ctx.close(); }, 200);
 }

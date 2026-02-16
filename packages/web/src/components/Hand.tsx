@@ -200,6 +200,13 @@ export default function Hand() {
   }, [toggle, pairPartners, selected]);
   const t = useT();
 
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const scrollBy = useCallback((dir: number) => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * 200, behavior: 'smooth' });
+  }, []);
+
   if (!hand.length) {
     return (
       <div className="hand-section">
@@ -210,13 +217,6 @@ export default function Hand() {
       </div>
     );
   }
-
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const scrollBy = useCallback((dir: number) => {
-    const el = containerRef.current;
-    if (!el) return;
-    el.scrollBy({ left: dir * 200, behavior: 'smooth' });
-  }, []);
 
   const totalCards = sorted.length;
   const maxArc = isMobile ? 0 : Math.min(40, totalCards * 2);
