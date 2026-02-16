@@ -613,6 +613,11 @@ export default function DemoPage() {
             {t.label}
           </button>
         ))}
+        {open && (
+          <a href="#/insights" className="demo-tab" style={{ textDecoration: 'none' }}>
+            Insights
+          </a>
+        )}
       </div>
       <div style={{ height: '100%', overflow: 'hidden' }}>
         <DemoContent tab={tab} />

@@ -17,6 +17,7 @@ import RoundEndOverlay from './components/RoundEndOverlay';
 import FloatingPoints from './components/FloatingPoints';
 import GameBadges from './components/GameBadges';
 import DemoPage from './components/DemoPage';
+import InsightsPage from './components/InsightsPage';
 import MatchHistory from './components/MatchHistory';
 import DevDebugHint from './components/DevDebugHint';
 import CardImpactParticles from './components/CardImpactParticles';
@@ -28,10 +29,16 @@ export default function App() {
   const [isDemo, setIsDemo] = useState(
     () => typeof window !== 'undefined' && window.location.hash.startsWith('#/demo'),
   );
+  const [isInsights, setIsInsights] = useState(
+    () => typeof window !== 'undefined' && window.location.hash.startsWith('#/insights'),
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const syncHash = () => setIsDemo(window.location.hash.startsWith('#/demo'));
+    const syncHash = () => {
+      setIsDemo(window.location.hash.startsWith('#/demo'));
+      setIsInsights(window.location.hash.startsWith('#/insights'));
+    };
     window.addEventListener('hashchange', syncHash);
     window.addEventListener('popstate', syncHash);
     return () => {
@@ -42,6 +49,8 @@ export default function App() {
 
   // Demo mode: /#/demo
   if (isDemo) return <DemoPage />;
+  // Insights mode: /#/insights
+  if (isInsights) return <InsightsPage />;
   return <MainApp />;
 }
 
