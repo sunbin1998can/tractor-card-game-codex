@@ -1,5 +1,6 @@
 import Card from '@heruka_urgyen/react-playing-cards/lib/TcN';
 import { useT } from '../i18n';
+import { isJoker, cardIdToLibFormat } from '../cardUtils';
 
 type CardFaceProps = {
   id: string;
@@ -11,28 +12,6 @@ type CardFaceProps = {
   isTrump?: boolean;
   onClick?: () => void;
 };
-
-function cardIdToLibFormat(id: string): string | null {
-  const parts = id.split('_');
-  const value = parts[parts.length - 1];
-  const suit = parts.length >= 3 ? parts[parts.length - 2] : '';
-
-  if (value === 'SJ' || value === 'BJ') return null;
-
-  const suitLower = suit === 'H' ? 'h' : suit === 'S' ? 's' : suit === 'D' ? 'd' : suit === 'C' ? 'c' : '';
-  if (!suitLower) return null;
-
-  const rank = value === '10' ? 'T' : value;
-  return `${rank}${suitLower}`;
-}
-
-function isJoker(id: string): 'SJ' | 'BJ' | null {
-  const parts = id.split('_');
-  const value = parts[parts.length - 1];
-  if (value === 'SJ') return 'SJ';
-  if (value === 'BJ') return 'BJ';
-  return null;
-}
 
 export default function CardFace({
   id,

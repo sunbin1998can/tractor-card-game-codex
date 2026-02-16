@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useStore } from '../store';
+import { useStore, type PublicSeat, type PublicState } from '../store';
 import { playTurnNotification, playTrickWinSound, playVictoryFanfare, playCardPlaySound } from '../audio';
 import GameTable, { SeatSidebar } from './GameTable';
 import Hand from './Hand';
@@ -15,21 +15,22 @@ import Toasts from './Toasts';
 import KouDiPopup from './KouDiPopup';
 
 type Tab = 'lobby' | 'game' | 'round-result' | 'kou-di' | 'badges';
+type DemoPlayerCount = 4 | 6;
 
-function DebugLabel({ name, children }: { name: string; children: React.ReactNode }) {
+function DemoLabel({ name, children }: { name: string; children: React.ReactNode }) {
   return (
-    <div className="debug-label-wrap">
-      <span className="debug-label-tag">{name}</span>
+    <div className="demo-label-wrap">
+      <span className="demo-label-tag">{name}</span>
       {children}
     </div>
   );
 }
 
 const MOCK_SEATS_4 = [
-  { seat: 0, name: 'Alice', team: 0, connected: true, ready: true, cardsLeft: 18 },
-  { seat: 1, name: 'Bob', team: 1, connected: true, ready: true, cardsLeft: 18 },
-  { seat: 2, name: 'Charlie', team: 0, connected: true, ready: false, cardsLeft: 18 },
-  { seat: 3, name: 'Diana', team: 1, connected: false, ready: false, cardsLeft: 18 },
+  { seat: 0, name: 'Alice', team: 0, connected: true, ready: true, cardsLeft: 25 },
+  { seat: 1, name: 'Bob', team: 1, connected: true, ready: true, cardsLeft: 25 },
+  { seat: 2, name: 'Charlie', team: 0, connected: true, ready: false, cardsLeft: 25 },
+  { seat: 3, name: 'Diana', team: 1, connected: false, ready: false, cardsLeft: 25 },
 ];
 
 const MOCK_HAND = [
@@ -48,8 +49,17 @@ const MOCK_TRICK = [
   { seat: 2, cards: ['0_H_3', '0_H_4'] },
 ];
 
+const MOCK_SEATS_6 = [
+  { seat: 0, name: 'Alice', team: 0, connected: true, ready: true, cardsLeft: 16 },
+  { seat: 1, name: 'Bob', team: 1, connected: true, ready: true, cardsLeft: 16 },
+  { seat: 2, name: 'Charlie', team: 0, connected: true, ready: true, cardsLeft: 16 },
+  { seat: 3, name: 'Diana', team: 1, connected: true, ready: false, cardsLeft: 16 },
+  { seat: 4, name: 'Eve', team: 0, connected: false, ready: false, cardsLeft: 16 },
+  { seat: 5, name: 'Frank', team: 1, connected: true, ready: true, cardsLeft: 16 },
+];
+
 const MOCK_STATE = {
-  id: 'debug-room',
+  id: 'demo-room',
   players: 4,
   seats: MOCK_SEATS_4,
   teamLevels: ['5', '3'] as [string, string],
@@ -64,6 +74,31 @@ const MOCK_STATE = {
   kittyCount: 8,
   trick: MOCK_TRICK,
 };
+
+const DEMO_PLAYER_COUNTS: DemoPlayerCount[] = [4, 6];
+const DEMO_SEAT_CONFIGS: Record<DemoPlayerCount, PublicSeat[]> = {
+  4: MOCK_SEATS_4,
+  6: MOCK_SEATS_6,
+};
+
+function createMockStateForSeats(seats: PublicSeat[]): PublicState {
+  return {
+    ...MOCK_STATE,
+    players: seats.length,
+    seats,
+  };
+}
+
+const CARDS_PER_HAND: Record<DemoPlayerCount, number> = {
+  4: 25,
+  6: 16,
+};
+
+const HAND_BATCH_SIZE = 4;
+
+function handForPlayers(count: DemoPlayerCount) {
+  return MOCK_HAND.slice(0, CARDS_PER_HAND[count]);
+}
 
 const MOCK_ROUND_RESULT = {
   seq: 1,
@@ -107,11 +142,11 @@ const MOCK_KOUDI = {
 
 // Seat 0 plays come from MOCK_HAND so they animate out of the user's hand.
 // Other seats play arbitrary cards.
-const SCRIPTED_TRICKS: {
+const SCRIPTED_TRICKS_4: {
   leader: number;
   plays: { seat: number; cards: string[] }[];
   winnerSeat: number;
-  points: number; // points scored this trick (for floating points)
+  points: number;
 }[] = [
   {
     leader: 0,
@@ -170,11 +205,83 @@ const SCRIPTED_TRICKS: {
   },
 ];
 
+const SCRIPTED_TRICKS_6: typeof SCRIPTED_TRICKS_4 = [
+  {
+    leader: 0,
+    plays: [
+      { seat: 0, cards: ['0_S_A', '1_S_A'] },
+      { seat: 1, cards: ['0_H_A', '1_H_A'] },
+      { seat: 2, cards: ['0_S_7', '0_S_6'] },
+      { seat: 3, cards: ['1_S_K', '1_S_Q'] },
+      { seat: 4, cards: ['0_C_9', '0_C_8'] },
+      { seat: 5, cards: ['1_D_K', '1_D_Q'] },
+    ],
+    winnerSeat: 0,
+    points: 10,
+  },
+  {
+    leader: 0,
+    plays: [
+      { seat: 0, cards: ['0_S_K'] },
+      { seat: 1, cards: ['0_D_10'] },
+      { seat: 2, cards: ['0_H_3'] },
+      { seat: 3, cards: ['1_S_J'] },
+      { seat: 4, cards: ['0_C_J'] },
+      { seat: 5, cards: ['1_D_J'] },
+    ],
+    winnerSeat: 0,
+    points: 20,
+  },
+  {
+    leader: 0,
+    plays: [
+      { seat: 0, cards: ['0_H_K', '0_H_Q'] },
+      { seat: 1, cards: ['0_C_A', '0_C_K'] },
+      { seat: 2, cards: ['0_H_8', '0_H_7'] },
+      { seat: 3, cards: ['1_H_8', '1_H_7'] },
+      { seat: 4, cards: ['0_D_7', '0_D_6'] },
+      { seat: 5, cards: ['1_C_Q', '1_C_J'] },
+    ],
+    winnerSeat: 0,
+    points: 10,
+  },
+  {
+    leader: 0,
+    plays: [
+      { seat: 0, cards: ['0_S_Q'] },
+      { seat: 1, cards: ['0_D_9'] },
+      { seat: 2, cards: ['0_S_3'] },
+      { seat: 3, cards: ['1_S_10'] },
+      { seat: 4, cards: ['0_C_7'] },
+      { seat: 5, cards: ['1_D_7'] },
+    ],
+    winnerSeat: 3,
+    points: 10,
+  },
+  {
+    leader: 3,
+    plays: [
+      { seat: 3, cards: ['1_D_A'] },
+      { seat: 0, cards: ['0_D_A'] },
+      { seat: 1, cards: ['0_D_8'] },
+      { seat: 2, cards: ['0_D_4'] },
+      { seat: 4, cards: ['0_S_5'] },
+      { seat: 5, cards: ['1_S_5'] },
+    ],
+    winnerSeat: 0,
+    points: 0,
+  },
+];
+
+function getScriptedTricksForPlayers(count: number) {
+  return count === 6 ? SCRIPTED_TRICKS_6 : SCRIPTED_TRICKS_4;
+}
+
 /* ------------------------------------------------------------------ */
 /*  useSimulation hook                                                  */
 /* ------------------------------------------------------------------ */
 
-function useSimulation(active: boolean) {
+function useSimulation(active: boolean, seatConfig: PublicSeat[], playerCount: DemoPlayerCount) {
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const cancelledRef = useRef(false);
 
@@ -199,6 +306,9 @@ function useSimulation(active: boolean) {
   useEffect(() => {
     if (!active) return;
     cancelledRef.current = false;
+    const totalPlayers = seatConfig.length;
+    const trickSequence = getScriptedTricksForPlayers(totalPlayers);
+    const baseState = createMockStateForSeats(seatConfig);
 
     const store = useStore.getState;
     const ss = useStore.setState;
@@ -218,14 +328,18 @@ function useSimulation(active: boolean) {
       ss({ publicState: { ...cur, seats } as any });
     };
 
+    const cardsPerSeat = CARDS_PER_HAND[playerCount];
+    const handCopy = handForPlayers(playerCount);
+    const batchSize = HAND_BATCH_SIZE;
+
     async function runLoop() {
       // eslint-disable-next-line no-constant-condition
       while (true) {
         if (cancelledRef.current) return;
 
         /* ============ Phase 1: Initialize & Deal ============ */
-        store().setRoomId('debug-room');
-        ss({ youSeat: 0, sessionToken: 'debug-token' });
+        store().setRoomId('demo-room');
+        ss({ youSeat: 0, sessionToken: 'demo-token' });
         store().setHand([]);
         store().clearTrickDisplay();
         store().setRoundPopup(null);
@@ -233,45 +347,43 @@ function useSimulation(active: boolean) {
         store().setLegalActions([]);
 
         // Set initial state with 0 cards
-        const initialSeats = MOCK_SEATS_4.map((s) => ({ ...s, cardsLeft: 0 }));
+        const initialSeats = seatConfig.map((s) => ({ ...s, cardsLeft: 0 }));
         store().setPublicState({
-          ...MOCK_STATE,
+          ...baseState,
           seats: initialSeats,
           scores: [0, 0],
           trick: [],
           turnSeat: -1,
         } as any);
 
-        // Deal cards into hand in batches of 4
-        const handCopy = [...MOCK_HAND];
-        const BATCH = 4;
-        for (let i = 0; i < handCopy.length; i += BATCH) {
+        // Deal cards into hand in batches
+        for (let i = 0; i < handCopy.length; i += batchSize) {
           if (cancelledRef.current) return;
-          const batch = handCopy.slice(0, i + BATCH);
+          const batch = handCopy.slice(0, i + batchSize);
           store().setHand(batch);
           // Update all seats' card counts proportionally
-          const dealtPerSeat = Math.min(i + BATCH, handCopy.length);
-          const seats = MOCK_SEATS_4.map((s) => ({
+          const dealtPerSeat = Math.min(i + batchSize, cardsPerSeat);
+          const seatCounts = seatConfig.map((s) => ({
             ...s,
-            cardsLeft: s.seat === 0 ? dealtPerSeat : dealtPerSeat,
+            cardsLeft: dealtPerSeat,
           }));
-          updatePublic({ seats });
+          updatePublic({ seats: seatCounts });
           await delay(150);
         }
 
         // All cards dealt — set final hand count
-        const fullSeats = MOCK_SEATS_4.map((s) => ({ ...s, cardsLeft: MOCK_HAND.length }));
+        const fullSeats = seatConfig.map((s) => ({ ...s, cardsLeft: cardsPerSeat }));
         updatePublic({ seats: fullSeats, turnSeat: 0 });
         store().setLegalActions([{ count: 2 }]);
         await delay(500);
 
         /* ============ Phase 2: Play tricks ============ */
-        let currentHand = [...MOCK_HAND];
+        let currentHand = [...handCopy];
         let scores: [number, number] = [0, 0];
 
-        for (let ti = 0; ti < SCRIPTED_TRICKS.length; ti++) {
+        for (let ti = 0; ti < trickSequence.length; ti++) {
           if (cancelledRef.current) return;
-          const trick = SCRIPTED_TRICKS[ti];
+          const trick = trickSequence[ti];
 
           // Clear trick display for new trick
           store().clearTrickDisplay();
@@ -279,7 +391,7 @@ function useSimulation(active: boolean) {
           await delay(300);
 
           // Determine play order from leader
-          const order = [0, 1, 2, 3].map((i) => (trick.leader + i) % 4);
+          const order = Array.from({ length: totalPlayers }, (_, i) => (trick.leader + i) % totalPlayers);
           const trickPlays: { seat: number; cards: string[] }[] = [];
 
           for (const seatIdx of order) {
@@ -362,17 +474,17 @@ function useSimulation(active: boolean) {
     runLoop();
 
     return clearTimers;
-  }, [active, delay, clearTimers]);
+  }, [active, delay, clearTimers, seatConfig, playerCount]);
 }
 
 /* ------------------------------------------------------------------ */
 /*  Static tab seeders (unchanged)                                     */
 /* ------------------------------------------------------------------ */
 
-function seedGameState(store: ReturnType<typeof useStore.getState>) {
-  store.setRoomId('debug-room');
-  useStore.setState({ youSeat: 0, sessionToken: 'debug-token' });
-  store.setPublicState(MOCK_STATE as any);
+function seedGameState(store: ReturnType<typeof useStore.getState>, seats: PublicSeat[]) {
+  store.setRoomId('demo-room');
+  useStore.setState({ youSeat: 0, sessionToken: 'demo-token' });
+  store.setPublicState(createMockStateForSeats(seats) as any);
   store.setHand(MOCK_HAND);
   store.setTrickDisplay(MOCK_TRICK);
   store.setLegalActions([{ count: 2 }]);
@@ -382,7 +494,7 @@ const VALID_TABS = new Set<Tab>(['lobby', 'game', 'round-result', 'kou-di', 'bad
 
 function getTabFromHash(): Tab {
   try {
-    const hash = window.location.hash; // e.g. "#/debug?view=kou-di"
+    const hash = window.location.hash; // e.g. "#/demo?view=kou-di"
     const qIdx = hash.indexOf('?');
     if (qIdx === -1) return 'game';
     const params = new URLSearchParams(hash.slice(qIdx + 1));
@@ -394,14 +506,16 @@ function getTabFromHash(): Tab {
 }
 
 function setTabInHash(tab: Tab) {
-  const base = '#/debug';
+  const base = '#/demo';
   window.history.replaceState(null, '', tab === 'game' ? base : `${base}?view=${tab}`);
 }
 
-export default function DebugPage() {
+export default function DemoPage() {
   const [tab, setTabState] = useState<Tab>(getTabFromHash);
   const [open, setOpen] = useState(false);
+  const [playerCount, setPlayerCount] = useState<DemoPlayerCount>(4);
   const store = useStore.getState();
+  const playerSeats = DEMO_SEAT_CONFIGS[playerCount];
 
   const setTab = useCallback((t: Tab) => {
     setTabState(t);
@@ -409,7 +523,7 @@ export default function DebugPage() {
   }, []);
 
   // Run simulation when game tab is active
-  useSimulation(tab === 'game');
+  useSimulation(tab === 'game', playerSeats);
 
   useEffect(() => {
     // Seed chat messages for demo
@@ -428,30 +542,42 @@ export default function DebugPage() {
   }, []);
 
   useEffect(() => {
+    return () => {
+      const state = useStore.getState();
+      if (state.roomId !== 'demo-room' && state.sessionToken !== 'demo-token') return;
+      state.leaveRoom();
+      if (state.sessionToken === 'demo-token') {
+        sessionStorage.removeItem('sessionToken');
+        useStore.setState({ sessionToken: null });
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (tab === 'lobby') {
       useStore.setState({ roomId: null, youSeat: null });
     } else if (tab === 'game') {
       // Simulation hook handles this tab
     } else if (tab === 'round-result') {
-      seedGameState(store);
+      seedGameState(store, playerSeats);
       store.setPublicState({
-        ...MOCK_STATE,
+        ...createMockStateForSeats(playerSeats),
         phase: 'ROUND_SCORE',
         lastRoundResult: MOCK_ROUND_RESULT,
       } as any);
       store.setRoundPopup('Round result text');
     } else if (tab === 'kou-di') {
-      seedGameState(store);
+      seedGameState(store, playerSeats);
       useStore.setState({ kouDiPopup: MOCK_KOUDI });
     } else if (tab === 'badges') {
-      seedGameState(store);
+      seedGameState(store, playerSeats);
       store.pushBadge('Trump Master');
       setTimeout(() => store.pushBadge('Streak x3'), 300);
       setTimeout(() => store.pushBadge('Sweep'), 600);
       store.pushFloatingPoint(15);
       setTimeout(() => store.pushFloatingPoint(10), 500);
     }
-  }, [tab]);
+  }, [tab, playerCount]);
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'lobby', label: 'Lobby' },
@@ -463,14 +589,25 @@ export default function DebugPage() {
 
   return (
     <div style={{ height: '100vh', overflow: 'hidden' }}>
-      <div className={`debug-tab-bar ${open ? 'open' : ''}`}>
-        <button className="debug-tab-toggle" onClick={() => setOpen(!open)}>
-          {open ? '\u2716' : '\u2699 Debug'}
+      <div className={`demo-tab-bar ${open ? 'open' : ''}`}>
+        <button className="demo-tab-toggle" onClick={() => setOpen(!open)}>
+          {open ? '\u2716' : '\u2699 Demo'}
         </button>
+        <div className="demo-player-toggle">
+          {DEMO_PLAYER_COUNTS.map((count) => (
+            <button
+              key={`dbg-players-${count}`}
+              className={`demo-player-count ${playerCount === count ? 'active' : ''}`}
+              onClick={() => setPlayerCount(count)}
+            >
+              {count} Players
+            </button>
+          ))}
+        </div>
         {open && tabs.map((t) => (
           <button
             key={t.id}
-            className={`debug-tab ${tab === t.id ? 'active' : ''}`}
+            className={`demo-tab ${tab === t.id ? 'active' : ''}`}
             onClick={() => { setTab(t.id); setOpen(false); }}
           >
             {t.label}
@@ -478,16 +615,20 @@ export default function DebugPage() {
         ))}
       </div>
       <div style={{ height: '100%', overflow: 'hidden' }}>
-        <DebugContent tab={tab} />
+        <DemoContent tab={tab} />
       </div>
     </div>
   );
 }
 
-function DebugContent({ tab }: { tab: Tab }) {
+function DemoContent({ tab }: { tab: Tab }) {
   const roomId = useStore((s) => s.roomId);
   const nickname = useStore((s) => s.nickname);
   const cardScale = useStore((s) => s.cardScale);
+  const layoutStyle = {
+    '--card-scale': cardScale,
+    '--card-scale-trick': 'calc(var(--card-scale-trick-base) * var(--card-scale, 1))',
+  } as React.CSSProperties;
 
   if (tab === 'lobby') {
     // Render a lightweight lobby preview inline
@@ -497,7 +638,7 @@ function DebugContent({ tab }: { tab: Tab }) {
         <div className="lobby-container">
           <div className="lobby-hero">
             <h1 className="lobby-title">Tractor</h1>
-            <p className="lobby-subtitle">Debug Lobby Preview</p>
+            <p className="lobby-subtitle">Demo Lobby Preview</p>
           </div>
           <div className="lobby-main">
             <div className="panel lobby-join-panel">
@@ -526,35 +667,35 @@ function DebugContent({ tab }: { tab: Tab }) {
   if (!roomId) return null;
 
   return (
-    <div className="game-layout" style={{ '--card-scale': cardScale } as React.CSSProperties}>
-      <DebugLabel name="ScoreBoard">
-        <ScoreBoard playerLabel="Alice" seatLabel="Seat 1" roomId="debug-room" />
-      </DebugLabel>
+    <div className="game-layout" style={layoutStyle}>
+      <DemoLabel name="ScoreBoard">
+        <ScoreBoard playerLabel="Alice" seatLabel="Seat 1" roomId="demo-room" />
+      </DemoLabel>
       <div className="game-main">
         <div className="game-content">
           <div className="game-body">
-            <DebugLabel name="SeatSidebar">
+            <DemoLabel name="SeatSidebar">
               <SeatSidebar />
-            </DebugLabel>
-            <DebugLabel name="GameTable">
+            </DemoLabel>
+            <DemoLabel name="GameTable">
               <GameTable />
-            </DebugLabel>
+            </DemoLabel>
           </div>
           <div className="game-footer">
-            <DebugLabel name="ActionPanel">
+            <DemoLabel name="ActionPanel">
               <ActionPanel />
-            </DebugLabel>
-            <DebugLabel name="Hand">
+            </DemoLabel>
+            <DemoLabel name="Hand">
               <Hand />
-            </DebugLabel>
+            </DemoLabel>
           </div>
-          <DebugLabel name="EventLog">
+          <DemoLabel name="EventLog">
             <EventLog />
-          </DebugLabel>
+          </DemoLabel>
         </div>
-        <DebugLabel name="ChatBox">
+        <DemoLabel name="ChatBox">
           <ChatBox />
-        </DebugLabel>
+        </DemoLabel>
       </div>
       <FloatingPoints />
       <GameBadges />

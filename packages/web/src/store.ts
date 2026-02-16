@@ -136,7 +136,7 @@ export const useStore = create<StoreState>((set, get) => ({
   kouDiPopup: null,
   roundPopup: null,
   roundEndEffect: null,
-  cardScale: Number(sessionStorage.getItem('cardScale')) || 1,
+  cardScale: Number(sessionStorage.getItem('cardScale')) || 1.5,
   winStreak: 0,
   badges: [],
   floatingPoints: [],

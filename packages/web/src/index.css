@@ -14,6 +14,15 @@
   --text-light: #e8e0d0;
   --text-muted: #a09880;
 
+  /* Card sizing system — single source of truth */
+  --card-w: clamp(72px, 7vw, 110px);
+  --card-h: clamp(100px, 9.8vw, 154px);
+  --card-scale-hand: 1;
+  --card-scale-trick-base: 0.65;
+  --card-scale-trick: var(--card-scale-trick-base);
+  --card-scale-mini: 0.5;
+  --card-scale-result: 0.6;
+
   /* Z-index layering system */
   --z-table-content: 1;
   --z-seat: 10;
@@ -25,7 +34,7 @@
   --z-floating: 400;
   --z-banner: 500;
   --z-modal: 600;
-  --z-debug: 700;
+  --z-demo: 700;
 
   /* Responsive base font: scales from 16px at 320px to 22px at 1920px */
   font-size: clamp(16px, 0.85rem + 0.4vw, 22px);
@@ -290,6 +299,99 @@ body {
   font-weight: 800;
   color: var(--text-light);
   margin-top: 2px;
+}
+
+/* ===== Room List Panel ===== */
+.room-list-panel {
+  margin-top: 16px;
+}
+
+.room-list-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 12px;
+}
+
+.room-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--card-glow-gold) transparent;
+}
+
+.room-list-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 12px;
+  transition: background 0.15s;
+}
+
+.room-list-row:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.room-list-id {
+  font-weight: 700;
+  color: var(--text-light);
+  min-width: 60px;
+}
+
+.room-list-players {
+  font-weight: 700;
+  color: var(--card-glow-gold);
+  min-width: 32px;
+  text-align: center;
+}
+
+.room-list-phase {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  min-width: 50px;
+  text-align: center;
+}
+
+.room-list-seats {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  flex: 1;
+}
+
+.room-list-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.room-list-dot.online { background: #4caf50; }
+.room-list-dot.offline { background: #f44336; }
+
+.room-list-join-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #b8860b, #daa520);
+  border: 1px solid #b8860b;
+  color: #fff;
+  border-radius: 6px;
+  min-height: auto;
+}
+
+.room-list-join-btn:hover {
+  background: linear-gradient(135deg, #daa520, #ffd700);
 }
 
 /* ===== Match History Panel ===== */
@@ -1049,26 +1151,20 @@ input::placeholder {
 .trick-play {
   position: absolute;
   display: flex;
-  gap: 2px;
+  gap: clamp(4px, 0.5vw, 10px);
   align-items: center;
   pointer-events: none;
 }
 
-.trick-play.pos-bottom { bottom: 15%; left: 50%; transform: translateX(-50%); }
-.trick-play.pos-top { top: 12%; left: 50%; transform: translateX(-50%); }
-.trick-play.pos-left { left: 8%; top: 50%; transform: translateY(-50%); }
-.trick-play.pos-right { right: 8%; top: 50%; transform: translateY(-50%); }
-.trick-play.pos-top-left { top: 18%; left: 15%; }
-.trick-play.pos-top-right { top: 18%; right: 15%; }
-.trick-play.pos-bottom-left { bottom: 18%; left: 15%; }
-.trick-play.pos-bottom-right { bottom: 18%; right: 15%; }
+/* Trick positioning is now data-driven via trickPositionStyle() in TableCenter.tsx */
 
 .trick-play .card-face {
   pointer-events: none;
-  width: min(39vw, 27vh);
-  height: min(54.6vw, 38vh);
+  --cs: var(--card-scale-trick) !important;
 }
-.trick-play .card-face + .card-face { margin-left: -5vw; }
+.trick-play .card-face + .card-face {
+  margin-left: clamp(6px, 1vw, 12px);
+}
 
 .trick-player-label {
   font-size: 10px;
@@ -1103,8 +1199,8 @@ input::placeholder {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: calc(clamp(72px, 7vw, 110px) * var(--cs));
-  height: calc(clamp(100px, 9.8vw, 154px) * var(--cs));
+  width: calc(var(--card-w) * var(--cs));
+  height: calc(var(--card-h) * var(--cs));
   margin: 0;
   border: 2px solid transparent;
   border-radius: 8px;
@@ -1128,8 +1224,7 @@ input::placeholder {
 }
 
 .card-face.mini {
-  width: clamp(38px, 3.5vw, 56px);
-  height: clamp(53px, 4.9vw, 78px);
+  --cs: var(--card-scale-mini);
   border-radius: 5px;
   border-width: 1px;
 }
@@ -1296,8 +1391,7 @@ input::placeholder {
 }
 
 .hand-container .card-face {
-  height: calc(clamp(90px, 13vh, 150px) * var(--cs));
-  width: calc(clamp(64px, 9.3vh, 107px) * var(--cs));
+  --cs: var(--card-scale-hand);
 }
 
 /* ===== Action Panel ===== */
@@ -1886,8 +1980,7 @@ input::placeholder {
   grid-template-columns: 1fr;
 }
 
-.round-seat-block,
-.round-kitty-block {
+.round-seat-block {
   border: 1px solid rgba(255, 255, 255, 0.15);
   background: rgba(0, 0, 0, 0.2);
   border-radius: 8px;
@@ -1895,6 +1988,19 @@ input::placeholder {
   display: flex;
   align-items: flex-start;
   gap: 6px;
+}
+
+.round-kitty-block {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  justify-content: flex-start;
 }
 
 .round-seat-title {
@@ -1915,9 +2021,7 @@ input::placeholder {
 }
 
 .round-result-card .card-face.mini {
-  --cs: 1;
-  width: clamp(44px, 4.5vw, 68px);
-  height: clamp(62px, 6.3vw, 95px);
+  --cs: var(--card-scale-result);
   border-color: rgba(255, 255, 255, 0.2);
   background: #fff;
   box-shadow: none;
@@ -2093,16 +2197,18 @@ input::placeholder {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
+  background: rgba(255, 255, 255, 0);
 }
 
 .trick-table-th {
   padding: 6px 4px;
   font-weight: 700;
   color: var(--card-glow-gold);
-  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
   text-align: center;
   white-space: nowrap;
   font-size: 13px;
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .trick-table-th.trick-num {
@@ -2115,10 +2221,12 @@ input::placeholder {
 }
 
 .trick-table-td {
-  padding: 4px 3px;
+  padding: 6px 4px;
   text-align: center;
   vertical-align: middle;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  min-width: 90px;
 }
 
 .trick-table-td.trick-num {
@@ -2134,7 +2242,60 @@ input::placeholder {
 }
 
 .trick-cell-empty {
-  color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 14px;
+}
+
+.trick-cell-seat {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 4px;
+}
+
+.trick-cell-lead {
+  padding: 0 4px;
+  border-radius: 999px;
+  background: rgba(255, 215, 0, 0.2);
+  color: var(--card-glow-gold);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.trick-total-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.trick-total-info {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-light);
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.2);
+  min-width: 110px;
+}
+
+.trick-total-name {
+  display: block;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.trick-total-pts {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--card-glow-gold);
 }
 
 .trick-winner-cell {
@@ -2380,8 +2541,8 @@ input::placeholder {
   border: 1px solid var(--panel-border);
 }
 
-/* ===== Debug Tab Bar ===== */
-.debug-tab-bar {
+/* ===== Demo Tab Bar ===== */
+.demo-tab-bar {
   position: fixed;
   top: 8px;
   right: 8px;
@@ -2392,12 +2553,12 @@ input::placeholder {
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 8px;
-  z-index: calc(var(--z-debug) + 1);
+  z-index: calc(var(--z-demo) + 1);
   flex-wrap: wrap;
   max-width: 320px;
 }
 
-.debug-tab-toggle {
+.demo-tab-toggle {
   padding: 4px 10px;
   border: 1px solid rgba(255, 215, 0, 0.4);
   border-radius: 6px;
@@ -2410,11 +2571,36 @@ input::placeholder {
   transition: background 0.15s;
 }
 
-.debug-tab-toggle:hover {
+.demo-tab-toggle:hover {
   background: rgba(255, 215, 0, 0.3);
 }
 
-.debug-tab {
+.demo-player-toggle {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.demo-player-count {
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-light);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.demo-player-count.active {
+  background: var(--card-glow-gold);
+  color: #1a1a1a;
+  border-color: var(--card-glow-gold);
+}
+
+.demo-tab {
   padding: 6px 16px;
   border: 1px solid var(--panel-border);
   border-radius: 6px;
@@ -2426,29 +2612,29 @@ input::placeholder {
   transition: background 0.15s, color 0.15s;
 }
 
-.debug-tab.active {
+.demo-tab.active {
   background: var(--card-glow-gold);
   color: #1a1a1a;
   border-color: var(--card-glow-gold);
 }
 
-.debug-tab:hover:not(.active) {
+.demo-tab:hover:not(.active) {
   background: rgba(255, 255, 255, 0.1);
   color: var(--text-light);
 }
 
-.debug-game-wrapper {
+.demo-game-wrapper {
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
-.debug-game-wrapper .game-layout {
+.demo-game-wrapper .game-layout {
   height: 100%;
 }
 
-/* Debug component labels — wrapper inherits flex behavior from parent */
-.debug-label-wrap {
+/* Demo component labels — wrapper inherits flex behavior from parent */
+.demo-label-wrap {
   position: relative;
   flex: inherit;
   display: flex;
@@ -2459,21 +2645,21 @@ input::placeholder {
 }
 
 /* In game-body, game-table should expand; seat-sidebar stays auto */
-.game-body > .debug-label-wrap:has(.game-table) {
+.game-body > .demo-label-wrap:has(.game-table) {
   flex: 1 1 auto;
   align-items: center;
   justify-content: center;
 }
 
-.game-body > .debug-label-wrap:has(.seat-sidebar) {
+.game-body > .demo-label-wrap:has(.seat-sidebar) {
   flex: 0 0 auto;
 }
 
-.debug-label-tag {
+.demo-label-tag {
   position: absolute;
   top: 0;
   left: 0;
-  z-index: var(--z-debug);
+  z-index: var(--z-demo);
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.5px;
@@ -2645,8 +2831,7 @@ input::placeholder {
   }
 
   .trick-play .card-face {
-    width: min(30vw, 21vh);
-    height: min(42vw, 29vh);
+    --cs: calc(var(--card-scale-trick) * 0.85);
   }
 
   .history-match-list {
@@ -2657,8 +2842,8 @@ input::placeholder {
   .round-end-banner.loss .round-end-text { font-size: 24px; }
 }
 
-/* ===== Dev Debug Floating Button ===== */
-.dev-debug-fab {
+/* ===== Dev Demo Floating Button ===== */
+.dev-demo-fab {
   position: fixed;
   z-index: var(--z-toast);
   padding: 6px 14px;
@@ -2678,14 +2863,14 @@ input::placeholder {
   transition: box-shadow 0.15s, background 0.15s;
 }
 
-.dev-debug-fab:hover {
+.dev-demo-fab:hover {
   background: rgba(0, 0, 0, 0.9);
   box-shadow: 0 2px 12px rgba(255, 215, 0, 0.25);
   text-decoration: none;
   color: #ffe44d;
 }
 
-.dev-debug-fab:active {
+.dev-demo-fab:active {
   cursor: grabbing;
 }
 

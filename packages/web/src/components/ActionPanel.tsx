@@ -2,12 +2,10 @@ import { useEffect, useState } from 'react';
 import { useStore } from '../store';
 import { useT } from '../i18n';
 import { wsClient } from '../wsClient';
+import { parseCardId } from '../cardUtils';
 
 function parseCardRank(id: string): string | null {
-  const parts = id.split('_');
-  if (parts.length === 2 && (parts[1] === 'SJ' || parts[1] === 'BJ')) return parts[1];
-  if (parts.length === 3) return parts[2];
-  return null;
+  return parseCardId(id)?.rank ?? null;
 }
 
 function canDeclareWith(cardIds: string[], levelRank?: string): boolean {
