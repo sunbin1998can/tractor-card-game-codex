@@ -1928,6 +1928,12 @@ input::placeholder {
   border-color: rgba(255, 255, 255, 0.2);
   background: #fff;
   box-shadow: none;
+  margin: 0;
+}
+
+.round-result-card .trick-cell-cards,
+.round-result-card .round-seat-cards {
+  gap: 0;
 }
 
 .round-result-card button {
