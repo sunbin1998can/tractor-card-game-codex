@@ -14,6 +14,14 @@
   --text-light: #e8e0d0;
   --text-muted: #a09880;
 
+  /* Card sizing system — single source of truth */
+  --card-w: clamp(72px, 7vw, 110px);
+  --card-h: clamp(100px, 9.8vw, 154px);
+  --card-scale-hand: 1;
+  --card-scale-trick: 0.55;
+  --card-scale-mini: 0.5;
+  --card-scale-result: 0.6;
+
   /* Z-index layering system */
   --z-table-content: 1;
   --z-seat: 10;
@@ -1054,19 +1062,11 @@ input::placeholder {
   pointer-events: none;
 }
 
-.trick-play.pos-bottom { bottom: 15%; left: 50%; transform: translateX(-50%); }
-.trick-play.pos-top { top: 12%; left: 50%; transform: translateX(-50%); }
-.trick-play.pos-left { left: 8%; top: 50%; transform: translateY(-50%); }
-.trick-play.pos-right { right: 8%; top: 50%; transform: translateY(-50%); }
-.trick-play.pos-top-left { top: 18%; left: 15%; }
-.trick-play.pos-top-right { top: 18%; right: 15%; }
-.trick-play.pos-bottom-left { bottom: 18%; left: 15%; }
-.trick-play.pos-bottom-right { bottom: 18%; right: 15%; }
+/* Trick positioning is now data-driven via trickPositionStyle() in TableCenter.tsx */
 
 .trick-play .card-face {
   pointer-events: none;
-  width: min(39vw, 27vh);
-  height: min(54.6vw, 38vh);
+  --cs: var(--card-scale-trick);
 }
 .trick-play .card-face + .card-face { margin-left: -5vw; }
 
@@ -1103,8 +1103,8 @@ input::placeholder {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: calc(clamp(72px, 7vw, 110px) * var(--cs));
-  height: calc(clamp(100px, 9.8vw, 154px) * var(--cs));
+  width: calc(var(--card-w) * var(--cs));
+  height: calc(var(--card-h) * var(--cs));
   margin: 0;
   border: 2px solid transparent;
   border-radius: 8px;
@@ -1128,8 +1128,7 @@ input::placeholder {
 }
 
 .card-face.mini {
-  width: clamp(38px, 3.5vw, 56px);
-  height: clamp(53px, 4.9vw, 78px);
+  --cs: var(--card-scale-mini);
   border-radius: 5px;
   border-width: 1px;
 }
@@ -1296,8 +1295,7 @@ input::placeholder {
 }
 
 .hand-container .card-face {
-  height: calc(clamp(90px, 13vh, 150px) * var(--cs));
-  width: calc(clamp(64px, 9.3vh, 107px) * var(--cs));
+  --cs: var(--card-scale-hand);
 }
 
 /* ===== Action Panel ===== */
@@ -1915,9 +1913,7 @@ input::placeholder {
 }
 
 .round-result-card .card-face.mini {
-  --cs: 1;
-  width: clamp(44px, 4.5vw, 68px);
-  height: clamp(62px, 6.3vw, 95px);
+  --cs: var(--card-scale-result);
   border-color: rgba(255, 255, 255, 0.2);
   background: #fff;
   box-shadow: none;
@@ -2645,8 +2641,7 @@ input::placeholder {
   }
 
   .trick-play .card-face {
-    width: min(30vw, 21vh);
-    height: min(42vw, 29vh);
+    --cs: calc(var(--card-scale-trick) * 0.85);
   }
 
   .history-match-list {
