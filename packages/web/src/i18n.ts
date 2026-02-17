@@ -63,9 +63,19 @@ const translations: Record<string, Record<Lang, string>> = {
   // Hand
   'hand.title': { en: 'Your hand', zh: '你的手牌' },
   'hand.noCards': { en: 'No cards dealt yet.', zh: '还未发牌' },
+  'hand.layout': { en: 'Hand layout', zh: '手牌布局' },
+  'hand.layoutCompact': { en: 'Compact', zh: '紧凑' },
+  'hand.layoutSuit': { en: 'By Suit', zh: '按花色' },
+  'hand.compactTight': { en: 'Tight', zh: '更紧' },
+  'hand.compactBalanced': { en: 'Balanced', zh: '适中' },
+  'hand.compactLoose': { en: 'Loose', zh: '更宽' },
+  'hand.trumpTop': { en: 'Trump Top', zh: '主牌在上' },
+  'hand.trumpBottom': { en: 'Trump Bottom', zh: '主牌在下' },
 
   // Table
   'table.noTrick': { en: 'No trick in progress', zh: '暂无出牌' },
+  'table.trickTaken': { en: 'TRICK TAKEN', zh: '收墩成功' },
+  'table.winsTrick': { en: 'wins the trick', zh: '赢下此墩' },
 
   // SeatCard
   'seat.you': { en: 'You', zh: '你' },
