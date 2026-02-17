@@ -17,9 +17,9 @@ import KouDiPopup from './KouDiPopup';
 type Tab = 'lobby' | 'game' | 'round-result' | 'kou-di' | 'badges';
 type DemoPlayerCount = 4 | 6;
 
-function DemoLabel({ name, children }: { name: string; children: React.ReactNode }) {
+function DemoLabel({ name, children, className }: { name: string; children: React.ReactNode; className?: string }) {
   return (
-    <div className="demo-label-wrap">
+    <div className={`demo-label-wrap ${className ?? ''}`.trim()}>
       <span className="demo-label-tag">{name}</span>
       {children}
     </div>
@@ -679,10 +679,10 @@ function DemoContent({ tab }: { tab: Tab }) {
       <div className="game-main">
         <div className="game-content">
           <div className="game-body">
-            <DemoLabel name="SeatSidebar">
+            <DemoLabel name="SeatSidebar" className="demo-wrap-seat-sidebar">
               <SeatSidebar />
             </DemoLabel>
-            <DemoLabel name="GameTable">
+            <DemoLabel name="GameTable" className="demo-wrap-game-table">
               <GameTable />
             </DemoLabel>
           </div>

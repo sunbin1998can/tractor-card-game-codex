@@ -2882,26 +2882,27 @@ input::placeholder {
   height: 100%;
 }
 
-/* Demo component labels — wrapper inherits flex behavior from parent */
+/* Demo component labels */
 .demo-label-wrap {
   position: relative;
-  flex: inherit;
-  display: flex;
-  flex-direction: inherit;
+  flex: 0 0 auto;
   min-width: 0;
   min-height: 0;
   overflow: visible;
 }
 
-/* In game-body, game-table should expand; seat-sidebar stays auto */
-.game-body > .demo-label-wrap:has(.game-table) {
+.demo-wrap-game-table {
   flex: 1 1 auto;
+  display: flex;
+  flex-direction: inherit;
   align-items: center;
   justify-content: center;
 }
 
-.game-body > .demo-label-wrap:has(.seat-sidebar) {
+.demo-wrap-seat-sidebar {
   flex: 0 0 auto;
+  display: flex;
+  flex-direction: inherit;
 }
 
 .demo-label-tag {
