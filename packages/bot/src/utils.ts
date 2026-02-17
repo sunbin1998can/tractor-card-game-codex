@@ -101,23 +101,35 @@ export function findValidFollows(
     return candidates;
   }
 
-  // For larger patterns (tractors, throws): use a brute-force approach with limit
-  // Start with the expected IDs from a failed validation to find the template
+  // For larger patterns (tractors, throws): use a smarter approach
+  // First try expectedIds hint from a test validation
   const testIds = hand.slice(0, size).map((c) => c.id);
   const testResult = validateFollowPlay(leadPattern, testIds, hand, state);
   if (testResult.ok) candidates.push(testIds);
 
-  // Try to enumerate by picking cards from the lead's suit group first
+  // Use expectedIds from validation as a strong hint
+  if (testResult.expectedIds) {
+    const r = validateFollowPlay(leadPattern, testResult.expectedIds, hand, state);
+    if (r.ok) candidates.push(testResult.expectedIds);
+  }
+
+  // Pre-filter: prioritize cards from the lead's suit group, then trump, then rest
   const leadGroup = leadPattern.suitGroup;
   const sameGroupCards = leadGroup ? (groups.get(leadGroup) ?? []) : [];
+  const trumpCards = leadGroup !== 'TRUMP' ? (groups.get('TRUMP') ?? []) : [];
   const otherCards = hand.filter(
-    (c) => suitGroup(c, levelRank, trumpSuit) !== leadGroup
+    (c) => {
+      const sg = suitGroup(c, levelRank, trumpSuit);
+      return sg !== leadGroup && sg !== 'TRUMP';
+    }
   );
 
-  // Generate combinations of the right size
-  const pool = [...sameGroupCards, ...otherCards];
-  if (pool.length >= size && size <= 6) {
-    const combos = generateCombos(pool, size, 200);
+  // Build pool prioritizing same-group cards (most likely to form valid plays)
+  const pool = [...sameGroupCards, ...trumpCards, ...otherCards];
+
+  // Try same-group-only combos first (most likely valid), then expand
+  if (sameGroupCards.length >= size) {
+    const combos = generateCombos(sameGroupCards, size, 100);
     for (const combo of combos) {
       const ids = combo.map((c) => c.id);
       const r = validateFollowPlay(leadPattern, ids, hand, state);
@@ -125,9 +137,20 @@ export function findValidFollows(
     }
   }
 
-  // If no valid options found yet, use expectedIds from validation as hint
-  if (candidates.length === 0 && testResult.expectedIds) {
-    candidates.push(testResult.expectedIds);
+  // If not enough options, try full pool
+  if (candidates.length < 5 && pool.length >= size && size <= 6) {
+    const seenSets = new Set(candidates.map((ids) => [...ids].sort().join(',')));
+    const combos = generateCombos(pool, size, 200);
+    for (const combo of combos) {
+      const ids = combo.map((c) => c.id);
+      const key = [...ids].sort().join(',');
+      if (seenSets.has(key)) continue;
+      const r = validateFollowPlay(leadPattern, ids, hand, state);
+      if (r.ok) {
+        candidates.push(ids);
+        seenSets.add(key);
+      }
+    }
   }
 
   return candidates;

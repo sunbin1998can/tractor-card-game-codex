@@ -147,6 +147,13 @@ function chooseBury(
   nonTrumpSuits.sort((a, b) => a.cards.length - b.cards.length);
 
   const toBury: Card[] = [];
+  const buryIds = new Set<string>();
+
+  const addToBury = (c: Card) => {
+    if (buryIds.has(c.id)) return;
+    toBury.push(c);
+    buryIds.add(c.id);
+  };
 
   if (difficulty === 'medium') {
     // Bury from short suits, preferring point cards
@@ -154,7 +161,7 @@ function chooseBury(
       const pointFirst = [...cards].sort((a, b) => pointValue(b) - pointValue(a));
       for (const c of pointFirst) {
         if (toBury.length >= kittySize) break;
-        toBury.push(c);
+        addToBury(c);
       }
     }
   } else {
@@ -164,28 +171,28 @@ function chooseBury(
         // Can void the whole suit
         for (const c of cards) {
           if (toBury.length >= kittySize) break;
-          toBury.push(c);
+          addToBury(c);
         }
       }
     }
     // Fill remaining with high-point non-trump cards
     if (toBury.length < kittySize) {
       const remaining = hand
-        .filter((c) => !toBury.includes(c) && !isTrump(c, levelRank, trumpSuit))
+        .filter((c) => !buryIds.has(c.id) && !isTrump(c, levelRank, trumpSuit))
         .sort((a, b) => pointValue(b) - pointValue(a));
       for (const c of remaining) {
         if (toBury.length >= kittySize) break;
-        toBury.push(c);
+        addToBury(c);
       }
     }
   }
 
   // Fill with lowest-key cards if still short
   if (toBury.length < kittySize) {
-    const remaining = sorted.filter((c) => !toBury.includes(c));
+    const remaining = sorted.filter((c) => !buryIds.has(c.id));
     for (const c of remaining) {
       if (toBury.length >= kittySize) break;
-      toBury.push(c);
+      addToBury(c);
     }
   }
 

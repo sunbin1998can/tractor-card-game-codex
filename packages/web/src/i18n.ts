@@ -71,6 +71,11 @@ const translations: Record<string, Record<Lang, string>> = {
   'hand.compactLoose': { en: 'Loose', zh: '更宽' },
   'hand.trumpTop': { en: 'Trump Top', zh: '主牌在上' },
   'hand.trumpBottom': { en: 'Trump Bottom', zh: '主牌在下' },
+  'hand.group.TRUMP': { en: 'TRUMP', zh: '主牌' },
+  'hand.group.S': { en: 'SPADES', zh: '黑桃' },
+  'hand.group.H': { en: 'HEARTS', zh: '红心' },
+  'hand.group.D': { en: 'DIAMONDS', zh: '方块' },
+  'hand.group.C': { en: 'CLUBS', zh: '梅花' },
 
   // Table
   'table.noTrick': { en: 'No trick in progress', zh: '暂无出牌' },

@@ -16,12 +16,12 @@ type CompactDensity = 'tight' | 'balanced' | 'loose';
 type HandGroupKey = 'TRUMP' | 'S' | 'H' | 'D' | 'C';
 
 const HAND_GROUP_ORDER: HandGroupKey[] = ['TRUMP', 'S', 'H', 'D', 'C'];
-const HAND_GROUP_LABEL: Record<HandGroupKey, string> = {
-  TRUMP: 'TRUMP',
-  S: 'SPADES',
-  H: 'HEARTS',
-  D: 'DIAMONDS',
-  C: 'CLUBS',
+const HAND_GROUP_I18N_KEY: Record<HandGroupKey, string> = {
+  TRUMP: 'hand.group.TRUMP',
+  S: 'hand.group.S',
+  H: 'hand.group.H',
+  D: 'hand.group.D',
+  C: 'hand.group.C',
 };
 
 export default function Hand() {
@@ -221,7 +221,7 @@ export default function Hand() {
               {groupedCards.map((group) => (
                 <div key={group.key} className="hand-layer">
                   <div className={`hand-layer-label hand-layer-${group.key.toLowerCase()}`}>
-                    {HAND_GROUP_LABEL[group.key]}
+                    {t(HAND_GROUP_I18N_KEY[group.key])}
                   </div>
                   <div className="hand-layer-cards">
                     <AnimatePresence initial={false}>
