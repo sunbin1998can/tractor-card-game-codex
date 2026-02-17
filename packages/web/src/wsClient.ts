@@ -7,6 +7,7 @@ import {
   playDefeatSound as _playDefeatSound,
   playChatSound as _playChatSound,
   playCardPlaySound as _playCardPlaySound,
+  playCardSwoosh as _playCardSwoosh,
   playTrumpDeclareFanfare as _playTrumpDeclareFanfare,
   playDealingSound as _playDealingSound,
   playKittyRevealSound as _playKittyRevealSound,
@@ -15,6 +16,7 @@ import {
   playThrowPunishedSound as _playThrowPunishedSound,
   playPairLeadSound as _playPairLeadSound,
   playTractorLeadSound as _playTractorLeadSound,
+  playTrickCollectSound as _playTrickCollectSound,
 } from './audio';
 
 class WsClient {
@@ -44,6 +46,7 @@ class WsClient {
   private playVictoryFanfare() { _playVictoryFanfare(); }
   private playDefeatSound() { _playDefeatSound(); }
   private playCardPlaySound() { _playCardPlaySound(); }
+  private playCardSwoosh(cardCount: number) { _playCardSwoosh(cardCount); }
   private playTrumpDeclareFanfare(isOverride: boolean) { _playTrumpDeclareFanfare(isOverride); }
   private playDealingSound() { _playDealingSound(); }
   private playKittyRevealSound() { _playKittyRevealSound(); }
@@ -52,6 +55,7 @@ class WsClient {
   private playThrowPunishedSound() { _playThrowPunishedSound(); }
   private playPairLeadSound() { _playPairLeadSound(); }
   private playTractorLeadSound() { _playTractorLeadSound(); }
+  private playTrickCollectSound() { _playTrickCollectSound(); }
 
   private bindSpeechLifecycle() {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
@@ -318,6 +322,19 @@ class WsClient {
   private seatName(seat: number): string {
     const store = useStore.getState();
     return store.publicState?.seats.find((s) => s.seat === seat)?.name || (this.isEn() ? `Seat ${seat + 1}` : `座位${seat + 1}`);
+  }
+
+  private trickWinnerSpeech(winnerSeat: number, cards: string[]): string {
+    const name = this.seatName(winnerSeat);
+    const cardCount = Array.isArray(cards) ? cards.length : 0;
+    if (this.isEn()) {
+      return cardCount > 0
+        ? `${name} takes the trick, ${cardCount} cards`
+        : `${name} takes the trick`;
+    }
+    return cardCount > 0
+      ? `${name}收下这墩，${cardCount}张牌`
+      : `${name}收下这墩`;
   }
 
   private maybeSpeakPlayedCards(
@@ -847,6 +864,7 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
         else next.push({ seat: msg.seat, cards: msg.cards });
         store.setTrickDisplay(next);
         this.playCardPlaySound();
+        this.playCardSwoosh(msg.cards.length);
         this.playScreenShakeImpact();
         store.triggerScreenShake();
         // Determine suit color for impact particles
@@ -861,10 +879,15 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
       } else if (msg.type === 'TRICK_END') {
         this.clearTrickClearTimer();
         store.setTrickWinnerSeat(msg.winnerSeat);
+        this.playTrickCollectSound();
+        this.playScreenShakeImpact();
+        store.triggerScreenShake();
+        store.triggerImpactBurst('#ffd700');
         // Play trick-win sound effect
         const myTeam = (store.youSeat ?? -1) % 2;
         const winnerTeam = msg.winnerSeat % 2;
         this.playTrickWinSound(myTeam === winnerTeam);
+        this.speak(this.trickWinnerSpeech(msg.winnerSeat, msg.cards));
         this.trickClearTimer = window.setTimeout(() => {
           useStore.getState().clearTrickDisplay();
           this.trickClearTimer = null;
@@ -987,6 +1010,22 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
   send(msg: ClientMessage) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     this.ws.send(JSON.stringify(msg));
+  }
+
+  addBot(seat: number, difficulty: 'simple' | 'medium' | 'tough' | 'cheater') {
+    this.send({ type: 'ADD_BOT', seat, difficulty });
+  }
+
+  removeBot(seat: number) {
+    this.send({ type: 'REMOVE_BOT', seat });
+  }
+
+  standUp() {
+    this.send({ type: 'STAND_UP' });
+  }
+
+  swapSeat(targetSeat: number) {
+    this.send({ type: 'SWAP_SEAT', targetSeat });
   }
 }
 

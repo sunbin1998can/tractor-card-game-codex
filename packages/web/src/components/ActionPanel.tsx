@@ -124,12 +124,22 @@ export default function ActionPanel() {
   return (
     <div className="panel action-panel">
       {showLobbyReady && (
-        <button
-          className={`lobby-ready-btn ${youReady ? 'is-ready' : ''}`}
-          onClick={() => wsClient.send({ type: youReady ? 'UNREADY' : 'READY' })}
-        >
-          {youReady ? t('seat.cancelReady') : t('seat.readyUp')}
-        </button>
+        <div className="lobby-ready-bar">
+          <button
+            className={`lobby-ready-btn ${youReady ? 'is-ready' : ''}`}
+            onClick={() => wsClient.send({ type: youReady ? 'UNREADY' : 'READY' })}
+          >
+            {youReady ? t('seat.cancelReady') : t('seat.readyUp')}
+          </button>
+          {youSeat !== null && (
+            <button
+              className="lobby-ready-btn stand-up-btn"
+              onClick={() => wsClient.standUp()}
+            >
+              {t('seat.standUp')}
+            </button>
+          )}
+        </div>
       )}
       <div className="action-buttons">
         {isDeclarePhase && !showLobbyReady && (

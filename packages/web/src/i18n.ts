@@ -63,9 +63,24 @@ const translations: Record<string, Record<Lang, string>> = {
   // Hand
   'hand.title': { en: 'Your hand', zh: '你的手牌' },
   'hand.noCards': { en: 'No cards dealt yet.', zh: '还未发牌' },
+  'hand.layout': { en: 'Hand layout', zh: '手牌布局' },
+  'hand.layoutCompact': { en: 'Compact', zh: '紧凑' },
+  'hand.layoutSuit': { en: 'By Suit', zh: '按花色' },
+  'hand.compactTight': { en: 'Tight', zh: '更紧' },
+  'hand.compactBalanced': { en: 'Balanced', zh: '适中' },
+  'hand.compactLoose': { en: 'Loose', zh: '更宽' },
+  'hand.trumpTop': { en: 'Trump Top', zh: '主牌在上' },
+  'hand.trumpBottom': { en: 'Trump Bottom', zh: '主牌在下' },
+  'hand.group.TRUMP': { en: 'TRUMP', zh: '主牌' },
+  'hand.group.S': { en: 'SPADES', zh: '黑桃' },
+  'hand.group.H': { en: 'HEARTS', zh: '红心' },
+  'hand.group.D': { en: 'DIAMONDS', zh: '方块' },
+  'hand.group.C': { en: 'CLUBS', zh: '梅花' },
 
   // Table
   'table.noTrick': { en: 'No trick in progress', zh: '暂无出牌' },
+  'table.trickTaken': { en: 'TRICK TAKEN', zh: '收墩成功' },
+  'table.winsTrick': { en: 'wins the trick', zh: '赢下此墩' },
 
   // SeatCard
   'seat.you': { en: 'You', zh: '你' },
@@ -130,6 +145,19 @@ const translations: Record<string, Record<Lang, string>> = {
   // Joker
   'joker.small': { en: 'S', zh: '小' },
   'joker.big': { en: 'B', zh: '大' },
+
+  // Bots & Seat Management
+  'bot.addBot': { en: 'Add Bot', zh: '添加机器人' },
+  'bot.removeBot': { en: 'Remove', zh: '移除' },
+  'bot.simple': { en: 'Simple', zh: '简单' },
+  'bot.medium': { en: 'Medium', zh: '中等' },
+  'bot.tough': { en: 'Tough', zh: '困难' },
+  'bot.cheater': { en: 'Cheater', zh: '作弊' },
+  'bot.label': { en: 'Bot', zh: '机器人' },
+  'seat.standUp': { en: 'Stand Up', zh: '站起' },
+  'seat.sitHere': { en: 'Sit Here', zh: '坐下' },
+  'seat.swap': { en: 'Swap', zh: '换座' },
+  'seat.empty': { en: 'Empty', zh: '空座' },
 
   // Language
   'lang.toggle': { en: '中文', zh: 'EN' },

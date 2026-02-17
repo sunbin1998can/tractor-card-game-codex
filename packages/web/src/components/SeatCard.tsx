@@ -24,6 +24,13 @@ function markerLabel(id: string) {
   return id;
 }
 
+const DIFFICULTY_KEYS: Record<string, string> = {
+  simple: 'bot.simple',
+  medium: 'bot.medium',
+  tough: 'bot.tough',
+  cheater: 'bot.cheater',
+};
+
 type Props = {
   seat: PublicSeat;
   position: RelativePosition;
@@ -45,6 +52,7 @@ export default function SeatCard({ seat }: Props) {
   const isYou = seat.seat === youSeat;
   const totalCards = state.seats.reduce((sum, s) => sum + (s.cardsLeft ?? 0), 0);
   const isPreDealLobby = state.phase === 'FLIP_TRUMP' && totalCards === 0;
+  const isBot = !!seat.isBot;
 
   // Compute turns-away during trick play
   let turnsAway: number | null = null;
@@ -54,17 +62,22 @@ export default function SeatCard({ seat }: Props) {
   }
 
   const name = seat.name || `${t('seat.seat')} ${seat.seat + 1}`;
-  const initial = name.charAt(0).toUpperCase();
+  const initial = isBot ? '\u{1F916}' : name.charAt(0).toUpperCase();
 
   return (
     <div className={`seat-card ${isTurn ? 'is-turn' : ''}`}>
       <span className={`seat-connection ${seat.connected ? 'online' : 'offline'}`} />
-      <div className={`seat-avatar ${isDefender ? 'defender' : 'attacker'}`}>
+      <div className={`seat-avatar ${isDefender ? 'defender' : 'attacker'}${isBot ? ' is-bot' : ''}`}>
         {initial}
       </div>
       <div className="seat-name" title={name}>
         {isYou ? `${name} (${t('seat.you')})` : name}
       </div>
+      {isBot && seat.botDifficulty && (
+        <span className="seat-badge bot-difficulty">
+          {t(DIFFICULTY_KEYS[seat.botDifficulty] ?? 'bot.simple')}
+        </span>
+      )}
       {(isBanker || isLeader) && (
         <span className="seat-badge">
           {isBanker ? t('seat.banker') : ''}{isBanker && isLeader ? ' / ' : ''}{isLeader ? t('seat.leader') : ''}
@@ -78,12 +91,20 @@ export default function SeatCard({ seat }: Props) {
           {t('seat.declare')} {markerLabel(marker.cardId)}
         </div>
       )}
-      {isPreDealLobby && isYou && (
+      {isPreDealLobby && isYou && !isBot && (
         <button
           className={`seat-ready-btn ${seat.ready ? 'is-ready' : ''}`}
           onClick={() => wsClient.send({ type: seat.ready ? 'UNREADY' : 'READY' })}
         >
           {seat.ready ? t('seat.cancelReady') : t('seat.readyUp')}
+        </button>
+      )}
+      {isPreDealLobby && isBot && (
+        <button
+          className="seat-ready-btn remove-bot-btn"
+          onClick={() => wsClient.removeBot(seat.seat)}
+        >
+          {t('bot.removeBot')}
         </button>
       )}
     </div>

@@ -9,6 +9,7 @@ type CardFaceProps = {
   pairHinted?: boolean;
   dimmed?: boolean;
   mini?: boolean;
+  peeked?: boolean;
   isTrump?: boolean;
   onClick?: () => void;
 };
@@ -20,6 +21,7 @@ export default function CardFace({
   pairHinted = false,
   dimmed = false,
   mini = false,
+  peeked = false,
   isTrump = false,
   onClick
 }: CardFaceProps) {
@@ -32,6 +34,7 @@ export default function CardFace({
     pairHinted ? 'pair-hinted' : '',
     dimmed ? 'dimmed' : '',
     isTrump ? 'is-trump' : '',
+    peeked ? 'peeked' : '',
     onClick ? 'clickable' : ''
   ].filter(Boolean).join(' ');
 
@@ -40,6 +43,7 @@ export default function CardFace({
     const isSmall = joker === 'SJ';
     return (
       <button type="button" className={`${cls} ${isSmall ? 'joker-small' : 'joker-big'}`} onClick={onClick}>
+        <span className="joker-corner">{isSmall ? 'SJ' : 'BJ'}</span>
         <span className="joker-inner">
           <span className="joker-type">{isSmall ? t('joker.small') : t('joker.big')}</span>
           <span className="joker-star">{isSmall ? '\u2606' : '\u2605'}</span>

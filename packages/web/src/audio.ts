@@ -153,6 +153,59 @@ export function playCardPlaySound() {
   osc.start(now); osc.stop(now + 0.15);
 }
 
+export function playCardSwoosh(cardCount = 1) {
+  if (isMuted()) return;
+  const ctx = getCtx();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const sweep = Math.min(1.8, 1 + Math.max(0, cardCount - 1) * 0.18);
+
+  const noiseLen = Math.floor(ctx.sampleRate * 0.12);
+  const noiseBuf = ctx.createBuffer(1, noiseLen, ctx.sampleRate);
+  const noiseData = noiseBuf.getChannelData(0);
+  for (let i = 0; i < noiseLen; i += 1) noiseData[i] = (Math.random() * 2 - 1) * 0.8;
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuf;
+  const band = ctx.createBiquadFilter();
+  band.type = 'bandpass';
+  band.frequency.setValueAtTime(900, now);
+  band.frequency.exponentialRampToValueAtTime(2600 * sweep, now + 0.1);
+  band.Q.setValueAtTime(1.2, now);
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.setValueAtTime(0.0001, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.055 * sweep, now + 0.025);
+  noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.11);
+
+  noiseSrc.connect(band);
+  band.connect(noiseGain);
+  noiseGain.connect(ctx.destination);
+  noiseSrc.start(now);
+  noiseSrc.stop(now + 0.12);
+}
+
+export function playTrickCollectSound() {
+  if (isMuted()) return;
+  const ctx = getCtx();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+
+  const notes = [180, 240, 320, 420];
+  notes.forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = i < 2 ? 'triangle' : 'sawtooth';
+    osc.frequency.setValueAtTime(freq, now + i * 0.05);
+    osc.frequency.exponentialRampToValueAtTime(freq * 1.35, now + i * 0.05 + 0.12);
+    gain.gain.setValueAtTime(0.0001, now + i * 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.095, now + i * 0.05 + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.05 + 0.16);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(now + i * 0.05); osc.stop(now + i * 0.05 + 0.18);
+  });
+}
+
 // --- New sound functions ---
 
 export function playTrumpDeclareFanfare(isOverride: boolean) {

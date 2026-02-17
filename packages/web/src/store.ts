@@ -163,7 +163,15 @@ export const useStore = create<StoreState>((set, get) => ({
     sessionStorage.setItem('sessionToken', token);
     set({ youSeat: seat, sessionToken: token });
   },
-  setPublicState: (state) => set({ publicState: state }),
+  setPublicState: (state) => {
+    const current = get();
+    // Detect if our seat was removed (e.g. STAND_UP) — clear youSeat
+    if (current.youSeat !== null && state.seats && !state.seats.some((s) => s.seat === current.youSeat)) {
+      set({ publicState: state, youSeat: null, hand: [], selected: new Set(), legalActions: [] });
+      return;
+    }
+    set({ publicState: state });
+  },
   setTrickDisplay: (plays) => set({ trickDisplay: plays }),
   setTrickWinnerSeat: (seat) => set({ trickWinnerSeat: seat }),
   clearTrickDisplay: () => set({ trickDisplay: [], trickWinnerSeat: null }),

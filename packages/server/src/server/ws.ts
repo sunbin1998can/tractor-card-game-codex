@@ -1,7 +1,8 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { GameEngine, validateFollowPlay } from '@tractor/engine';
 import type { Card } from '@tractor/engine';
-import type { ClientMessage, ServerMessage, PublicRoomState, RoundResult, SurrenderVoteState } from '@tractor/protocol';
+import type { ClientMessage, ServerMessage, PublicRoomState, RoundResult, SurrenderVoteState, BotDifficulty } from '@tractor/protocol';
+import { chooseBotAction } from '@tractor/bot';
 import { verifyAuthToken } from '../auth.js';
 import {
   createRoomPersistence,
@@ -23,6 +24,14 @@ interface SeatState {
   lastSeen: number;
   ready: boolean;
   userId: string | null;
+  isBot: boolean;
+  botDifficulty?: BotDifficulty;
+  botTimer?: NodeJS.Timeout;
+}
+
+interface SpectatorInfo {
+  name: string;
+  userId: string | null;
 }
 
 interface Room {
@@ -30,6 +39,8 @@ interface Room {
   players: number;
   engine: GameEngine;
   seats: SeatState[];
+  spectators: Set<WebSocket>;
+  spectatorInfo: Map<WebSocket, SpectatorInfo>;
   kittySize: number;
   dealingInProgress?: boolean;
   dealingTimer?: NodeJS.Timeout;
@@ -61,6 +72,17 @@ const FINAL_DECLARE_PAUSE_MS = 30_000;
 const TRUMP_FAIRNESS_WINDOW_MS = 30_000;
 const SURRENDER_VOTE_TIMEOUT_MS = 60_000;
 const SURRENDER_COOLDOWN_MS = 120_000;
+const BOT_ACTION_DELAY_MIN = 800;
+const BOT_ACTION_DELAY_MAX = 1500;
+const BOT_DECLARE_DELAY_MIN = 500;
+const BOT_DECLARE_DELAY_MAX = 2000;
+
+const BOT_NAMES: Record<BotDifficulty, string[]> = {
+  simple: ['Rookie Bot', 'Easy Bot', 'Newbie Bot', 'Casual Bot'],
+  medium: ['Smart Bot', 'Mid Bot', 'Decent Bot', 'Steady Bot'],
+  tough: ['Tough Bot', 'Hard Bot', 'Pro Bot', 'Sharp Bot'],
+  cheater: ['Cheater Bot', 'Hacker Bot', 'God Bot', 'X-Ray Bot'],
+};
 
 function now() {
   return Date.now();
@@ -73,6 +95,7 @@ function send(ws: WebSocket | undefined, msg: ServerMessage) {
 
 function broadcast(room: Room, msg: ServerMessage) {
   for (const seat of room.seats) send(seat.ws, msg);
+  for (const ws of room.spectators) send(ws, msg);
 }
 
 function sendPrivate(room: Room, seat: number, msg: ServerMessage) {
@@ -262,6 +285,11 @@ function deal(room: Room) {
     room.engine.hands[seat].push(card);
     sendHand(room, seat);
     broadcastState(room);
+    // Check if any bot wants to declare after receiving a card
+    const botSeat = room.seats.find((s) => s.seat === seat && s.isBot);
+    if (botSeat && room.engine.phase === 'FLIP_TRUMP' && room.declareEnabled !== false && !room.engine.trumpCandidate) {
+      scheduleBotDeclare(room, seat);
+    }
     room.dealingTimer = setTimeout(() => step(index + 1), DEAL_STEP_MS);
   };
 
@@ -310,9 +338,10 @@ function publicState(room: Room): PublicRoomState {
       seat: s.seat,
       name: s.name,
       team: s.team,
-      connected: s.isConnected,
-      ready: s.ready,
-      cardsLeft: room.engine.hands[s.seat]?.length ?? 0
+      connected: s.isBot ? true : s.isConnected,
+      ready: s.isBot ? true : s.ready,
+      cardsLeft: room.engine.hands[s.seat]?.length ?? 0,
+      ...(s.isBot ? { isBot: true, botDifficulty: s.botDifficulty } : {}),
     })),
     phase: room.engine.phase,
     bankerSeat: room.engine.config.bankerSeat,
@@ -360,7 +389,202 @@ function legalActionsFor(room: Room, seat: number): { count: number }[] {
 }
 
 function requestAction(room: Room, seat: number) {
+  const seatState = room.seats.find((s) => s.seat === seat);
+  if (seatState?.isBot) {
+    scheduleBotAction(room, seat);
+    return;
+  }
   sendPrivate(room, seat, { type: 'REQUEST_ACTION', legalActions: legalActionsFor(room, seat) });
+}
+
+function botActionDelay(): number {
+  return BOT_ACTION_DELAY_MIN + Math.floor(Math.random() * (BOT_ACTION_DELAY_MAX - BOT_ACTION_DELAY_MIN));
+}
+
+function clearBotTimer(seatState: SeatState) {
+  if (seatState.botTimer) {
+    clearTimeout(seatState.botTimer);
+    seatState.botTimer = undefined;
+  }
+}
+
+function clearAllBotTimers(room: Room) {
+  for (const s of room.seats) {
+    if (s.isBot) clearBotTimer(s);
+  }
+}
+
+function scheduleBotAction(room: Room, seat: number) {
+  const seatState = room.seats.find((s) => s.seat === seat);
+  if (!seatState?.isBot || !seatState.botDifficulty) return;
+
+  clearBotTimer(seatState);
+  seatState.botTimer = setTimeout(() => {
+    seatState.botTimer = undefined;
+    executeBotAction(room, seat);
+  }, botActionDelay());
+}
+
+function executeBotAction(room: Room, seat: number) {
+  const seatState = room.seats.find((s) => s.seat === seat);
+  if (!seatState?.isBot || !seatState.botDifficulty) return;
+
+  const hand = room.engine.hands[seat] ?? [];
+  const phase = room.engine.phase;
+  const ps = publicState(room);
+  const engineState = {
+    levelRank: room.engine.config.levelRank,
+    trumpSuit: room.engine.config.trumpSuit,
+    trick: room.engine.trick ?? null,
+    kittySize: room.kittySize,
+    ...(seatState.botDifficulty === 'cheater' ? {
+      allHands: room.engine.hands,
+      kitty: room.engine.kitty,
+    } : {}),
+  };
+
+  const action = chooseBotAction(seatState.botDifficulty, phase, hand, ps, engineState);
+  if (!action) return;
+
+  if (action.type === 'DECLARE') {
+    // Bot declare
+    const cards = action.cardIds
+      .map((id) => room.engine.hands[seat].find((c) => c.id === id))
+      .filter(Boolean) as Card[];
+    const before = room.engine.trumpCandidate
+      ? JSON.stringify({
+          seat: room.engine.trumpCandidate.seat,
+          strength: room.engine.trumpCandidate.strength,
+          trumpSuit: room.engine.trumpCandidate.trumpSuit,
+        })
+      : null;
+    room.engine.flipTrump(seat, cards, now());
+    const after = room.engine.trumpCandidate
+      ? JSON.stringify({
+          seat: room.engine.trumpCandidate.seat,
+          strength: room.engine.trumpCandidate.strength,
+          trumpSuit: room.engine.trumpCandidate.trumpSuit,
+        })
+      : null;
+    if (before !== after && room.engine.trumpCandidate) {
+      room.declareSeat = room.engine.trumpCandidate.seat;
+      room.declareUntilMs = room.engine.trumpCandidate.expiresAt;
+      room.noSnatchSeats?.clear();
+      broadcast(room, {
+        type: 'TRUMP_DECLARED',
+        seat: room.engine.trumpCandidate.seat,
+        trumpSuit: room.engine.trumpCandidate.trumpSuit ?? 'N',
+        cardIds: cards.map((c) => c.id),
+      });
+    }
+    broadcastState(room);
+    ensureFairnessTimer(room);
+    return;
+  }
+
+  if (action.type === 'BURY') {
+    if (room.engine.phase !== 'BURY_KITTY') return;
+    if (seat !== room.engine.config.bankerSeat) return;
+    if (action.cardIds.length !== room.kittySize) return;
+    room.engine.buryKitty(seat, action.cardIds);
+    if ((room.engine.phase as string) !== 'TRICK_PLAY') {
+      // Invalid bury (engine silently rejected) — fallback: bury first N cards from current hand
+      const currentHand = room.engine.hands[seat] ?? [];
+      const fallbackIds = currentHand.slice(0, room.kittySize).map((c) => c.id);
+      room.engine.buryKitty(seat, fallbackIds);
+    }
+    flushEngineEvents(room);
+    broadcastState(room);
+    if (room.engine.trick?.turnSeat !== undefined) {
+      requestAction(room, room.engine.trick.turnSeat);
+    }
+    return;
+  }
+
+  if (action.type === 'PLAY') {
+    if (room.engine.phase !== 'TRICK_PLAY' || !room.engine.trick) return;
+    if (seat !== room.engine.trick.turnSeat) return;
+
+    let cardIds = action.cardIds;
+    // Validate the play
+    const leadPattern = room.engine.trick.leadPattern;
+    const state = { levelRank: room.engine.config.levelRank, trumpSuit: room.engine.config.trumpSuit };
+    if (leadPattern) {
+      const vr = validateFollowPlay(leadPattern, cardIds, room.engine.hands[seat], state);
+      if (!vr.ok) {
+        // Fallback: use expected IDs or first valid play
+        cardIds = vr.expectedIds ?? room.engine.hands[seat].slice(0, leadPattern.size).map((c) => c.id);
+      }
+    }
+
+    room.engine.play(seat, cardIds);
+    flushEngineEvents(room);
+    broadcastState(room);
+    if (room.engine.trick?.turnSeat !== undefined) {
+      requestAction(room, room.engine.trick.turnSeat);
+    }
+    return;
+  }
+}
+
+function scheduleBotDeclare(room: Room, seat: number) {
+  const seatState = room.seats.find((s) => s.seat === seat);
+  if (!seatState?.isBot || !seatState.botDifficulty) return;
+  if (room.engine.phase !== 'FLIP_TRUMP') return;
+  if (room.declareEnabled === false) return;
+
+  const delay = BOT_DECLARE_DELAY_MIN + Math.floor(Math.random() * (BOT_DECLARE_DELAY_MAX - BOT_DECLARE_DELAY_MIN));
+  clearBotTimer(seatState);
+  seatState.botTimer = setTimeout(() => {
+    seatState.botTimer = undefined;
+    if (room.engine.phase !== 'FLIP_TRUMP') return;
+    if (room.declareEnabled === false) return;
+    if (!seatState.isBot || !seatState.botDifficulty) return;
+    const hand = room.engine.hands[seat] ?? [];
+    if (hand.length === 0) return;
+    const ps = publicState(room);
+    const engineState = {
+      levelRank: room.engine.config.levelRank,
+      trumpSuit: room.engine.config.trumpSuit,
+      trick: null,
+      kittySize: room.kittySize,
+    };
+    const action = chooseBotAction(seatState.botDifficulty, 'FLIP_TRUMP', hand, ps, engineState);
+    if (action?.type === 'DECLARE') {
+      // Execute declare directly with the computed action to avoid re-rolling Math.random()
+      const cards = action.cardIds
+        .map((id) => room.engine.hands[seat].find((c) => c.id === id))
+        .filter(Boolean) as Card[];
+      const before = room.engine.trumpCandidate
+        ? JSON.stringify({
+            seat: room.engine.trumpCandidate.seat,
+            strength: room.engine.trumpCandidate.strength,
+            trumpSuit: room.engine.trumpCandidate.trumpSuit,
+          })
+        : null;
+      room.engine.flipTrump(seat, cards, now());
+      const after = room.engine.trumpCandidate
+        ? JSON.stringify({
+            seat: room.engine.trumpCandidate.seat,
+            strength: room.engine.trumpCandidate.strength,
+            trumpSuit: room.engine.trumpCandidate.trumpSuit,
+          })
+        : null;
+      if (before !== after && room.engine.trumpCandidate) {
+        room.declareSeat = room.engine.trumpCandidate.seat;
+        room.declareUntilMs = room.engine.trumpCandidate.expiresAt;
+        room.noSnatchSeats?.clear();
+        broadcast(room, {
+          type: 'TRUMP_DECLARED',
+          seat: room.engine.trumpCandidate.seat,
+          trumpSuit: room.engine.trumpCandidate.trumpSuit ?? 'N',
+          cardIds: cards.map((c) => c.id),
+        });
+      }
+      broadcastState(room);
+      ensureFairnessTimer(room);
+    }
+  }, delay);
 }
 
 function flushEngineEvents(room: Room) {
@@ -510,6 +734,8 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
       players,
       engine,
       seats: [],
+      spectators: new Set(),
+      spectatorInfo: new Map(),
       kittySize,
       persistence: createRoomPersistence(),
     };
@@ -526,7 +752,16 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
     return now() - s.lastSeen > DISCONNECT_GRACE_MS;
   });
 
-  const seat = seatReuse?.seat ?? room.seats.length;
+  let seat = seatReuse?.seat ?? room.seats.length;
+  // Auto-kick a bot when a human joins and room is full
+  if (seat >= room.players && room.engine.phase === 'FLIP_TRUMP' && !room.dealingInProgress) {
+    const botIdx = room.seats.findIndex((s) => s.isBot);
+    if (botIdx >= 0) {
+      clearBotTimer(room.seats[botIdx]);
+      seat = room.seats[botIdx].seat;
+      room.seats.splice(botIdx, 1);
+    }
+  }
   if (seat >= room.players) return;
 
   const sessionToken = makeSessionToken();
@@ -543,6 +778,7 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
     lastSeen: now(),
     ready: false,
     userId: authPayload?.userId ?? null,
+    isBot: false,
   };
 
   if (seatReuse) {
@@ -570,6 +806,9 @@ function rejoinRoom(ws: WebSocket, msg: { roomId: string; sessionToken: string }
   const seat = room.seats.find((s) => s.sessionToken === msg.sessionToken);
   if (!seat) return;
 
+  // Prevent hijacking bot seats via session token
+  if (seat.isBot) return;
+
   seat.ws = ws;
   seat.isConnected = true;
   seat.lastSeen = now();
@@ -588,8 +827,8 @@ function rejoinRoom(ws: WebSocket, msg: { roomId: string; sessionToken: string }
 function maybeStartRound(room: Room) {
   if (room.dealingInProgress) return;
   if (room.seats.length !== room.players) return;
-  if (!room.seats.every((s) => s.isConnected)) return;
-  if (!room.seats.every((s) => s.ready)) return;
+  if (!room.seats.every((s) => s.isBot || s.isConnected)) return;
+  if (!room.seats.every((s) => s.isBot || s.ready)) return;
   if (room.engine.phase !== 'FLIP_TRUMP') return;
 
   deal(room);
@@ -597,6 +836,7 @@ function maybeStartRound(room: Room) {
 }
 
 function resetRoomAfterGameOver(room: Room) {
+  clearAllBotTimers(room);
   if (room.dealingTimer) {
     clearTimeout(room.dealingTimer);
     room.dealingTimer = undefined;
@@ -649,6 +889,167 @@ export function getActiveRooms(): { id: string; players: number; seated: number;
   return result;
 }
 
+function makeBotSeatState(seat: number, difficulty: BotDifficulty): SeatState {
+  const names = BOT_NAMES[difficulty];
+  const name = names[Math.floor(Math.random() * names.length)];
+  return {
+    seat,
+    name,
+    team: seat % 2,
+    ws: undefined,
+    sessionToken: `bot-${crypto.randomUUID()}`,
+    isConnected: true,
+    lastSeen: now(),
+    ready: true,
+    userId: null,
+    isBot: true,
+    botDifficulty: difficulty,
+  };
+}
+
+function handleAddBot(room: Room, ws: WebSocket, sender: SeatState | null, targetSeat: number, difficulty: BotDifficulty) {
+  const isLobby = room.engine.phase === 'FLIP_TRUMP' && !room.dealingInProgress;
+  const isActiveGame = !isLobby && room.engine.phase !== 'GAME_OVER';
+
+  if (!isLobby && !isActiveGame) {
+    send(ws, { type: 'ACTION_REJECTED', action: 'ADD_BOT', reason: 'INVALID_PHASE' });
+    return;
+  }
+
+  if (targetSeat < 0 || targetSeat >= room.players) {
+    send(ws, { type: 'ACTION_REJECTED', action: 'ADD_BOT', reason: 'INVALID_SEAT' });
+    return;
+  }
+
+  const existingSeat = room.seats.find((s) => s.seat === targetSeat);
+
+  if (isLobby) {
+    if (existingSeat) {
+      send(ws, { type: 'ACTION_REJECTED', action: 'ADD_BOT', reason: 'SEAT_OCCUPIED' });
+      return;
+    }
+    const botState = makeBotSeatState(targetSeat, difficulty);
+    room.seats.push(botState);
+    broadcastState(room);
+    maybeStartRound(room);
+    return;
+  }
+
+  // Mid-game: can only replace disconnected human seats
+  if (isActiveGame) {
+    if (!existingSeat || existingSeat.isConnected || existingSeat.isBot) {
+      send(ws, { type: 'ACTION_REJECTED', action: 'ADD_BOT', reason: 'SEAT_NOT_DISCONNECTED' });
+      return;
+    }
+    const botState = makeBotSeatState(targetSeat, difficulty);
+    const idx = room.seats.findIndex((s) => s.seat === targetSeat);
+    clearBotTimer(room.seats[idx]);
+    room.seats[idx] = botState;
+    broadcastState(room);
+
+    // If it's the bot's turn, schedule action
+    if (room.engine.trick?.turnSeat === targetSeat) {
+      scheduleBotAction(room, targetSeat);
+    }
+    // If the bot is banker and needs to bury
+    if (room.engine.phase === 'BURY_KITTY' && room.engine.config.bankerSeat === targetSeat) {
+      scheduleBotAction(room, targetSeat);
+    }
+    return;
+  }
+}
+
+function handleRemoveBot(room: Room, ws: WebSocket, targetSeat: number) {
+  const isLobby = room.engine.phase === 'FLIP_TRUMP' && !room.dealingInProgress;
+  if (!isLobby) {
+    send(ws, { type: 'ACTION_REJECTED', action: 'REMOVE_BOT', reason: 'ONLY_IN_LOBBY' });
+    return;
+  }
+
+  const idx = room.seats.findIndex((s) => s.seat === targetSeat && s.isBot);
+  if (idx < 0) {
+    send(ws, { type: 'ACTION_REJECTED', action: 'REMOVE_BOT', reason: 'NO_BOT_AT_SEAT' });
+    return;
+  }
+  clearBotTimer(room.seats[idx]);
+  room.seats.splice(idx, 1);
+  broadcastState(room);
+}
+
+function handleStandUp(room: Room, ws: WebSocket, seatState: SeatState) {
+  const isLobby = room.engine.phase === 'FLIP_TRUMP' && !room.dealingInProgress;
+  if (!isLobby) {
+    send(ws, { type: 'ACTION_REJECTED', action: 'STAND_UP', reason: 'ONLY_IN_LOBBY' });
+    return;
+  }
+
+  const idx = room.seats.findIndex((s) => s.seat === seatState.seat);
+  if (idx < 0) return;
+  // Preserve name and userId for when they sit back down
+  room.spectatorInfo.set(ws, { name: seatState.name, userId: seatState.userId });
+  room.seats.splice(idx, 1);
+  room.spectators.add(ws);
+  broadcastState(room);
+}
+
+function handleSwapSeat(room: Room, ws: WebSocket, seatState: SeatState | null, targetSeat: number) {
+  const isLobby = room.engine.phase === 'FLIP_TRUMP' && !room.dealingInProgress;
+  if (!isLobby) {
+    send(ws, { type: 'ACTION_REJECTED', action: 'SWAP_SEAT', reason: 'ONLY_IN_LOBBY' });
+    return;
+  }
+
+  if (targetSeat < 0 || targetSeat >= room.players) {
+    send(ws, { type: 'ACTION_REJECTED', action: 'SWAP_SEAT', reason: 'INVALID_SEAT' });
+    return;
+  }
+
+  const targetIdx = room.seats.findIndex((s) => s.seat === targetSeat);
+  const targetOccupied = targetIdx >= 0;
+  const targetIsBot = targetOccupied && room.seats[targetIdx].isBot;
+  const targetIsHuman = targetOccupied && !room.seats[targetIdx].isBot;
+
+  if (targetIsHuman) {
+    send(ws, { type: 'ACTION_REJECTED', action: 'SWAP_SEAT', reason: 'SEAT_OCCUPIED_BY_HUMAN' });
+    return;
+  }
+
+  // Remove bot if target is a bot
+  if (targetIsBot) {
+    clearBotTimer(room.seats[targetIdx]);
+    room.seats.splice(targetIdx, 1);
+  }
+
+  if (seatState) {
+    // Seated player swapping
+    seatState.seat = targetSeat;
+    seatState.team = targetSeat % 2;
+    send(ws, { type: 'SESSION', seat: targetSeat, sessionToken: seatState.sessionToken });
+  } else {
+    // Spectator sitting down — restore saved name if available
+    const savedInfo = room.spectatorInfo.get(ws);
+    room.spectators.delete(ws);
+    room.spectatorInfo.delete(ws);
+    const sessionToken = makeSessionToken();
+    const newSeat: SeatState = {
+      seat: targetSeat,
+      name: savedInfo?.name ?? `Player ${targetSeat + 1}`,
+      team: targetSeat % 2,
+      ws,
+      sessionToken,
+      isConnected: true,
+      lastSeen: now(),
+      ready: false,
+      userId: savedInfo?.userId ?? null,
+      isBot: false,
+    };
+    room.seats.push(newSeat);
+    send(ws, { type: 'SESSION', seat: targetSeat, sessionToken });
+  }
+
+  broadcastState(room);
+}
+
 export function createWsServer(server: import('http').Server, path = '/ws') {
   const wss = new WebSocketServer({ server, path });
 
@@ -670,10 +1071,40 @@ export function createWsServer(server: import('http').Server, path = '/ws') {
         return;
       }
 
-      const room = [...rooms.values()].find((r) => r.seats.some((s) => s.ws === ws));
+      // Find room from seated player or spectator
+      let room = [...rooms.values()].find((r) => r.seats.some((s) => s.ws === ws));
+      let seatState = room?.seats.find((s) => s.ws === ws);
+
+      // Also check spectators
+      if (!room) {
+        room = [...rooms.values()].find((r) => r.spectators.has(ws)) ?? undefined;
+      }
       if (!room) return;
-      const seatState = room.seats.find((s) => s.ws === ws);
-      if (!seatState) return;
+
+      // Spectators can only use SWAP_SEAT, ADD_BOT, CHAT_SEND, LEAVE_ROOM
+      if (!seatState) {
+        if (msg.type === 'SWAP_SEAT') {
+          handleSwapSeat(room, ws, null, msg.targetSeat);
+          return;
+        }
+        if (msg.type === 'ADD_BOT') {
+          handleAddBot(room, ws, null, msg.seat, msg.difficulty);
+          return;
+        }
+        if (msg.type === 'CHAT_SEND') {
+          const text = msg.text.trim().slice(0, 200);
+          if (!text) return;
+          const specInfo = room.spectatorInfo.get(ws);
+          const specName = specInfo?.name ?? 'Spectator';
+          broadcast(room, { type: 'CHAT', seat: -1, name: specName, text, atMs: now() });
+          return;
+        }
+        if (msg.type === 'LEAVE_ROOM') {
+          room.spectators.delete(ws);
+          return;
+        }
+        return;
+      }
 
       if (msg.type === 'LEAVE_ROOM') {
         seatState.isConnected = false;
@@ -767,8 +1198,8 @@ export function createWsServer(server: import('http').Server, path = '/ws') {
         room.noSnatchSeats.add(seatState.seat);
         broadcastState(room);
 
-        const connectedCount = room.seats.filter((s) => s.isConnected).length;
-        if (room.noSnatchSeats.size >= connectedCount) {
+        const humanConnectedCount = room.seats.filter((s) => s.isConnected && !s.isBot).length;
+        if (room.noSnatchSeats.size >= humanConnectedCount) {
           // All connected players confirmed — skip remaining wait
           if (room.dealingInProgress && room.finalDeclarePauseDone && room.resumeTailDeal) {
             // Still dealing: resume tail deal immediately
@@ -905,6 +1336,26 @@ export function createWsServer(server: import('http').Server, path = '/ws') {
         return;
       }
 
+      if (msg.type === 'ADD_BOT') {
+        handleAddBot(room, ws, seatState, msg.seat, msg.difficulty);
+        return;
+      }
+
+      if (msg.type === 'REMOVE_BOT') {
+        handleRemoveBot(room, ws, msg.seat);
+        return;
+      }
+
+      if (msg.type === 'STAND_UP') {
+        handleStandUp(room, ws, seatState);
+        return;
+      }
+
+      if (msg.type === 'SWAP_SEAT') {
+        handleSwapSeat(room, ws, seatState, msg.targetSeat);
+        return;
+      }
+
       if (msg.type === 'NEXT_ROUND') {
         if (room.engine.phase === 'ROUND_SCORE') {
           const started = room.engine.startNextRoundFromPending();
@@ -925,6 +1376,8 @@ export function createWsServer(server: import('http').Server, path = '/ws') {
 
     ws.on('close', () => {
       for (const room of rooms.values()) {
+        room.spectators.delete(ws);
+        room.spectatorInfo.delete(ws);
         const seat = room.seats.find((s) => s.ws === ws);
         if (!seat) continue;
         seat.isConnected = false;
