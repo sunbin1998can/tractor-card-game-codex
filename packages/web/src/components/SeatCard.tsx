@@ -40,6 +40,7 @@ export default function SeatCard({ seat }: Props) {
   const state = useStore((s) => s.publicState);
   const marker = useStore((s) => s.trumpDeclareMarker);
   const youSeat = useStore((s) => s.youSeat);
+  const chatBubble = useStore((s) => s.chatBubbles[seat.seat]);
   const t = useT();
 
   if (!state) return null;
@@ -64,8 +65,13 @@ export default function SeatCard({ seat }: Props) {
   const name = seat.name || `${t('seat.seat')} ${seat.seat + 1}`;
   const initial = isBot ? '\u{1F916}' : name.charAt(0).toUpperCase();
 
+  const bubbleText = chatBubble ? (chatBubble.text.length > 30 ? chatBubble.text.slice(0, 30) + '\u2026' : chatBubble.text) : null;
+
   return (
     <div className={`seat-card ${isTurn ? 'is-turn' : ''}`}>
+      {bubbleText && (
+        <div className="chat-bubble" key={chatBubble!.atMs}>{bubbleText}</div>
+      )}
       <span className={`seat-connection ${seat.connected ? 'online' : 'offline'}`} />
       <div className={`seat-avatar ${isDefender ? 'defender' : 'attacker'}${isBot ? ' is-bot' : ''}`}>
         {initial}
@@ -97,6 +103,14 @@ export default function SeatCard({ seat }: Props) {
           onClick={() => wsClient.send({ type: seat.ready ? 'UNREADY' : 'READY' })}
         >
           {seat.ready ? t('seat.cancelReady') : t('seat.readyUp')}
+        </button>
+      )}
+      {isPreDealLobby && isBot && youSeat === null && (
+        <button
+          className="seat-ready-btn"
+          onClick={() => wsClient.swapSeat(seat.seat)}
+        >
+          {t('seat.sitHere')}
         </button>
       )}
       {isPreDealLobby && isBot && (

@@ -469,6 +469,7 @@ export class GameEngine {
   }
 
   private finishRound() {
+    this.trick = null;
     const bankerTeam = teamOfSeat(this.config.bankerSeat);
     const defenderTeam = bankerTeam;
     const attackerTeam = bankerTeam === 0 ? 1 : 0;
@@ -545,17 +546,20 @@ export class GameEngine {
     // Banker succession
     const rolesSwapped = advancingTeam !== bankerTeam && advancingTeam !== -1;
     let nextBankerSeat: number;
-    if (advancingTeam === bankerTeam) {
-      // Defenders held: same banker continues
-      nextBankerSeat = this.config.bankerSeat;
-    } else {
-      // Attackers won: rotate to the next player clockwise on the attacking team
+    if (advancingTeam === -1) {
+      // Swap banker (80-115 range): last trick winner becomes banker
+      nextBankerSeat = this.lastTrickWinnerSeat ?? this.config.bankerSeat;
+    } else if (advancingTeam === bankerTeam) {
+      // Defenders held: rotate to the next teammate (partner)
       const n = this.config.numPlayers;
       let candidate = (this.config.bankerSeat + 1) % n;
-      while (teamOfSeat(candidate) !== advancingTeam) {
+      while (teamOfSeat(candidate) !== bankerTeam) {
         candidate = (candidate + 1) % n;
       }
       nextBankerSeat = candidate;
+    } else {
+      // Attackers won: last trick winner becomes banker
+      nextBankerSeat = this.lastTrickWinnerSeat ?? this.config.bankerSeat;
     }
     const newBankerSeat = nextBankerSeat;
 

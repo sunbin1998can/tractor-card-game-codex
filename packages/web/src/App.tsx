@@ -20,10 +20,12 @@ import DemoPage from './components/DemoPage';
 import InsightsPage from './components/InsightsPage';
 import MatchHistory from './components/MatchHistory';
 import DevDebugHint from './components/DevDebugHint';
+import LobbyChat from './components/LobbyChat';
 import CardImpactParticles from './components/CardImpactParticles';
 import TrumpDeclareOverlay from './components/TrumpDeclareOverlay';
 import LevelUpOverlay from './components/LevelUpOverlay';
 import ThrowPunishedFlash from './components/ThrowPunishedFlash';
+import FeedbackTab from './components/FeedbackTab';
 
 export default function App() {
   const [isDemo, setIsDemo] = useState(
@@ -71,12 +73,20 @@ function MainApp() {
   const t = useT();
   const cardScale = useStore((s) => s.cardScale);
 
-  const [roomInput, setRoomInput] = useState('room1');
+  const [roomInput, setRoomInput] = useState(() => {
+    // Parse room from hash: #/room/roomId
+    if (typeof window !== 'undefined') {
+      const match = window.location.hash.match(/^#\/room\/(.+)$/);
+      if (match) return decodeURIComponent(match[1]);
+    }
+    return 'room1';
+  });
   const [emailInput, setEmailInput] = useState('');
   const [codeInput, setCodeInput] = useState('');
   const [emailSent, setEmailSent] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
   const [activeRooms, setActiveRooms] = useState<ApiRoom[]>([]);
+  const [showSettings, setShowSettings] = useState(false);
 
   // Auto-guest login and auth validation on mount
   useEffect(() => {
@@ -103,6 +113,18 @@ function MainApp() {
 
   useEffect(() => {
     wsClient.connect();
+    // Auto-join room from URL hash
+    const match = window.location.hash.match(/^#\/room\/(.+)$/);
+    if (match && !roomId) {
+      const hashRoom = decodeURIComponent(match[1]);
+      if (hashRoom) {
+        setRoomInput(hashRoom);
+        // Delay to let WS connect first
+        setTimeout(() => {
+          wsClient.joinRoom({ roomId: hashRoom, name: nickname || 'Player', players });
+        }, 500);
+      }
+    }
   }, []);
 
   // Poll active rooms while in lobby
@@ -125,14 +147,16 @@ function MainApp() {
   useEffect(() => {
     if (!roomId) {
       document.title = `Tractor | ${playerLabel} | Lobby`;
+      if (window.location.hash.startsWith('#/room/')) {
+        window.history.replaceState(null, '', '#/');
+      }
       return;
     }
     document.title = `${seatLabel} | ${playerLabel} | Tractor | ${roomId}`;
+    window.history.replaceState(null, '', `#/room/${encodeURIComponent(roomId)}`);
   }, [playerLabel, roomId, seatLabel]);
 
   if (!roomId) {
-    const avatarLetter = (nickname || email || 'G').charAt(0).toUpperCase();
-
     return (
       <div className="app lobby-screen">
         <DevDebugHint />
@@ -142,51 +166,122 @@ function MainApp() {
             <h1 className="lobby-title">{t('lobby.title')}</h1>
             <p className="lobby-subtitle">{t('lobby.subtitle')}</p>
           </div>
-          <div className="lobby-main">
-            <div className="panel lobby-join-panel">
-              <h3 className="lobby-panel-heading">{t('lobby.quickPlay')}</h3>
+          {/* Quick Play */}
+          <div className="panel lobby-join-panel">
+            <h3 className="lobby-panel-heading">{t('lobby.quickPlay')}</h3>
+            <div className="form-group">
+              <input
+                placeholder={t('lobby.nickname')}
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+              />
+              <span className="form-hint">{t('lobby.nicknameHint')}</span>
+            </div>
+            <div className="form-group">
+              <input
+                placeholder={t('lobby.roomId')}
+                value={roomInput}
+                onChange={(e) => setRoomInput(e.target.value)}
+              />
+            </div>
+            <div className="form-row">
+              <select value={players} onChange={(e) => setPlayers(Number(e.target.value))}>
+                <option value={4}>{t('lobby.4players')}</option>
+                <option value={6}>{t('lobby.6players')}</option>
+              </select>
+            </div>
+            <button
+              className="btn-primary btn-full"
+              aria-label={t('lobby.join')}
+              onClick={() => {
+                const room = roomInput.trim();
+                if (!room) return;
+                wsClient.joinRoom({ roomId: room, name: nickname || 'Player', players });
+              }}
+            >
+              {t('lobby.join')}
+            </button>
+          </div>
+          <div className="panel room-list-panel">
+            <h3 className="lobby-panel-heading">{t('lobby.activeRooms')}</h3>
+            {activeRooms.length === 0 ? (
+              <div className="room-list-empty">{t('lobby.noRooms')}</div>
+            ) : (
+              <div className="room-list">
+                {activeRooms.map((room) => {
+                  const ageMs = Date.now() - (room.createdAt || Date.now());
+                  const ageMins = Math.floor(ageMs / 60000);
+                  const ageLabel = ageMins < 1 ? '<1m' : ageMins < 60 ? `${ageMins}m` : `${Math.floor(ageMins / 60)}h`;
+                  return (
+                    <div key={room.id} className="room-list-row">
+                      <span className="room-list-id">{room.id}</span>
+                      <span className="room-list-players">{room.seated}/{room.players}</span>
+                      <span className="room-list-phase">{t(`lobby.phase.${room.phase}`)}</span>
+                      <span className="room-list-age">{ageLabel} {t('lobby.ago')}</span>
+                      <div className="room-list-seats">
+                        {room.seats.map((s, i) => (
+                          <span key={i} className={`room-list-dot ${s.isConnected ? 'online' : 'offline'}`} title={s.name}>
+                            {s.isBot ? '\u{1F916}' : ''}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="room-list-names">
+                        {room.seats.map((s) => s.name).join(', ')}
+                      </div>
+                      <button
+                        className="room-list-join-btn"
+                        onClick={() => {
+                          setRoomInput(room.id);
+                          setPlayers(room.players);
+                          wsClient.joinRoom({ roomId: room.id, name: nickname || 'Player', players: room.players });
+                        }}
+                      >
+                        {t('lobby.join')}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <LobbyChat />
+          <MatchHistory />
+          <div className="lobby-footer">
+            <FeedbackTab />
+            <button className="lang-toggle" onClick={toggleLang}>{t('lang.toggle')}</button>
+            <button className="settings-gear-btn" onClick={() => setShowSettings(true)} aria-label={t('lobby.settings')}>
+              {'\u2699'}
+            </button>
+            <span className="lobby-version">v0.1</span>
+          </div>
+        </div>
+        {/* Settings Modal */}
+        {showSettings && (
+          <div className="settings-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowSettings(false); }}>
+            <div className="settings-modal panel">
+              <div className="settings-header">
+                <h3 className="lobby-panel-heading">{t('lobby.settings')}</h3>
+                <button className="chat-drawer-btn" onClick={() => setShowSettings(false)}>{'\u2716'}</button>
+              </div>
               <div className="form-group">
+                <label className="form-label">{t('lobby.nickname')}</label>
                 <input
-                  placeholder={t('lobby.nickname')}
                   value={nickname}
                   onChange={(e) => setNickname(e.target.value)}
+                  placeholder={t('lobby.nickname')}
                 />
+                <span className="form-hint">{t('lobby.nicknameHint')}</span>
               </div>
-              <div className="form-group">
-                <input
-                  placeholder={t('lobby.roomId')}
-                  value={roomInput}
-                  onChange={(e) => setRoomInput(e.target.value)}
-                />
-              </div>
-              <div className="form-row">
-                <select value={players} onChange={(e) => setPlayers(Number(e.target.value))}>
-                  <option value={4}>{t('lobby.4players')}</option>
-                  <option value={6}>{t('lobby.6players')}</option>
-                </select>
-                <button
-                  className="btn-primary"
-                  aria-label={t('lobby.join')}
-                  onClick={() => {
-                    const room = roomInput.trim();
-                    if (!room) return;
-                    wsClient.joinRoom({ roomId: room, name: nickname || 'Player', players });
-                  }}
-                >
-                  {t('lobby.join')}
-                </button>
-              </div>
-            </div>
-            <div className="panel lobby-profile-panel">
-              <div className="profile-avatar">{avatarLetter}</div>
-              <div className="profile-name">{nickname || email || t('lobby.guest')}</div>
+              <hr className="settings-divider" />
+              <h4 className="settings-section-title">{t('lobby.linkAccount')}</h4>
+              <span className="form-hint">{t('lobby.emailHint')}</span>
               {email ? (
-                <div className="profile-email-section">
+                <div className="profile-email-section" style={{ marginTop: 8 }}>
                   <span className="profile-email-badge">{email}</span>
                   <button className="profile-logout-btn" onClick={clearAuth}>{t('lobby.logout')}</button>
                 </div>
               ) : (
-                <div className="profile-email-form">
+                <div className="profile-email-form" style={{ marginTop: 8 }}>
                   {!emailSent ? (
                     <div className="form-row">
                       <input
@@ -248,43 +343,7 @@ function MainApp() {
               )}
             </div>
           </div>
-          <div className="panel room-list-panel">
-            <h3 className="lobby-panel-heading">{t('lobby.activeRooms')}</h3>
-            {activeRooms.length === 0 ? (
-              <div className="room-list-empty">{t('lobby.noRooms')}</div>
-            ) : (
-              <div className="room-list">
-                {activeRooms.map((room) => (
-                  <div key={room.id} className="room-list-row">
-                    <span className="room-list-id">{room.id}</span>
-                    <span className="room-list-players">{room.seated}/{room.players}</span>
-                    <span className="room-list-phase">{t(`lobby.phase.${room.phase}`)}</span>
-                    <div className="room-list-seats">
-                      {room.seats.map((s, i) => (
-                        <span key={i} className={`room-list-dot ${s.isConnected ? 'online' : 'offline'}`} title={s.name} />
-                      ))}
-                    </div>
-                    <button
-                      className="room-list-join-btn"
-                      onClick={() => {
-                        setRoomInput(room.id);
-                        setPlayers(room.players);
-                        wsClient.joinRoom({ roomId: room.id, name: nickname || 'Player', players: room.players });
-                      }}
-                    >
-                      {t('lobby.join')}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <MatchHistory />
-          <div className="lobby-footer">
-            <button className="lang-toggle" onClick={toggleLang}>{t('lang.toggle')}</button>
-            <span className="lobby-version">v0.1</span>
-          </div>
-        </div>
+        )}
       </div>
     );
   }
@@ -318,6 +377,7 @@ function MainApp() {
       <TrumpDeclareOverlay />
       <LevelUpOverlay />
       <ThrowPunishedFlash />
+      <FeedbackTab />
       <Toasts />
       <KouDiPopup />
       <RoundEndOverlay />

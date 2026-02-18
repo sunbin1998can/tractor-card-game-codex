@@ -39,7 +39,7 @@ export function getRelativePosition(
 function EmptySeatCard({ seatIdx, isSpectator }: { seatIdx: number; isSpectator: boolean }) {
   const t = useT();
   const [showDifficulty, setShowDifficulty] = useState(false);
-  const difficulties: BotDifficulty[] = ['simple', 'medium', 'tough', 'cheater'];
+  const difficulties: BotDifficulty[] = ['medium', 'tough', 'cheater'];
   const diffKeys: Record<string, string> = {
     simple: 'bot.simple',
     medium: 'bot.medium',

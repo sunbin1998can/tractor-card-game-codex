@@ -56,8 +56,9 @@ export default function RoundPopup() {
     seatMap.get(seatId)?.name || `${t('seat.seat')} ${seatId + 1}`;
   const getOrderedPlays = (trick: typeof trickHistory[number]) => {
     const total = totalPlayers;
+    const leader = trick.plays[0]?.seat ?? 0;
     return Array.from({ length: total }, (_, idx) => {
-      const seatIdx = (trick.leader + idx) % total;
+      const seatIdx = (leader + idx) % total;
       const play = trick.plays.find((p) => p.seat === seatIdx);
       return {
         seatId: seatIdx,

@@ -3,6 +3,7 @@ import { useStore } from '../store';
 import { useT } from '../i18n';
 import { wsClient } from '../wsClient';
 import AnimatedNumber from './AnimatedNumber';
+import { TRACKS, playTrack, type TrackId } from '../bgMusic';
 
 function suitSymbol(suit: string) {
   if (suit === 'S') return '\u2660';
@@ -40,6 +41,8 @@ export default function ScoreBoard({ playerLabel, seatLabel, roomId }: Props) {
   const toggleLang = useStore((s) => s.toggleLang);
   const muted = useStore((s) => s.muted);
   const toggleMuted = useStore((s) => s.toggleMuted);
+  const muteTts = useStore((s) => s.muteTts);
+  const toggleMuteTts = useStore((s) => s.toggleMuteTts);
   const cardScale = useStore((s) => s.cardScale);
   const setCardScale = useStore((s) => s.setCardScale);
   const chatHidden = useStore((s) => s.chatHidden);
@@ -53,6 +56,8 @@ export default function ScoreBoard({ playerLabel, seatLabel, roomId }: Props) {
   const ttsVoiceName = useStore((s) => s.ttsVoiceName);
   const setTtsVoiceName = useStore((s) => s.setTtsVoiceName);
   const lang = useStore((s) => s.lang);
+  const bgMusic = useStore((s) => s.bgMusic);
+  const setBgMusic = useStore((s) => s.setBgMusic);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
   useEffect(() => {
@@ -94,6 +99,10 @@ export default function ScoreBoard({ playerLabel, seatLabel, roomId }: Props) {
         <button
           className="leave-btn"
           onClick={() => {
+            const phase = state?.phase;
+            if (phase === 'TRICK_PLAY' && youSeat !== null) {
+              if (!window.confirm(t('score.leaveConfirm'))) return;
+            }
             wsClient.leave();
             leaveRoom();
           }}
@@ -160,7 +169,16 @@ export default function ScoreBoard({ playerLabel, seatLabel, roomId }: Props) {
             </span>
           </div>
           {winStreak >= 2 && <span className="streak-badge">{'\uD83D\uDD25'} x{winStreak}</span>}
-          {roomId && <span className="room-badge">{t('score.room')}: {roomId}</span>}
+          {roomId && (
+            <span className="room-badge" style={{ cursor: 'pointer' }} onClick={() => {
+              const url = `${window.location.origin}${window.location.pathname}#/room/${encodeURIComponent(roomId)}`;
+              navigator.clipboard.writeText(url).then(() => {
+                useStore.getState().pushToast('Invite link copied!');
+              }).catch(() => {});
+            }} title="Click to copy invite link">
+              {t('score.room')}: {roomId} {'\uD83D\uDD17'}
+            </span>
+          )}
           <span className="kitty-badge">{t('score.kitty')}: {state.kittyCount}</span>
         </div>
       </div>
@@ -170,6 +188,9 @@ export default function ScoreBoard({ playerLabel, seatLabel, roomId }: Props) {
         </button>
         <button className="lang-toggle" onClick={toggleMuted} title={muted ? 'Unmute' : 'Mute'} aria-label={muted ? 'Unmute' : 'Mute'}>
           {muted ? '\uD83D\uDD07' : '\uD83D\uDD0A'}
+        </button>
+        <button className="lang-toggle" onClick={toggleMuteTts} title={muteTts ? t('audio.unmuteTts') : t('audio.muteTts')} aria-label={muteTts ? t('audio.unmuteTts') : t('audio.muteTts')}>
+          {muteTts ? '\uD83E\uDD10' : '\uD83D\uDDE3'}
         </button>
         {filteredVoices.length > 0 && (
           <div className="voice-picker-wrap">
@@ -205,6 +226,23 @@ export default function ScoreBoard({ playerLabel, seatLabel, roomId }: Props) {
             )}
           </div>
         )}
+        <select
+          className="lang-toggle"
+          value={bgMusic}
+          onChange={(e) => {
+            const track = e.target.value as TrackId;
+            setBgMusic(track);
+            playTrack(track);
+          }}
+          title={t('music.title')}
+          style={{ minWidth: 50 }}
+        >
+          {TRACKS.map((track) => (
+            <option key={track.id} value={track.id}>
+              {lang === 'zh' ? track.labelZh : track.label}
+            </option>
+          ))}
+        </select>
         <select
           className="lang-toggle"
           value={cardScale}

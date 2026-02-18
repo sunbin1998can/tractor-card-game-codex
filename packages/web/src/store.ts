@@ -31,6 +31,7 @@ export type FloatingPoint = {
 type StoreState = {
   lang: Lang;
   muted: boolean;
+  muteTts: boolean;
   ttsVoiceName: string;
   eventLog: Toast[];
   roomId: string | null;
@@ -52,6 +53,7 @@ type StoreState = {
   toasts: Toast[];
   announcements: Toast[];
   chatMessages: { seat: number; name: string; text: string; atMs: number }[];
+  lobbyMessages: { name: string; text: string; atMs: number }[];
   chatHidden: boolean;
   kouDiPopup: { cards: string[]; pointSteps: number[]; total: number; multiplier: number } | null;
   roundPopup: string | null;
@@ -65,7 +67,10 @@ type StoreState = {
   trumpDeclareFlash: { suit: string; isOverride: boolean } | null;
   levelUpEffect: { delta: number } | null;
   throwPunishedFlash: boolean;
+  chatBubbles: Record<number, { text: string; atMs: number }>;
+  bgMusic: string;
   dragActive: boolean;
+  setBgMusic: (track: string) => void;
   setDragActive: (v: boolean) => void;
   setCardScale: (scale: number) => void;
   setNickname: (name: string) => void;
@@ -88,9 +93,12 @@ type StoreState = {
   setLang: (lang: Lang) => void;
   toggleLang: () => void;
   toggleMuted: () => void;
+  toggleMuteTts: () => void;
   setTtsVoiceName: (name: string) => void;
   pushEvent: (msg: string) => void;
   pushChatMessage: (msg: { seat: number; name: string; text: string; atMs: number }) => void;
+  pushLobbyMessage: (msg: { name: string; text: string; atMs: number }) => void;
+  setLobbyHistory: (messages: { name: string; text: string; atMs: number }[]) => void;
   clearChatMessages: () => void;
   toggleChatHidden: () => void;
   setRoundPopup: (msg: string | null) => void;
@@ -113,6 +121,7 @@ type StoreState = {
 export const useStore = create<StoreState>((set, get) => ({
   lang: (sessionStorage.getItem('lang') as Lang) || 'zh',
   muted: sessionStorage.getItem('muted') === 'true',
+  muteTts: sessionStorage.getItem('muteTts') === 'true',
   ttsVoiceName: sessionStorage.getItem('ttsVoiceName') || '',
   eventLog: [],
   roomId: sessionStorage.getItem('roomId'),
@@ -134,6 +143,7 @@ export const useStore = create<StoreState>((set, get) => ({
   toasts: [],
   announcements: [],
   chatMessages: [],
+  lobbyMessages: [],
   chatHidden: sessionStorage.getItem('chatHidden') !== 'false',
   kouDiPopup: null,
   roundPopup: null,
@@ -147,7 +157,13 @@ export const useStore = create<StoreState>((set, get) => ({
   trumpDeclareFlash: null,
   levelUpEffect: null,
   throwPunishedFlash: false,
+  chatBubbles: {},
+  bgMusic: sessionStorage.getItem('bgMusic') || 'none',
   dragActive: false,
+  setBgMusic: (track) => {
+    sessionStorage.setItem('bgMusic', track);
+    set({ bgMusic: track });
+  },
   setDragActive: (v) => set({ dragActive: v }),
   setCardScale: (scale) => {
     sessionStorage.setItem('cardScale', String(scale));
@@ -231,6 +247,14 @@ export const useStore = create<StoreState>((set, get) => ({
       try { window.speechSynthesis.cancel(); } catch {}
     }
   },
+  toggleMuteTts: () => {
+    const next = !get().muteTts;
+    sessionStorage.setItem('muteTts', String(next));
+    set({ muteTts: next });
+    if (next) {
+      try { window.speechSynthesis.cancel(); } catch {}
+    }
+  },
   setTtsVoiceName: (name) => {
     sessionStorage.setItem('ttsVoiceName', name);
     set({ ttsVoiceName: name });
@@ -242,8 +266,23 @@ export const useStore = create<StoreState>((set, get) => ({
   },
   pushChatMessage: (msg) => {
     const next = [...get().chatMessages, msg].slice(-50);
-    set({ chatMessages: next });
+    const bubbles = { ...get().chatBubbles, [msg.seat]: { text: msg.text, atMs: msg.atMs } };
+    set({ chatMessages: next, chatBubbles: bubbles });
+    // Auto-clear bubble after 5 seconds
+    setTimeout(() => {
+      const current = useStore.getState().chatBubbles[msg.seat];
+      if (current && current.atMs === msg.atMs) {
+        const updated = { ...useStore.getState().chatBubbles };
+        delete updated[msg.seat];
+        useStore.setState({ chatBubbles: updated });
+      }
+    }, 5000);
   },
+  pushLobbyMessage: (msg) => {
+    const next = [...get().lobbyMessages, msg].slice(-100);
+    set({ lobbyMessages: next });
+  },
+  setLobbyHistory: (messages) => set({ lobbyMessages: messages.slice(-100) }),
   clearChatMessages: () => set({ chatMessages: [] }),
   toggleChatHidden: () => {
     const next = !get().chatHidden;
