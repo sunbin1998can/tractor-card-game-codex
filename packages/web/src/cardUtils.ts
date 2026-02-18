@@ -82,6 +82,15 @@ export function cardGroupSortKey(id: string, levelRank: Rank, trumpSuit: Suit): 
   return [band, suitOrder, -rv, id];
 }
 
+export function suitSymbol(suit: string): string {
+  if (suit === 'S') return '\u2660';
+  if (suit === 'H') return '\u2665';
+  if (suit === 'D') return '\u2666';
+  if (suit === 'C') return '\u2663';
+  if (suit === 'N') return 'NT';
+  return suit;
+}
+
 export function cardStrength(id: string, levelRank: string, trumpSuit: string): number {
   const c = parseCardId(id);
   if (!c) return -1;

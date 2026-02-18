@@ -15,6 +15,7 @@ export type Toast = {
 };
 
 let toastIdCounter = 0;
+let hintFlashTimerId: ReturnType<typeof setTimeout> | undefined;
 
 export type Badge = {
   id: number;
@@ -26,6 +27,14 @@ export type FloatingPoint = {
   id: number;
   value: number;
   expiresAt: number;
+};
+
+export type ConnectionStatus = 'connected' | 'reconnecting' | 'disconnected';
+
+export type TrickHistoryEntry = {
+  leader: number;
+  plays: { seat: number; cards: string[] }[];
+  winnerSeat: number;
 };
 
 type StoreState = {
@@ -70,6 +79,26 @@ type StoreState = {
   chatBubbles: Record<number, { text: string; atMs: number }>;
   bgMusic: string;
   dragActive: boolean;
+  // H1: Connection status
+  connectionStatus: ConnectionStatus;
+  // H9: Hint flash for rejected plays
+  hintFlash: boolean;
+  hintFlashIds: Set<string>;
+  // H6: Trick history for current round
+  trickHistory: TrickHistoryEntry[];
+  // H3: User control settings
+  confirmBeforePlay: boolean;
+  autoPlayLastCard: boolean;
+  // H8: Event log visibility (mobile)
+  eventLogVisible: boolean;
+  setConnectionStatus: (status: ConnectionStatus) => void;
+  triggerHintFlash: (ids?: string[]) => void;
+  pushTrickHistory: (entry: TrickHistoryEntry) => void;
+  clearTrickHistory: () => void;
+  setConfirmBeforePlay: (v: boolean) => void;
+  setAutoPlayLastCard: (v: boolean) => void;
+  setEventLogVisible: (v: boolean) => void;
+  toggleEventLogVisible: () => void;
   setBgMusic: (track: string) => void;
   setDragActive: (v: boolean) => void;
   setCardScale: (scale: number) => void;
@@ -160,6 +189,34 @@ export const useStore = create<StoreState>((set, get) => ({
   chatBubbles: {},
   bgMusic: sessionStorage.getItem('bgMusic') || 'none',
   dragActive: false,
+  connectionStatus: 'disconnected' as ConnectionStatus,
+  hintFlash: false,
+  hintFlashIds: new Set<string>(),
+  trickHistory: [],
+  confirmBeforePlay: sessionStorage.getItem('confirmBeforePlay') === 'true',
+  autoPlayLastCard: sessionStorage.getItem('autoPlayLastCard') !== 'false',
+  eventLogVisible: typeof window !== 'undefined' && window.innerWidth > 600,
+  setConnectionStatus: (status) => set({ connectionStatus: status }),
+  triggerHintFlash: (ids) => {
+    clearTimeout(hintFlashTimerId);
+    set({ hintFlash: true, hintFlashIds: new Set(ids ?? []) });
+    hintFlashTimerId = setTimeout(() => useStore.setState({ hintFlash: false, hintFlashIds: new Set() }), 1500);
+  },
+  pushTrickHistory: (entry) => {
+    const next = [...get().trickHistory, entry];
+    set({ trickHistory: next });
+  },
+  clearTrickHistory: () => set({ trickHistory: [] }),
+  setConfirmBeforePlay: (v) => {
+    sessionStorage.setItem('confirmBeforePlay', String(v));
+    set({ confirmBeforePlay: v });
+  },
+  setAutoPlayLastCard: (v) => {
+    sessionStorage.setItem('autoPlayLastCard', String(v));
+    set({ autoPlayLastCard: v });
+  },
+  setEventLogVisible: (v) => set({ eventLogVisible: v }),
+  toggleEventLogVisible: () => set({ eventLogVisible: !get().eventLogVisible }),
   setBgMusic: (track) => {
     sessionStorage.setItem('bgMusic', track);
     set({ bgMusic: track });
@@ -377,7 +434,10 @@ export const useStore = create<StoreState>((set, get) => ({
       trumpDeclareFlash: null,
       levelUpEffect: null,
       throwPunishedFlash: false,
-      dragActive: false
+      dragActive: false,
+      trickHistory: [],
+      hintFlash: false,
+      hintFlashIds: new Set(),
     });
   }
 }));

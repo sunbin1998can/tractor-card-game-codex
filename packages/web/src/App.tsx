@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useStore } from './store';
 import { wsClient } from './wsClient';
 import { useT } from './i18n';
@@ -26,6 +26,7 @@ import TrumpDeclareOverlay from './components/TrumpDeclareOverlay';
 import LevelUpOverlay from './components/LevelUpOverlay';
 import ThrowPunishedFlash from './components/ThrowPunishedFlash';
 import FeedbackTab from './components/FeedbackTab';
+const GameGuide = lazy(() => import('./components/GameGuide'));
 
 export default function App() {
   const [isDemo, setIsDemo] = useState(
@@ -34,12 +35,16 @@ export default function App() {
   const [isInsights, setIsInsights] = useState(
     () => typeof window !== 'undefined' && window.location.hash.startsWith('#/insights'),
   );
+  const [isGuide, setIsGuide] = useState(
+    () => typeof window !== 'undefined' && window.location.hash.startsWith('#/guide'),
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const syncHash = () => {
       setIsDemo(window.location.hash.startsWith('#/demo'));
       setIsInsights(window.location.hash.startsWith('#/insights'));
+      setIsGuide(window.location.hash.startsWith('#/guide'));
     };
     window.addEventListener('hashchange', syncHash);
     window.addEventListener('popstate', syncHash);
@@ -53,6 +58,8 @@ export default function App() {
   if (isDemo) return <DemoPage />;
   // Insights mode: /#/insights
   if (isInsights) return <InsightsPage />;
+  // Guide mode: /#/guide
+  if (isGuide) return <Suspense fallback={<div style={{ padding: 24, color: '#aaa' }}>Loading...</div>}><GameGuide /></Suspense>;
   return <MainApp />;
 }
 
@@ -247,6 +254,7 @@ function MainApp() {
           <LobbyChat />
           <MatchHistory />
           <div className="lobby-footer">
+            <a href="#/guide" className="guide-link-btn">{t('guide.title')}</a>
             <FeedbackTab />
             <button className="lang-toggle" onClick={toggleLang}>{t('lang.toggle')}</button>
             <button className="settings-gear-btn" onClick={() => setShowSettings(true)} aria-label={t('lobby.settings')}>
@@ -347,6 +355,55 @@ function MainApp() {
       </div>
     );
   }
+
+  // H7: Keyboard shortcuts
+  useEffect(() => {
+    if (!roomId) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Don't fire shortcuts when typing in input/textarea
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      const store = useStore.getState();
+      const state = store.publicState;
+      if (!state) return;
+
+      if (e.key === 'Enter') {
+        // Play selected cards (respects confirmBeforePlay setting)
+        if (state.phase === 'TRICK_PLAY' && state.turnSeat === store.youSeat && store.selected.size > 0) {
+          e.preventDefault();
+          if (store.confirmBeforePlay) {
+            // Dispatch custom event so ActionPanel can show confirmation
+            window.dispatchEvent(new CustomEvent('tractor-play-confirm'));
+          } else {
+            wsClient.send({ type: 'PLAY', cardIds: Array.from(store.selected) });
+          }
+        }
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        const totalCards = state.seats.reduce((sum, s) => sum + (s.cardsLeft ?? 0), 0);
+        if (state.phase === 'FLIP_TRUMP' && totalCards === 0) {
+          // Ready / Unready
+          const youReady = store.youSeat !== null ? !!state.seats.find((s) => s.seat === store.youSeat)?.ready : false;
+          wsClient.send({ type: youReady ? 'UNREADY' : 'READY' });
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        store.clearSelect();
+      } else if (e.key === 'd' || e.key === 'D') {
+        if (state.phase === 'FLIP_TRUMP' && state.declareEnabled !== false) {
+          e.preventDefault();
+          // Auto-select best declare cards
+          const selectedIds = Array.from(store.selected);
+          if (selectedIds.length > 0) {
+            wsClient.send({ type: 'DECLARE', cardIds: selectedIds });
+          }
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [roomId]);
 
   const layoutStyle = {
     '--card-scale': cardScale,

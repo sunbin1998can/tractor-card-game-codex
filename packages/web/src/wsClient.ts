@@ -1,4 +1,5 @@
 import { useStore } from './store';
+import { t } from './i18n';
 import type { ClientMessage, ServerMessage } from '@tractor/protocol';
 import {
   playTurnNotification as _playTurnNotification,
@@ -125,6 +126,37 @@ class WsClient {
 
   private isEn(): boolean {
     return useStore.getState().lang === 'en';
+  }
+
+  private rejectionMessage(action: string, reason: string, expectedIds?: string[], state?: any): string {
+    const suitName = (suit: string) => this.suitLabel(suit);
+
+    // Map known reason codes to human-readable messages
+    if (reason === 'INVALID_PLAY' || reason?.includes('INVALID')) {
+      return t('error.INVALID_PLAY');
+    }
+    if (reason === 'MUST_FOLLOW_SUIT' || reason?.includes('FOLLOW')) {
+      const leadCard = state?.trick?.[0]?.cards?.[0];
+      const leadSuit = leadCard ? this.parsedCard(leadCard)?.suit : null;
+      const suit = leadSuit ? suitName(leadSuit) : '';
+      return t('error.MUST_FOLLOW_SUIT').replace(/\{suit\}/g, suit);
+    }
+    if (reason === 'NOT_YOUR_TURN' || reason?.includes('TURN')) {
+      return t('error.NOT_YOUR_TURN');
+    }
+    if (reason?.includes('BURY') || reason?.includes('KITTY')) {
+      const n = state?.kittyCount ?? '?';
+      return t('error.BURY_REQUIRES_N_CARDS').replace('{n}', String(n));
+    }
+    if (reason?.includes('DECLARE') || reason?.includes('STRONGER')) {
+      return t('error.DECLARE_NOT_STRONGER');
+    }
+
+    // Fallback: show expected card names instead of raw IDs
+    const expectedNames = expectedIds?.length
+      ? ` (${expectedIds.map((id) => this.cardSpokenName(id)).join(', ')})`
+      : '';
+    return t('error.generic').replace('{action}', action).replace('{reason}', reason) + expectedNames;
   }
 
   announceNextRound() {
@@ -708,6 +740,7 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
     this.ws = new WebSocket(this.url);
 
     this.ws.onopen = () => {
+      useStore.getState().setConnectionStatus('connected');
       // Register with lobby chat channel
       const lobbyName = useStore.getState().nickname || 'Guest';
       this.send({ type: 'LOBBY_JOIN', name: lobbyName });
@@ -775,8 +808,9 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
         ) {
           this.playTurnNotification();
         }
-        // Auto-play last card
+        // Auto-play last card (guarded by setting)
         if (
+          store.autoPlayLastCard &&
           msg.state.phase === 'TRICK_PLAY' &&
           msg.state.turnSeat === store.youSeat &&
           store.hand.length === 1
@@ -827,10 +861,12 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
         this.playKittyRevealSound();
         this.speakKouDi(msg.pointSteps, msg.total);
       } else if (msg.type === 'ACTION_REJECTED') {
-        const expected = msg.expectedIds?.length
-          ? ` Expected: ${msg.expectedIds.join(', ')}`
-          : '';
-        store.pushToast(`${msg.action} rejected: ${msg.reason}.${expected}`);
+        const humanMsg = this.rejectionMessage(msg.action, msg.reason, msg.expectedIds, store.publicState);
+        store.pushToast(humanMsg);
+        // Flash hinted cards if expectedIds provided
+        if (msg.expectedIds?.length) {
+          store.triggerHintFlash(msg.expectedIds);
+        }
       } else if (msg.type === 'TRUMP_DECLARED') {
         const speakerName =
           store.publicState?.seats.find((s) => s.seat === msg.seat)?.name || `Seat ${msg.seat + 1}`;
@@ -865,7 +901,11 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
           this.speak(this.isEn() ? 'tractor' : '拖拉机');
         }
       } else if (msg.type === 'THROW_PUNISHED') {
-        store.pushToast(`Throw punished: ${msg.reason}`);
+        const punishedCardName = msg.punishedCards?.length
+          ? msg.punishedCards.map((id) => this.cardSpokenName(id)).join(', ')
+          : '?';
+        const throwMsg = t('error.THROW_PUNISHED').replace('{card}', punishedCardName);
+        store.pushToast(throwMsg);
         this.playThrowPunishedSound();
         store.triggerThrowPunished();
         this.speak(this.isEn() ? 'throw punished, play smallest' : '捡小的出');
@@ -893,6 +933,15 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
       } else if (msg.type === 'TRICK_END') {
         this.clearTrickClearTimer();
         store.setTrickWinnerSeat(msg.winnerSeat);
+        // Record trick in history
+        const currentTrick = useStore.getState().trickDisplay;
+        if (currentTrick.length > 0) {
+          store.pushTrickHistory({
+            leader: currentTrick[0]?.seat ?? msg.winnerSeat,
+            plays: currentTrick.map((p) => ({ seat: p.seat, cards: [...p.cards] })),
+            winnerSeat: msg.winnerSeat,
+          });
+        }
         this.playTrickCollectSound();
         this.playScreenShakeImpact();
         store.triggerScreenShake();
@@ -910,6 +959,7 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
         // Clear any remaining trick display when round ends
         this.clearTrickClearTimer();
         store.clearTrickDisplay();
+        store.clearTrickHistory();
         const text = this.roundResultText(msg, store.publicState);
         // Determine win/loss for round-end effect
         const youSeat = store.youSeat;
@@ -957,6 +1007,7 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
       const intentionalLeave = !this.shouldReconnect;
       this.ws = null;
       const store = useStore.getState();
+      store.setConnectionStatus(intentionalLeave ? 'disconnected' : 'reconnecting');
       if (store.roomId && intentionalLeave) {
         // Only wipe session data on intentional leave, not on disconnect/refresh.
         // This preserves lastRoomId and sessionToken so reconnect can rejoin.
@@ -1010,6 +1061,7 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
     if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
       this.ws.close();
     }
+    useStore.getState().setConnectionStatus('disconnected');
     this.waitingKouDiAck = false;
     this.pendingRoundResultText = null;
     this.clearTrickClearTimer();

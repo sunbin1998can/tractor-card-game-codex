@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import { useStore } from '../store';
 import { useT } from '../i18n';
 import { motion, AnimatePresence } from 'motion/react';
 import CardFace from './CardFace';
@@ -33,6 +34,9 @@ export default function Hand() {
   } = useHandCards();
   const { canDragToPlay, handleDragStart, handleDragEnd } = useDragToPlay();
   const t = useT();
+  const hintFlash = useStore((s) => s.hintFlash);
+  const hintFlashIds = useStore((s) => s.hintFlashIds);
+  const clearSelect = useStore((s) => s.clearSelect);
   const isMobile = useIsMobile();
   const [layoutMode, setLayoutMode] = useState<HandLayoutMode>(() => {
     const saved = typeof window !== 'undefined' ? sessionStorage.getItem('handLayoutMode') : null;
@@ -113,7 +117,14 @@ export default function Hand() {
 
   return (
     <div className="hand-section">
-      <div className="hand-label">{t('hand.title')} ({totalCards})</div>
+      <div className="hand-label">
+        {t('hand.title')} ({totalCards})
+        {selected.size > 0 && (
+          <button className="hand-clear-btn" onClick={() => clearSelect()} title={t('hand.clear')}>
+            {'\u2715'} {t('hand.clear')}
+          </button>
+        )}
+      </div>
       <div className="hand-layout-controls" role="group" aria-label={t('hand.layout')}>
         <button
           type="button"
@@ -185,7 +196,7 @@ export default function Hand() {
                 return (
                   <motion.div
                     key={id}
-                    className="hand-card-wrap"
+                    className={`hand-card-wrap${hintFlash && hintFlashIds.has(id) ? ' hint-flash' : ''}`}
                     style={{
                       marginLeft: i === 0 ? 0 : (bands && bands[i] !== bands[i - 1]) ? overlap + 10 : overlap,
                       zIndex: i,
@@ -234,7 +245,7 @@ export default function Hand() {
                         return (
                           <motion.div
                             key={id}
-                            className="hand-card-wrap hand-card-wrap-peek"
+                            className={`hand-card-wrap hand-card-wrap-peek${hintFlash && hintFlashIds.has(id) ? ' hint-flash' : ''}`}
                             style={{
                               marginLeft: i === 0 ? 0 : overlap,
                               zIndex: i,

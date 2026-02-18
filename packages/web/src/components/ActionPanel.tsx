@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useStore } from '../store';
 import { useT } from '../i18n';
 import { wsClient } from '../wsClient';
-import { parseCardId } from '../cardUtils';
+import { parseCardId, suitGroupForCard, RANK_VALUE, type Rank, type Suit } from '../cardUtils';
 
 function parseCardRank(id: string): string | null {
   return parseCardId(id)?.rank ?? null;
@@ -47,15 +47,62 @@ function bestDeclareCardIds(hand: string[], levelRank?: string): string[] {
   return [];
 }
 
+/**
+ * Advisory-only heuristic: checks if selected cards form a standard lead pattern
+ * (pair or tractor) rather than a throw. This is a client-side best-effort check
+ * used solely for warning display — the server remains the single source of truth
+ * for play legality. May produce false positives/negatives in edge cases.
+ */
+function isStandardLead(cards: string[], levelRank?: string, trumpSuit?: string): boolean {
+  if (!levelRank || !trumpSuit || cards.length <= 1) return true;
+  // All same suit group?
+  const groups = cards.map((id) => suitGroupForCard(id, levelRank as Rank, trumpSuit as Suit));
+  if (groups.some((g) => !g) || groups.some((g) => g !== groups[0])) return false;
+  if (cards.length === 2) {
+    const a = parseCardId(cards[0]);
+    const b = parseCardId(cards[1]);
+    if (!a || !b) return false;
+    const suitA = a.rank === 'BJ' || a.rank === 'SJ' ? 'J' : a.suit;
+    const suitB = b.rank === 'BJ' || b.rank === 'SJ' ? 'J' : b.suit;
+    return a.rank === b.rank && suitA === suitB;
+  }
+  if (cards.length % 2 !== 0) return false;
+  // Check tractor
+  const counts = new Map<string, number>();
+  const seqValues: number[] = [];
+  for (const id of cards) {
+    const c = parseCardId(id);
+    if (!c) return false;
+    const suit = c.rank === 'BJ' || c.rank === 'SJ' ? 'J' : c.suit;
+    const key = `${c.rank}|${suit}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  for (const [key, count] of counts.entries()) {
+    if (count !== 2) return false;
+    const rank = key.split('|')[0];
+    if (rank === 'BJ' || rank === 'SJ' || rank === levelRank) return false;
+    const rv = RANK_VALUE[rank as Rank];
+    if (!rv) return false;
+    seqValues.push(rv);
+  }
+  const sorted = [...seqValues].sort((a, b) => a - b);
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] !== sorted[i - 1] + 1) return false;
+  }
+  return true;
+}
+
 export default function ActionPanel() {
   const selected = useStore((s) => s.selected);
   const legalActions = useStore((s) => s.legalActions);
   const publicState = useStore((s) => s.publicState);
   const youSeat = useStore((s) => s.youSeat);
   const hand = useStore((s) => s.hand);
+  const confirmBeforePlay = useStore((s) => s.confirmBeforePlay);
   const t = useT();
 
   const [buryConfirm, setBuryConfirm] = useState(false);
+  const [playConfirm, setPlayConfirm] = useState(false);
   const [surrenderNowMs, setSurrenderNowMs] = useState(() => Date.now());
 
   const count = selected.size;
@@ -109,6 +156,31 @@ export default function ActionPanel() {
     ? Math.max(1, Math.ceil((declareUntilMs - nowMs) / 1000))
     : 0;
 
+  // H5: Required card count for play
+  const requiredCount = legalActions[0]?.count ?? 0;
+  const wrongCount = publicState?.phase === 'TRICK_PLAY' && requiredCount > 0 && count !== requiredCount;
+
+  // H5: Throw warning - leader playing non-standard pattern
+  const isLeader = publicState?.leaderSeat === youSeat;
+  const trick = publicState?.trick ?? [];
+  const showThrowWarning =
+    publicState?.phase === 'TRICK_PLAY' &&
+    isYourTurn &&
+    isLeader &&
+    trick.length === 0 &&
+    count > 1 &&
+    !isStandardLead(selectedIds, publicState?.levelRank, publicState?.trumpSuit);
+
+  // H1: Waiting indicator
+  const turnSeat = publicState?.turnSeat;
+  const turnName = turnSeat !== undefined
+    ? publicState?.seats?.find((s) => s.seat === turnSeat)?.name || `Seat ${turnSeat + 1}`
+    : '';
+  const bankerSeat = publicState?.bankerSeat;
+  const bankerName = bankerSeat !== undefined
+    ? publicState?.seats?.find((s) => s.seat === bankerSeat)?.name || `Seat ${bankerSeat + 1}`
+    : '';
+
   useEffect(() => {
     if (!showDeclareCountdown) return;
     const timer = window.setInterval(() => setNowMs(Date.now()), 100);
@@ -121,10 +193,27 @@ export default function ActionPanel() {
     return () => window.clearInterval(timer);
   }, [isSurrenderVoteActive]);
 
-  // Reset bury confirmation when phase changes
+  // Reset confirmations when phase changes
   useEffect(() => {
     setBuryConfirm(false);
+    setPlayConfirm(false);
   }, [publicState?.phase]);
+
+  // Listen for keyboard shortcut play-confirm event
+  useEffect(() => {
+    const onPlayConfirm = () => {
+      if (confirmBeforePlay) {
+        setPlayConfirm(true);
+      }
+    };
+    window.addEventListener('tractor-play-confirm', onPlayConfirm);
+    return () => window.removeEventListener('tractor-play-confirm', onPlayConfirm);
+  }, [confirmBeforePlay]);
+
+  const doPlay = () => {
+    wsClient.send({ type: 'PLAY', cardIds: Array.from(selected) });
+    setPlayConfirm(false);
+  };
 
   return (
     <div className="panel action-panel">
@@ -133,8 +222,10 @@ export default function ActionPanel() {
           <button
             className={`lobby-ready-btn ${youReady ? 'is-ready' : ''}`}
             onClick={() => wsClient.send({ type: youReady ? 'UNREADY' : 'READY' })}
+            title={t('tooltip.ready')}
           >
             {youReady ? t('seat.cancelReady') : t('seat.readyUp')}
+            <span className="key-hint">({t('key.space')})</span>
           </button>
           {youSeat !== null && (
             <button
@@ -166,9 +257,10 @@ export default function ActionPanel() {
               wsClient.send({ type: 'DECLARE', cardIds: declareCardIds });
             }}
             disabled={!canDeclareNow}
-            title={!canDeclareNow ? t('action.declareHint') : ''}
+            title={t('tooltip.declare')}
           >
             {t('action.declare')}
+            <span className="key-hint">(D)</span>
           </button>
         )}
         {publicState?.phase === 'BURY_KITTY' && isBanker && !buryConfirm && (
@@ -176,7 +268,7 @@ export default function ActionPanel() {
             className="action-btn"
             onClick={() => setBuryConfirm(true)}
             disabled={!canBury}
-            title={!canBury ? t('action.buryHint').replace('{n}', String(kittyCount)) : ''}
+            title={t('tooltip.bury')}
           >
             {t('action.bury')} ({count}/{kittyCount})
           </button>
@@ -197,26 +289,75 @@ export default function ActionPanel() {
               className="action-btn bury-no"
               onClick={() => setBuryConfirm(false)}
             >
-              ✕
+              {'\u2715'}
             </button>
           </div>
         )}
         {publicState?.phase === 'BURY_KITTY' && !isBanker && (
-          <div className="action-status">{t('action.waitBury')}</div>
+          <div className="waiting-indicator">
+            {t('wait.forBanker').replace('{name}', bankerName)}
+            <span className="waiting-dots" />
+          </div>
         )}
-        {publicState?.phase === 'TRICK_PLAY' && canPlay && (
-          <button
-            className="action-btn"
-            onClick={() => {
-              wsClient.send({ type: 'PLAY', cardIds: Array.from(selected) });
-            }}
-            disabled={!isYourTurn}
-            title={!isYourTurn ? t('action.waitTurn') : ''}
-          >
-            {`${t('action.play')} (${count})`}
-          </button>
+        {publicState?.phase === 'TRICK_PLAY' && !playConfirm && (
+          <>
+            {canPlay ? (
+              <button
+                className="action-btn"
+                onClick={() => {
+                  if (confirmBeforePlay && isYourTurn) {
+                    setPlayConfirm(true);
+                  } else {
+                    doPlay();
+                  }
+                }}
+                disabled={!isYourTurn || (wrongCount && requiredCount > 0)}
+                title={t('tooltip.play')}
+              >
+                {wrongCount && requiredCount > 0
+                  ? t('action.playNeed').replace('{n}', String(requiredCount))
+                  : `${t('action.play')} (${count})`}
+                <span className="key-hint">({t('key.enter')})</span>
+              </button>
+            ) : (
+              !isYourTurn && turnSeat !== youSeat && (
+                <div className="waiting-indicator">
+                  {t('wait.forPlayer').replace('{name}', turnName)}
+                  <span className="waiting-dots" />
+                </div>
+              )
+            )}
+          </>
+        )}
+        {playConfirm && (
+          <div className="play-confirm-bar">
+            <span className="play-confirm-text">{t('action.confirmPlay')}</span>
+            <button className="action-btn bury-yes" onClick={doPlay}>
+              {t('round.ok')}
+            </button>
+            <button className="action-btn bury-no" onClick={() => setPlayConfirm(false)}>
+              {'\u2715'}
+            </button>
+          </div>
         )}
       </div>
+      {/* H5: Throw warning */}
+      {showThrowWarning && (
+        <div className="throw-warning">{t('warn.throwRisk')}</div>
+      )}
+      {/* H10: Contextual hints */}
+      {isDeclarePhase && !showLobbyReady && totalCardsInHands > 0 && (
+        <div className="action-hint">{t('hint.declareTrump')}</div>
+      )}
+      {publicState?.phase === 'BURY_KITTY' && isBanker && (
+        <div className="action-hint">{t('hint.buryKitty').replace('{n}', String(kittyCount))}</div>
+      )}
+      {publicState?.phase === 'TRICK_PLAY' && isYourTurn && isLeader && trick.length === 0 && (
+        <div className="action-hint">{t('hint.leadTrick')}</div>
+      )}
+      {publicState?.phase === 'TRICK_PLAY' && isYourTurn && !isLeader && (
+        <div className="action-hint">{t('hint.followTrick')}</div>
+      )}
       {isSurrenderVoteActive && surrenderVote && (
         <div className="surrender-vote-bar">
           <div className="surrender-vote-header">
@@ -271,8 +412,9 @@ export default function ActionPanel() {
               className="no-snatch-btn"
               disabled={!!youNoSnatch}
               onClick={() => wsClient.send({ type: 'NO_SNATCH' })}
+              title={t('action.acceptTrumpHint')}
             >
-              {youNoSnatch ? t('action.noSnatched') : t('action.noSnatch')}
+              {youNoSnatch ? t('action.acceptedTrump') : t('action.acceptTrump')}
             </button>
           </div>
         </div>

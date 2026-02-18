@@ -179,6 +179,95 @@ const translations: Record<string, Record<Lang, string>> = {
 
   // Language
   'lang.toggle': { en: '中文', zh: 'EN' },
+
+  // Error recovery (H9)
+  'error.INVALID_PLAY': { en: 'Invalid card combination. Try selecting cards of the same suit.', zh: '无效的出牌组合。请选择同花色的牌。' },
+  'error.MUST_FOLLOW_SUIT': { en: 'You must follow the lead suit ({suit}). Select your {suit} cards.', zh: '必须跟出{suit}花色。请选择你的{suit}牌。' },
+  'error.NOT_YOUR_TURN': { en: "It's not your turn yet.", zh: '还没轮到你出牌。' },
+  'error.BURY_REQUIRES_N_CARDS': { en: 'Select exactly {n} cards to bury in the kitty.', zh: '请选择恰好{n}张牌扣底。' },
+  'error.DECLARE_NOT_STRONGER': { en: "Your declaration isn't strong enough to override.", zh: '你的亮主不够强，无法覆盖。' },
+  'error.THROW_PUNISHED': { en: 'Your throw was broken! Forced to play {card}.', zh: '你的甩牌被拆解！被迫出{card}。' },
+  'error.generic': { en: '{action} rejected: {reason}', zh: '{action}被拒绝：{reason}' },
+
+  // Phase labels (H1)
+  'phase.FLIP_TRUMP': { en: 'Declaring Trump', zh: '亮主中' },
+  'phase.BURY_KITTY': { en: 'Burying Kitty', zh: '扣底牌' },
+  'phase.TRICK_PLAY': { en: 'Trick {n}', zh: '第{n}墩' },
+  'phase.ROUND_SCORE': { en: 'Round Over', zh: '本局结束' },
+  'phase.GAME_OVER': { en: 'Game Over', zh: '游戏结束' },
+
+  // Waiting indicators (H1)
+  'wait.forPlayer': { en: 'Waiting for {name} to play...', zh: '等待{name}出牌...' },
+  'wait.forBanker': { en: 'Waiting for {name} to bury kitty...', zh: '等待{name}扣底牌...' },
+
+  // Connection status (H1)
+  'conn.reconnecting': { en: 'Reconnecting...', zh: '重连中...' },
+  'conn.disconnected': { en: 'Disconnected', zh: '已断开' },
+
+  // Trick counter (H1)
+  'trick.counter': { en: 'Trick {played}/{total}', zh: '第{played}/{total}墩' },
+
+  // Trump indicator (H6)
+  'trump.indicator': { en: 'Trump', zh: '主' },
+
+  // Trick history (H6)
+  'history.title': { en: 'History', zh: '历史' },
+  'history.noTricks': { en: 'No tricks played yet', zh: '暂无出牌记录' },
+
+  // Team identity (H2)
+  'team.you': { en: 'YOU', zh: '你' },
+  'team.yourTeamDef': { en: 'Your Team (Defender)', zh: '你的队伍（守方）' },
+  'team.yourTeamAtk': { en: 'Your Team (Attacker)', zh: '你的队伍（攻方）' },
+  'team.opponentDef': { en: 'Opponent (Defender)', zh: '对手（守方）' },
+  'team.opponentAtk': { en: 'Opponent (Attacker)', zh: '对手（攻方）' },
+
+  // Renamed No Snatch (H2)
+  'action.acceptTrump': { en: 'Accept Trump', zh: '确认主牌' },
+  'action.acceptedTrump': { en: 'Accepted', zh: '已确认' },
+  'action.acceptTrumpHint': { en: 'Accept the current trump declaration without overriding', zh: '接受当前亮主，不再反主' },
+
+  // Contextual hints (H10)
+  'hint.declareTrump': { en: 'Select a level card or joker pair from your hand, then click Declare to set the trump suit', zh: '从手牌中选择级牌或王对，点击亮主来设定主花色' },
+  'hint.buryKitty': { en: "Choose {n} cards you don't need and click Bury to hide them", zh: '选择{n}张不需要的牌，点击扣底来隐藏它们' },
+  'hint.leadTrick': { en: 'Select cards to play and click Play. You lead this trick!', zh: '选择要出的牌，点击出牌。你是这墩的领牌者！' },
+  'hint.followTrick': { en: 'Select cards matching the lead suit. Green-highlighted cards are valid.', zh: '选择与领出花色相同的牌。绿色高亮的牌是有效的。' },
+
+  // Tooltips (H10)
+  'tooltip.declare': { en: 'Flip a level-rank card or joker pair to set the trump suit', zh: '翻出级牌或王对来设定主花色' },
+  'tooltip.bury': { en: "Hide these cards in the kitty — opponents won't see them", zh: '将这些牌扣入底牌 — 对手看不到' },
+  'tooltip.play': { en: 'Play your selected cards', zh: '打出你选择的牌' },
+  'tooltip.ready': { en: 'Signal that you are ready for the next round', zh: '表示你已准备好下一局' },
+  'tooltip.surrender': { en: 'Propose that your team concedes this round', zh: '提议你的队伍本局认输' },
+
+  // Settings help (H10)
+  'settings.trumpPlacementHelp': { en: 'Where trump cards appear in your hand', zh: '主牌在手牌中的位置' },
+  'settings.compactHelp': { en: 'How tightly cards overlap', zh: '牌的重叠程度' },
+  'settings.cardScaleHelp': { en: 'Size of cards in your hand', zh: '手牌的大小' },
+
+  // User control (H3)
+  'settings.confirmBeforePlay': { en: 'Confirm before play', zh: '出牌前确认' },
+  'settings.autoPlayLastCard': { en: 'Auto-play last card', zh: '自动出最后一张牌' },
+  'action.confirmPlay': { en: 'Confirm play?', zh: '确认出牌？' },
+  'hand.clear': { en: 'Clear', zh: '清除' },
+
+  // Error prevention (H5)
+  'action.playNeed': { en: 'Play (need {n})', zh: '出牌（需{n}张）' },
+  'warn.throwRisk': { en: "This may be a throw — if opponents can beat any part, you'll be punished", zh: '这可能是甩牌 — 如果对手能打败任何部分，你将被惩罚' },
+
+  // Keyboard shortcuts (H7)
+  'key.enter': { en: 'Enter', zh: 'Enter' },
+  'key.space': { en: 'Space', zh: 'Space' },
+  'key.esc': { en: 'Esc', zh: 'Esc' },
+
+  // Guide (H10)
+  'guide.title': { en: 'How to Play', zh: '游戏指南' },
+  'guide.back': { en: 'Back to Lobby', zh: '返回大厅' },
+
+  // Event log
+  'eventLog.title': { en: 'Events', zh: '事件' },
+  'eventLog.empty': { en: 'No events yet', zh: '暂无事件' },
+  'eventLog.show': { en: 'Log', zh: '日志' },
+  'eventLog.hide': { en: 'Hide', zh: '隐藏' },
 };
 
 export function t(key: string, lang?: Lang): string {

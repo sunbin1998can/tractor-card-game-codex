@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { useStore } from '../store';
 import { useT } from '../i18n';
 import { wsClient } from '../wsClient';
+import { suitSymbol } from '../cardUtils';
 import SeatCard from './SeatCard';
 import TableCenter from './TableCenter';
+import CardFace from './CardFace';
 import type { BotDifficulty } from '@tractor/protocol';
 
 export type RelativePosition =
@@ -113,15 +115,83 @@ export function SeatSidebar() {
   );
 }
 
+/** Trump indicator floating badge on the game table */
+function TrumpIndicator() {
+  const state = useStore((s) => s.publicState);
+  const t = useT();
+
+  if (!state) return null;
+  if (state.phase !== 'TRICK_PLAY' && state.phase !== 'BURY_KITTY') return null;
+  if (!state.trumpSuit || state.trumpSuit === 'N') return null;
+
+  const symbol = suitSymbol(state.trumpSuit);
+  const isRed = state.trumpSuit === 'H' || state.trumpSuit === 'D';
+
+  return (
+    <div className="trump-table-indicator">
+      <span className={`trump-table-suit ${isRed ? 'red' : 'black'}`}>{symbol}</span>
+      <span className="trump-table-rank">{state.levelRank}</span>
+    </div>
+  );
+}
+
+/** Trick history overlay panel */
+function TrickHistoryPanel({ onClose }: { onClose: () => void }) {
+  const trickHistory = useStore((s) => s.trickHistory);
+  const state = useStore((s) => s.publicState);
+  const t = useT();
+
+  const seatName = (seat: number) =>
+    state?.seats?.find((s) => s.seat === seat)?.name || `Seat ${seat + 1}`;
+
+  return (
+    <div className="trick-history-overlay">
+      <div className="trick-history-header">
+        <span className="trick-history-title">{t('history.title')}</span>
+        <button className="trick-history-close" onClick={onClose}>{'\u2715'}</button>
+      </div>
+      {trickHistory.length === 0 ? (
+        <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>{t('history.noTricks')}</div>
+      ) : (
+        <div className="trick-history-list">
+          {trickHistory.map((trick, i) => (
+            <div key={i} className="trick-history-entry">
+              <span className="trick-history-num">#{i + 1}</span>
+              <div className="trick-history-plays">
+                {trick.plays.map((p) => (
+                  <span key={p.seat} className={p.seat === trick.winnerSeat ? 'trick-history-winner' : ''}>
+                    {seatName(p.seat)}: {p.cards.map((c, ci) => (
+                      <CardFace key={`${c}-${ci}`} id={c} mini />
+                    ))}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function GameTable() {
   const state = useStore((s) => s.publicState);
   const screenShake = useStore((s) => s.screenShake);
+  const [showHistory, setShowHistory] = useState(false);
+  const t = useT();
 
   if (!state) return null;
 
   return (
-    <div className={`game-table${screenShake ? ' screen-shake' : ''}`}>
+    <div className={`game-table${screenShake ? ' screen-shake' : ''}`} style={{ position: 'relative' }}>
+      <TrumpIndicator />
       <TableCenter />
+      {state.phase === 'TRICK_PLAY' && (
+        <button className="trick-history-toggle" onClick={() => setShowHistory(!showHistory)}>
+          {t('history.title')}
+        </button>
+      )}
+      {showHistory && <TrickHistoryPanel onClose={() => setShowHistory(false)} />}
     </div>
   );
 }
