@@ -5,7 +5,7 @@ import type { Database } from './schema.js';
 export function createDb(url: string): Kysely<Database> {
   return new Kysely<Database>({
     dialect: new PostgresDialect({
-      pool: new pg.Pool({ connectionString: url }),
+      pool: new pg.Pool({ connectionString: url, connectionTimeoutMillis: 5000 }),
     }),
   });
 }

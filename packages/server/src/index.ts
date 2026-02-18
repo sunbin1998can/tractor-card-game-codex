@@ -5,8 +5,6 @@ import { createWsServer } from './server/ws.js';
 import { initDb } from './db.js';
 import { handleApi } from './api.js';
 
-await initDb();
-
 const port = Number(process.env.PORT ?? 3000);
 const wsPath = '/ws';
 
@@ -87,3 +85,6 @@ server.listen(port, '0.0.0.0', () => {
   console.log(`Server listening on http://0.0.0.0:${port}`);
   console.log(`WebSocket endpoint: ws://0.0.0.0:${port}${wsPath}`);
 });
+
+// Initialize DB after server is listening so healthchecks pass immediately
+initDb().catch((err) => console.error('[db] Init failed:', err));
