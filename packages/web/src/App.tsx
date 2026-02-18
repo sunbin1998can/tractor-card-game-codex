@@ -372,6 +372,10 @@ function MainApp() {
         // Play selected cards (respects confirmBeforePlay setting)
         if (state.phase === 'TRICK_PLAY' && state.turnSeat === store.youSeat && store.selected.size > 0) {
           e.preventDefault();
+          // Enforce required card count when following (not leading)
+          const requiredCount = store.legalActions[0]?.count ?? 0;
+          const isLeaderTurn = state.leaderSeat === store.youSeat && (state.trick ?? []).length === 0;
+          if (!isLeaderTurn && requiredCount > 0 && store.selected.size !== requiredCount) return;
           if (store.confirmBeforePlay) {
             // Dispatch custom event so ActionPanel can show confirmation
             window.dispatchEvent(new CustomEvent('tractor-play-confirm'));

@@ -800,6 +800,10 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
         this.speakPhasePrompts(prevState, msg.state);
         this.speakSurrenderVote(prevState, msg.state);
         this.speakPlayersReady(prevState, msg.state);
+        // Clear stale legalActions when turn moves away from us
+        if (prevState?.turnSeat === store.youSeat && msg.state.turnSeat !== store.youSeat) {
+          store.setLegalActions([]);
+        }
         // Play turn notification when it becomes this player's turn
         if (
           msg.state.turnSeat === store.youSeat &&
@@ -863,6 +867,8 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
       } else if (msg.type === 'ACTION_REJECTED') {
         const humanMsg = this.rejectionMessage(msg.action, msg.reason, msg.expectedIds, store.publicState);
         store.pushToast(humanMsg);
+        // Clear bad selection so user doesn't re-submit the same rejected play
+        store.clearSelect();
         // Flash hinted cards if expectedIds provided
         if (msg.expectedIds?.length) {
           store.triggerHintFlash(msg.expectedIds);

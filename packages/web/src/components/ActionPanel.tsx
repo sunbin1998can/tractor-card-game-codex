@@ -156,9 +156,10 @@ export default function ActionPanel() {
     ? Math.max(1, Math.ceil((declareUntilMs - nowMs) / 1000))
     : 0;
 
-  // H5: Required card count for play
+  // H5: Required card count for play (only enforced when following, not leading)
   const requiredCount = legalActions[0]?.count ?? 0;
-  const wrongCount = publicState?.phase === 'TRICK_PLAY' && requiredCount > 0 && count !== requiredCount;
+  const isLeaderTurn = publicState?.leaderSeat === youSeat && (publicState?.trick ?? []).length === 0;
+  const wrongCount = publicState?.phase === 'TRICK_PLAY' && !isLeaderTurn && requiredCount > 0 && count !== requiredCount;
 
   // H5: Throw warning - leader playing non-standard pattern
   const isLeader = publicState?.leaderSeat === youSeat;
@@ -193,11 +194,11 @@ export default function ActionPanel() {
     return () => window.clearInterval(timer);
   }, [isSurrenderVoteActive]);
 
-  // Reset confirmations when phase changes
+  // Reset confirmations when phase or turn changes
   useEffect(() => {
     setBuryConfirm(false);
     setPlayConfirm(false);
-  }, [publicState?.phase]);
+  }, [publicState?.phase, publicState?.turnSeat]);
 
   // Listen for keyboard shortcut play-confirm event
   useEffect(() => {

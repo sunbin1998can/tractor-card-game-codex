@@ -6,12 +6,19 @@ import type { PanInfo } from 'motion/react';
 export function useDragToPlay() {
   const phase = useStore((s) => s.publicState?.phase);
   const turnSeat = useStore((s) => s.publicState?.turnSeat);
+  const leaderSeat = useStore((s) => s.publicState?.leaderSeat);
+  const trick = useStore((s) => s.publicState?.trick);
   const youSeat = useStore((s) => s.youSeat);
   const selected = useStore((s) => s.selected);
+  const legalActions = useStore((s) => s.legalActions);
   const setDragActive = useStore((s) => s.setDragActive);
 
   const isYourTurn = turnSeat === youSeat && youSeat !== null;
-  const canDragToPlay = phase === 'TRICK_PLAY' && isYourTurn && selected.size > 0;
+  // Enforce required card count when following (not leading)
+  const requiredCount = legalActions[0]?.count ?? 0;
+  const isLeaderTurn = leaderSeat === youSeat && (trick ?? []).length === 0;
+  const wrongCount = !isLeaderTurn && requiredCount > 0 && selected.size !== requiredCount;
+  const canDragToPlay = phase === 'TRICK_PLAY' && isYourTurn && selected.size > 0 && !wrongCount;
 
   const handleDragStart = useCallback(
     (isSelected: boolean) => {
