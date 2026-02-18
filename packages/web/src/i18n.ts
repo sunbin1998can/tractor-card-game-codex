@@ -108,6 +108,7 @@ const translations: Record<string, Record<Lang, string>> = {
   'action.snatchCountdown': { en: 'Snatch countdown', zh: '反主倒计时' },
   'action.noSnatch': { en: 'Pass', zh: '不反主' },
   'action.noSnatched': { en: 'Passed', zh: '已选不反主' },
+  'action.fillBots': { en: 'Fill with Bots', zh: '自动加机器人' },
   'action.surrender': { en: 'Surrender', zh: '投降' },
   'surrender.proposed': { en: '{name} proposed surrender', zh: '{name}提议投降' },
   'surrender.accept': { en: 'Accept', zh: '同意' },

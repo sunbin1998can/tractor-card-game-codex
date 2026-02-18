@@ -65,6 +65,8 @@ type StoreState = {
   trumpDeclareFlash: { suit: string; isOverride: boolean } | null;
   levelUpEffect: { delta: number } | null;
   throwPunishedFlash: boolean;
+  dragActive: boolean;
+  setDragActive: (v: boolean) => void;
   setCardScale: (scale: number) => void;
   setNickname: (name: string) => void;
   setRoomId: (roomId: string) => void;
@@ -145,6 +147,8 @@ export const useStore = create<StoreState>((set, get) => ({
   trumpDeclareFlash: null,
   levelUpEffect: null,
   throwPunishedFlash: false,
+  dragActive: false,
+  setDragActive: (v) => set({ dragActive: v }),
   setCardScale: (scale) => {
     sessionStorage.setItem('cardScale', String(scale));
     set({ cardScale: scale });
@@ -333,7 +337,8 @@ export const useStore = create<StoreState>((set, get) => ({
       impactBurst: null,
       trumpDeclareFlash: null,
       levelUpEffect: null,
-      throwPunishedFlash: false
+      throwPunishedFlash: false,
+      dragActive: false
     });
   }
 }));

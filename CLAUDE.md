@@ -44,6 +44,7 @@ pnpm workspaces monorepo under `packages/`:
 - Depends on `@tractor/protocol`.
 - **src/store.ts** — Zustand store for game state.
 - **src/wsClient.ts** — WebSocket client with auto-reconnect, TTS, and sessionToken.
+- **src/hooks/useDragToPlay.ts** — Hook for drag-to-play: detects upward drag gesture on selected cards and fires PLAY action.
 
 ### `packages/db/` (`@tractor/db`) — Kysely schema + PostgreSQL connection
 - **src/schema.ts** — Kysely `Database` type interface: `users`, `matches`, `match_players`, `rounds`, `round_events`, `user_ratings`.
