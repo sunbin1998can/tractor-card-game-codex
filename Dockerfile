@@ -24,6 +24,7 @@ COPY packages/protocol/package.json ./packages/protocol/
 COPY packages/server/package.json ./packages/server/
 COPY packages/db/package.json ./packages/db/
 COPY packages/models/package.json ./packages/models/
+COPY packages/bot/package.json ./packages/bot/
 RUN pnpm install --prod --frozen-lockfile
 COPY --from=builder /app/packages/engine/dist ./packages/engine/dist
 COPY --from=builder /app/packages/protocol/dist ./packages/protocol/dist
@@ -31,5 +32,6 @@ COPY --from=builder /app/packages/server/dist ./packages/server/dist
 COPY --from=builder /app/packages/web/dist ./packages/web/dist
 COPY --from=builder /app/packages/db/dist ./packages/db/dist
 COPY --from=builder /app/packages/models/dist ./packages/models/dist
+COPY --from=builder /app/packages/bot/dist ./packages/bot/dist
 EXPOSE 3000
 CMD ["node", "packages/server/dist/index.js"]
