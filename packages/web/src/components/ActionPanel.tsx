@@ -78,6 +78,11 @@ export default function ActionPanel() {
     count === kittyCount;
   const totalCardsInHands = publicState?.seats?.reduce((sum, s) => sum + (s.cardsLeft ?? 0), 0) ?? 0;
   const showLobbyReady = publicState?.phase === 'FLIP_TRUMP' && totalCardsInHands === 0;
+  const totalPlayers = publicState?.players ?? 4;
+  const filledSeats = new Set(publicState?.seats?.map((s) => s.seat) ?? []);
+  const emptySeats = showLobbyReady
+    ? Array.from({ length: totalPlayers }, (_, i) => i).filter((i) => !filledSeats.has(i))
+    : [];
   const youReady = youSeat !== null ? !!publicState?.seats?.find((s) => s.seat === youSeat)?.ready : false;
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -137,6 +142,18 @@ export default function ActionPanel() {
               onClick={() => wsClient.standUp()}
             >
               {t('seat.standUp')}
+            </button>
+          )}
+          {emptySeats.length > 0 && (
+            <button
+              className="fill-bots-btn"
+              onClick={() => {
+                for (const seat of emptySeats) {
+                  wsClient.addBot(seat, 'medium');
+                }
+              }}
+            >
+              {t('action.fillBots')} ({emptySeats.length})
             </button>
           )}
         </div>

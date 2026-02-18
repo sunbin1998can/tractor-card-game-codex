@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import CardFace from './CardFace';
 import { type Rank, type Suit, parseCardId, suitGroupForCard } from '../cardUtils';
 import { useHandCards } from '../hooks/useHandCards';
+import { useDragToPlay } from '../hooks/useDragToPlay';
 
 function useIsMobile() {
   if (typeof window === 'undefined') return false;
@@ -30,6 +31,7 @@ export default function Hand() {
     isYourTurn, inPlayablePhase, hasTrumpContext,
     hand, selected, trumpSuit, levelRank,
   } = useHandCards();
+  const { canDragToPlay, handleDragStart, handleDragEnd } = useDragToPlay();
   const t = useT();
   const isMobile = useIsMobile();
   const [layoutMode, setLayoutMode] = useState<HandLayoutMode>(() => {
@@ -192,10 +194,12 @@ export default function Hand() {
                     }}
                     layout
                     drag
-                    dragConstraints={{ top: -30, bottom: 30, left: -40, right: 40 }}
+                    dragConstraints={{ top: isSelected && canDragToPlay ? -400 : -30, bottom: 30, left: -40, right: 40 }}
                     dragElastic={0.3}
                     dragSnapToOrigin
                     whileDrag={{ zIndex: 200, scale: 1.08 }}
+                    onDragStart={() => handleDragStart(isSelected)}
+                    onDragEnd={(e, info) => handleDragEnd(isSelected, e, info)}
                     initial={{ y: -60, opacity: 0, scale: 0.5 }}
                     animate={{ y: 0, opacity: 1, scale: 1 }}
                     exit={{ y: -40, opacity: 0 }}
@@ -238,10 +242,12 @@ export default function Hand() {
                             }}
                             layout
                             drag
-                            dragConstraints={{ top: -30, bottom: 30, left: -40, right: 40 }}
+                            dragConstraints={{ top: isSelected && canDragToPlay ? -400 : -30, bottom: 30, left: -40, right: 40 }}
                             dragElastic={0.3}
                             dragSnapToOrigin
                             whileDrag={{ zIndex: 200, scale: 1.08 }}
+                            onDragStart={() => handleDragStart(isSelected)}
+                            onDragEnd={(e, info) => handleDragEnd(isSelected, e, info)}
                             initial={{ y: -40, opacity: 0, scale: 0.8 }}
                             animate={{ y: 0, opacity: 1, scale: 1 }}
                             exit={{ y: -20, opacity: 0 }}

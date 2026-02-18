@@ -89,6 +89,9 @@ export default function TableCenter() {
   const trumpSuit = useStore((s) => s.publicState?.trumpSuit ?? 'N');
   const levelRank = useStore((s) => s.publicState?.levelRank ?? '2');
   const serverWinnerSeat = useStore((s) => s.trickWinnerSeat);
+  const dragActive = useStore((s) => s.dragActive);
+  const phase = useStore((s) => s.publicState?.phase);
+  const turnSeat = useStore((s) => s.publicState?.turnSeat);
 
   const mySeat = youSeat ?? 0;
   const t = useT();
@@ -110,8 +113,13 @@ export default function TableCenter() {
     ? seats.find((s) => s.seat === winningSeat)?.name || `${t('seat.seat')} ${winningSeat + 1}`
     : '';
 
+  const showDropZone = dragActive && phase === 'TRICK_PLAY' && turnSeat === youSeat;
+
   return (
     <div className="table-center">
+      <div className={`play-drop-zone${showDropZone ? ' active' : ''}`}>
+        {showDropZone && <span className="play-drop-zone-label">{t('action.play')}</span>}
+      </div>
       <div className="table-center-inner">
         {(!trick || trick.length === 0) ? (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

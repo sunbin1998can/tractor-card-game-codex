@@ -48,7 +48,7 @@ function EmptySeatCard({ seatIdx, isSpectator }: { seatIdx: number; isSpectator:
   };
 
   return (
-    <div className="seat-card empty-seat">
+    <div className="seat-card empty-seat empty-seat-cta">
       <div className="seat-avatar empty">?</div>
       <div className="seat-name">{t('seat.empty')} {seatIdx + 1}</div>
       <div className="empty-seat-actions">
