@@ -4,3 +4,6 @@ export * from './events.js';
 export * from './stats.js';
 export * from './ratings.js';
 export * from './emailAuth.js';
+export * from './lobby.js';
+export * from './roomChat.js';
+export * from './feedback.js';

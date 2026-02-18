@@ -116,7 +116,7 @@ class WsClient {
     // Visual announcement + event log alongside TTS
     store.pushAnnouncement(text);
     store.pushEvent(text);
-    if (store.muted) return;
+    if (store.muted || store.muteTts) return;
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     this.bindSpeechLifecycle();
     this.speechQueue.push(text);
@@ -365,7 +365,7 @@ class WsClient {
     }
 
     if (msg.cards.length === 2 && this.isPair(msg.cards)) {
-      this.speak(en ? `${name}, pair of ${this.cardSpokenName(msg.cards[0])}s` : `${name}，${this.cardSpokenName(msg.cards[0])}`);
+      this.speak(en ? `${name}, pair of ${this.cardSpokenName(msg.cards[0])}s` : `${name}，对${this.cardSpokenName(msg.cards[0])}`);
       return;
     }
 
@@ -581,11 +581,11 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
     }
 
     if (prevState.phase !== 'BURY_KITTY' && nextState.phase === 'BURY_KITTY') {
-      this.speak(en ? 'waiting for kitty burial' : '等待扣底牌');
+      this.speak(en ? 'waiting for bank burial' : '等待扣底牌');
     }
 
     if (prevState.phase === 'BURY_KITTY' && nextState.phase === 'TRICK_PLAY') {
-      this.speak(en ? 'kitty buried, let\'s play' : '扣底牌完毕');
+      this.speak(en ? 'bank buried, let\'s play' : '扣底牌完毕');
     }
   }
 
@@ -604,7 +604,7 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
 
   private speakKouDi(pointSteps: number[], total: number) {
     const steps = Array.isArray(pointSteps) && pointSteps.length > 0 ? pointSteps : [total];
-    this.speak(this.isEn() ? `kitty points: ${steps.join(', ')}` : `抠底${steps.join('，')}`);
+    this.speak(this.isEn() ? `bank points: ${steps.join(', ')}` : `抠底${steps.join('，')}`);
   }
 
   onKouDiAcknowledged() {
@@ -672,6 +672,12 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
     this.send({ type: 'CHAT_SEND', text: payload });
   }
 
+  sendLobbyChat(text: string) {
+    const payload = text.trim();
+    if (!payload) return;
+    this.send({ type: 'LOBBY_CHAT_SEND', text: payload });
+  }
+
   private sendJoinWithFallback(join: { roomId: string; name: string; players: number }) {
     const token = sessionStorage.getItem('sessionToken');
     const lastRoomId = sessionStorage.getItem('lastRoomId');
@@ -702,6 +708,10 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
     this.ws = new WebSocket(this.url);
 
     this.ws.onopen = () => {
+      // Register with lobby chat channel
+      const lobbyName = useStore.getState().nickname || 'Guest';
+      this.send({ type: 'LOBBY_JOIN', name: lobbyName });
+
       if (this.forceFreshJoin && this.lastJoin) {
         this.sendJoinWithFallback(this.lastJoin);
         this.forceFreshJoin = false;
@@ -734,6 +744,10 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
         }
       } else if (msg.type === 'AUTH_INFO') {
         // Server acknowledged our auth status — no store action needed for now
+      } else if (msg.type === 'LOBBY_CHAT') {
+        store.pushLobbyMessage({ name: msg.name, text: msg.text, atMs: msg.atMs });
+      } else if (msg.type === 'LOBBY_HISTORY') {
+        store.setLobbyHistory(msg.messages);
       } else if (msg.type === 'ROOM_STATE') {
         const prevState = store.publicState;
         store.setPublicState(msg.state);
@@ -943,10 +957,14 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
       const intentionalLeave = !this.shouldReconnect;
       this.ws = null;
       const store = useStore.getState();
-      if (store.roomId && !intentionalLeave) {
+      if (store.roomId && intentionalLeave) {
+        // Only wipe session data on intentional leave, not on disconnect/refresh.
+        // This preserves lastRoomId and sessionToken so reconnect can rejoin.
         sessionStorage.removeItem('lastRoomId');
         store.leaveRoom();
-        store.pushToast('Disconnected. Returned to lobby.');
+      } else if (store.roomId && !intentionalLeave) {
+        // Unintentional disconnect: keep session data, just show toast
+        store.pushToast('Connection lost. Reconnecting...');
       }
       this.waitingKouDiAck = false;
       this.pendingRoundResultText = null;

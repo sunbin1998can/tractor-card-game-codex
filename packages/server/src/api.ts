@@ -11,7 +11,7 @@ import {
   linkEmail,
   createEmailUser,
 } from '@tractor/models';
-import { getUserStats, getUserMatches, getUserRating, ensureUserRating } from '@tractor/models';
+import { getUserStats, getUserMatches, getUserRating, ensureUserRating, getRecentLobbyMessages, insertFeedback } from '@tractor/models';
 import { getActiveRooms } from './server/ws.js';
 
 function json(res: ServerResponse, status: number, body: unknown) {
@@ -82,6 +82,19 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
   // GET /api/rooms — no DB required
   if (req.method === 'GET' && path === '/api/rooms') {
     json(res, 200, { rooms: getActiveRooms() });
+    return true;
+  }
+
+  // GET /api/lobby/messages — no auth required, but needs DB
+  if (req.method === 'GET' && path === '/api/lobby/messages') {
+    const lobbyDb = getDb();
+    if (!lobbyDb) {
+      json(res, 200, { messages: [] });
+      return true;
+    }
+    const limit = Math.min(Number(url.searchParams.get('limit')) || 50, 100);
+    const messages = await getRecentLobbyMessages(lobbyDb, limit);
+    json(res, 200, { messages });
     return true;
   }
 
@@ -225,6 +238,23 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       const offset = Math.max(Number(url.searchParams.get('offset')) || 0, 0);
       const matches = await getUserMatches(db, auth.userId, { limit, offset });
       json(res, 200, { matches });
+      return true;
+    }
+
+    // POST /api/feedback
+    if (req.method === 'POST' && path === '/api/feedback') {
+      const body = JSON.parse(await readBody(req));
+      const text = typeof body.text === 'string' ? body.text.trim().slice(0, 1000) : '';
+      if (!text) {
+        json(res, 400, { error: 'Text required' });
+        return true;
+      }
+      await insertFeedback(db, {
+        userName: body.userName || 'Anonymous',
+        userId: body.userId || null,
+        text,
+      });
+      json(res, 200, { ok: true });
       return true;
     }
 

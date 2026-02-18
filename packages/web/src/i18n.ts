@@ -41,10 +41,15 @@ const translations: Record<string, Record<Lang, string>> = {
   'lobby.noRooms': { en: 'No active rooms — create one!', zh: '暂无活跃房间 — 创建一个吧！' },
   'lobby.playerCount': { en: 'players', zh: '人' },
   'lobby.phase.FLIP_TRUMP': { en: 'Waiting', zh: '等待中' },
-  'lobby.phase.BURY_KITTY': { en: 'Burying', zh: '扣底中' },
+  'lobby.phase.BURY_KITTY': { en: 'Banking', zh: '扣底中' },
   'lobby.phase.TRICK_PLAY': { en: 'Playing', zh: '游戏中' },
   'lobby.phase.ROUND_SCORE': { en: 'Scoring', zh: '计分中' },
   'lobby.phase.GAME_OVER': { en: 'Finished', zh: '已结束' },
+  'lobby.ago': { en: 'ago', zh: '前' },
+  'lobby.settings': { en: 'Settings', zh: '设置' },
+  'lobby.emailHint': { en: 'Optional — link your email to keep stats and history across devices', zh: '可选 — 绑定邮箱可跨设备保留游戏记录' },
+  'lobby.nicknameHint': { en: 'This name is shown to other players', zh: '这个名字会显示给其他玩家' },
+  'lobby.linkAccount': { en: 'Link Account', zh: '绑定账户' },
 
   // ScoreBoard
   'score.trump': { en: 'Trump', zh: '主牌' },
@@ -55,9 +60,10 @@ const translations: Record<string, Record<Lang, string>> = {
   'score.vs': { en: 'VS', zh: 'VS' },
   'score.level': { en: 'Lv', zh: '级' },
   'score.none': { en: 'none', zh: '无' },
-  'score.kitty': { en: 'Kitty', zh: '底牌' },
+  'score.kitty': { en: 'Bank', zh: '底牌' },
   'score.declare': { en: 'Declare: Seat', zh: '亮主: 座位' },
   'score.leave': { en: 'Leave', zh: '离开' },
+  'score.leaveConfirm': { en: 'Leaving during a game will surrender for your team. Are you sure?', zh: '在游戏中离开将为你的队伍投降。确定要离开吗？' },
   'score.room': { en: 'Room', zh: '房间' },
 
   // Hand
@@ -121,10 +127,15 @@ const translations: Record<string, Record<Lang, string>> = {
   'chat.noMessages': { en: 'No messages', zh: '暂无消息' },
   'chat.placeholder': { en: 'Say something', zh: '说点什么' },
   'chat.send': { en: 'Send', zh: '发送' },
+  'chat.room': { en: 'Room', zh: '房间' },
+  'chat.lobby': { en: 'Lobby', zh: '大厅' },
+  'audio.muteTts': { en: 'Mute Voice', zh: '静音语音' },
+  'audio.unmuteTts': { en: 'Unmute Voice', zh: '开启语音' },
+  'music.title': { en: 'Music', zh: '音乐' },
 
   // Round Result
   'round.title': { en: 'Round Result', zh: '本局结果' },
-  'round.buried': { en: 'Buried Cards', zh: '底牌' },
+  'round.buried': { en: 'Bank Cards', zh: '底牌' },
   'round.ok': { en: 'OK', zh: '确定' },
   'round.victory': { en: 'VICTORY!', zh: '胜利！' },
   'round.goodGame': { en: 'Good Game!', zh: '好局！' },
@@ -136,12 +147,12 @@ const translations: Record<string, Record<Lang, string>> = {
   'round.rolesSwapped': { en: 'Roles swapped', zh: '攻守互换' },
   'round.newBanker': { en: 'New banker: Seat', zh: '新庄家: 座位' },
   'round.delta': { en: 'Level Up', zh: '升级' },
-  'round.kittyPts': { en: 'Kitty Points', zh: '底牌分' },
+  'round.kittyPts': { en: 'Bank Points', zh: '底牌分' },
   'round.totalPts': { en: 'Total Points', zh: '总分' },
   'round.cards': { en: 'cards', zh: '张' },
 
   // KouDi
-  'koudi.title': { en: 'Bottom Cards', zh: '抠底' },
+  'koudi.title': { en: 'Bank Cards', zh: '抠底' },
 
   // Joker
   'joker.small': { en: 'S', zh: '小' },
@@ -159,6 +170,12 @@ const translations: Record<string, Record<Lang, string>> = {
   'seat.sitHere': { en: 'Sit Here', zh: '坐下' },
   'seat.swap': { en: 'Swap', zh: '换座' },
   'seat.empty': { en: 'Empty', zh: '空座' },
+
+  // Feedback
+  'feedback.title': { en: 'Feedback', zh: '反馈' },
+  'feedback.placeholder': { en: 'Share your thoughts, report bugs, or suggest features...', zh: '分享你的想法、报告问题或建议功能...' },
+  'feedback.send': { en: 'Send Feedback', zh: '发送反馈' },
+  'feedback.thanks': { en: 'Thanks for your feedback!', zh: '感谢你的反馈！' },
 
   // Language
   'lang.toggle': { en: '中文', zh: 'EN' },

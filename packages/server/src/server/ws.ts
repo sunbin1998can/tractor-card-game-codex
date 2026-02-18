@@ -13,6 +13,8 @@ import {
   onMatchEnd,
   type RoomPersistence,
 } from '../persistence.js';
+import { getDb } from '../db.js';
+import { insertLobbyMessage, getRecentLobbyMessages, insertRoomMessage, getRecentRoomMessages, deleteRoomMessages } from '@tractor/models';
 
 interface SeatState {
   seat: number;
@@ -42,6 +44,7 @@ interface Room {
   spectators: Set<WebSocket>;
   spectatorInfo: Map<WebSocket, SpectatorInfo>;
   kittySize: number;
+  createdAt: number;
   dealingInProgress?: boolean;
   dealingTimer?: NodeJS.Timeout;
   declareSeat?: number;
@@ -66,6 +69,27 @@ interface Room {
 }
 
 const rooms = new Map<string, Room>();
+const lobbyClients = new Map<WebSocket, { name: string; userId: string | null }>();
+
+// O(1) reverse index: WebSocket → Room (avoids scanning all rooms on every message)
+const wsToRoom = new Map<WebSocket, Room>();
+
+function indexWs(ws: WebSocket, room: Room) {
+  wsToRoom.set(ws, room);
+}
+function unindexWs(ws: WebSocket) {
+  wsToRoom.delete(ws);
+}
+
+// Stale room cleanup interval
+const ROOM_STALE_CHECK_MS = 60_000;
+const ROOM_STALE_THRESHOLD_MS = 300_000; // 5 minutes with no connected players
+
+function broadcastLobby(msg: ServerMessage) {
+  for (const ws of lobbyClients.keys()) {
+    send(ws, msg);
+  }
+}
 const DISCONNECT_GRACE_MS = 120_000;
 const DEAL_STEP_MS = 80;
 const FINAL_DECLARE_PAUSE_MS = 30_000;
@@ -93,9 +117,17 @@ function send(ws: WebSocket | undefined, msg: ServerMessage) {
   ws.send(JSON.stringify(msg));
 }
 
+/** Send a pre-serialized JSON string to a WebSocket */
+function sendRaw(ws: WebSocket | undefined, data: string) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(data);
+}
+
 function broadcast(room: Room, msg: ServerMessage) {
-  for (const seat of room.seats) send(seat.ws, msg);
-  for (const ws of room.spectators) send(ws, msg);
+  // Serialize once, send the same string to all recipients
+  const data = JSON.stringify(msg);
+  for (const seat of room.seats) sendRaw(seat.ws, data);
+  for (const ws of room.spectators) sendRaw(ws, data);
 }
 
 function sendPrivate(room: Room, seat: number, msg: ServerMessage) {
@@ -696,20 +728,31 @@ function flushEngineEvents(room: Room) {
   room.engine.events = [];
 }
 
+function clearFairnessTimer(room: Room) {
+  if (room.fairnessTimer) {
+    clearInterval(room.fairnessTimer);
+    room.fairnessTimer = undefined;
+  }
+}
+
 function ensureFairnessTimer(room: Room) {
   if (room.fairnessTimer) return;
   room.fairnessTimer = setInterval(() => {
+    // Clear timer if phase moved past FLIP_TRUMP (e.g., via NO_SNATCH fast-path)
+    if (room.engine.phase !== 'FLIP_TRUMP') {
+      clearFairnessTimer(room);
+      return;
+    }
     if (room.dealingInProgress) return;
     room.engine.finalizeTrump(now());
     flushEngineEvents(room);
-    if (room.engine.phase === 'BURY_KITTY') {
+    if ((room.engine.phase as string) === 'BURY_KITTY') {
       room.declareSeat = undefined;
       room.declareUntilMs = undefined;
       sendHand(room, room.engine.config.bankerSeat);
       broadcastState(room);
       requestAction(room, room.engine.config.bankerSeat);
-      clearInterval(room.fairnessTimer);
-      room.fairnessTimer = undefined;
+      clearFairnessTimer(room);
     }
   }, 200);
 }
@@ -737,6 +780,7 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
       spectators: new Set(),
       spectatorInfo: new Map(),
       kittySize,
+      createdAt: now(),
       persistence: createRoomPersistence(),
     };
     room.engine.startTrumpPhase();
@@ -783,11 +827,14 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
 
   if (seatReuse) {
     const idx = room.seats.findIndex((s) => s.seat === seat);
+    // Unindex old ws if it existed
+    if (room.seats[idx].ws) unindexWs(room.seats[idx].ws!);
     room.seats[idx] = seatState;
   } else {
     room.seats.push(seatState);
   }
 
+  indexWs(ws, room);
   send(ws, { type: 'SESSION', seat, sessionToken });
   send(ws, {
     type: 'AUTH_INFO',
@@ -796,6 +843,15 @@ function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: n
     isGuest: !authPayload,
   });
   send(ws, { type: 'ROOM_STATE', state: publicState(room) });
+  // Send recent room chat history
+  const db = getDb();
+  if (db) {
+    getRecentRoomMessages(db, roomId).then((messages) => {
+      for (const msg of messages) {
+        send(ws, { type: 'CHAT', seat: msg.seat, name: msg.name, text: msg.text, atMs: msg.atMs });
+      }
+    }).catch(() => {});
+  }
   maybeStartRound(room);
 }
 
@@ -809,12 +865,25 @@ function rejoinRoom(ws: WebSocket, msg: { roomId: string; sessionToken: string }
   // Prevent hijacking bot seats via session token
   if (seat.isBot) return;
 
+  // Unindex old ws if it existed
+  if (seat.ws && seat.ws !== ws) unindexWs(seat.ws);
   seat.ws = ws;
   seat.isConnected = true;
   seat.lastSeen = now();
+  indexWs(ws, room);
 
   send(ws, { type: 'SESSION', seat: seat.seat, sessionToken: seat.sessionToken });
   send(ws, { type: 'ROOM_STATE', state: publicState(room) });
+
+  // Send recent room chat history
+  const db = getDb();
+  if (db) {
+    getRecentRoomMessages(db, msg.roomId).then((messages) => {
+      for (const m of messages) {
+        send(ws, { type: 'CHAT', seat: m.seat, name: m.name, text: m.text, atMs: m.atMs });
+      }
+    }).catch(() => {});
+  }
 
   sendHand(room, seat.seat);
 
@@ -841,10 +910,7 @@ function resetRoomAfterGameOver(room: Room) {
     clearTimeout(room.dealingTimer);
     room.dealingTimer = undefined;
   }
-  if (room.fairnessTimer) {
-    clearInterval(room.fairnessTimer);
-    room.fairnessTimer = undefined;
-  }
+  clearFairnessTimer(room);
   room.dealingInProgress = false;
   room.declareSeat = undefined;
   room.declareUntilMs = undefined;
@@ -872,8 +938,8 @@ function resetRoomAfterGameOver(room: Room) {
   room.engine.startTrumpPhase();
 }
 
-export function getActiveRooms(): { id: string; players: number; seated: number; phase: string; seats: { name: string; isConnected: boolean }[] }[] {
-  const result: { id: string; players: number; seated: number; phase: string; seats: { name: string; isConnected: boolean }[] }[] = [];
+export function getActiveRooms(): { id: string; players: number; seated: number; phase: string; createdAt: number; seats: { name: string; isConnected: boolean; isBot: boolean }[] }[] {
+  const result: { id: string; players: number; seated: number; phase: string; createdAt: number; seats: { name: string; isConnected: boolean; isBot: boolean }[] }[] = [];
   const staleThreshold = now() - DISCONNECT_GRACE_MS;
   for (const room of rooms.values()) {
     const allStale = room.seats.length > 0 && room.seats.every((s) => !s.isConnected && s.lastSeen < staleThreshold);
@@ -883,7 +949,8 @@ export function getActiveRooms(): { id: string; players: number; seated: number;
       players: room.players,
       seated: room.seats.length,
       phase: room.engine.phase,
-      seats: room.seats.map((s) => ({ name: s.name, isConnected: s.isConnected })),
+      createdAt: room.createdAt,
+      seats: room.seats.map((s) => ({ name: s.name, isConnected: s.isConnected, isBot: s.isBot })),
     });
   }
   return result;
@@ -1062,6 +1129,34 @@ export function createWsServer(server: import('http').Server, path = '/ws') {
         return;
       }
 
+      if (msg.type === 'LOBBY_JOIN') {
+        lobbyClients.set(ws, { name: msg.name || 'Guest', userId: null });
+        // Send recent lobby messages
+        const db = getDb();
+        if (db) {
+          getRecentLobbyMessages(db, 50).then((messages) => {
+            send(ws, { type: 'LOBBY_HISTORY', messages });
+          }).catch(() => {});
+        }
+        return;
+      }
+
+      if (msg.type === 'LOBBY_CHAT_SEND') {
+        const text = (msg.text || '').trim().slice(0, 200);
+        if (!text) return;
+        const info = lobbyClients.get(ws);
+        const name = info?.name || 'Guest';
+        const userId = info?.userId ?? null;
+        const atMs = now();
+        broadcastLobby({ type: 'LOBBY_CHAT', name, text, atMs });
+        // Persist to DB
+        const db = getDb();
+        if (db) {
+          insertLobbyMessage(db, { userName: name, userId, text }).catch(() => {});
+        }
+        return;
+      }
+
       if (msg.type === 'JOIN_ROOM') {
         joinRoom(ws, msg);
         return;
@@ -1071,17 +1166,12 @@ export function createWsServer(server: import('http').Server, path = '/ws') {
         return;
       }
 
-      // Find room from seated player or spectator
-      let room = [...rooms.values()].find((r) => r.seats.some((s) => s.ws === ws));
+      // O(1) room lookup via reverse index
+      let room = wsToRoom.get(ws);
       let seatState = room?.seats.find((s) => s.ws === ws);
-
-      // Also check spectators
-      if (!room) {
-        room = [...rooms.values()].find((r) => r.spectators.has(ws)) ?? undefined;
-      }
       if (!room) return;
 
-      // Spectators can only use SWAP_SEAT, ADD_BOT, CHAT_SEND, LEAVE_ROOM
+      // Spectators can only use SWAP_SEAT, ADD_BOT, REMOVE_BOT, CHAT_SEND, LEAVE_ROOM
       if (!seatState) {
         if (msg.type === 'SWAP_SEAT') {
           handleSwapSeat(room, ws, null, msg.targetSeat);
@@ -1091,25 +1181,59 @@ export function createWsServer(server: import('http').Server, path = '/ws') {
           handleAddBot(room, ws, null, msg.seat, msg.difficulty);
           return;
         }
+        if (msg.type === 'REMOVE_BOT') {
+          handleRemoveBot(room, ws, msg.seat);
+          return;
+        }
         if (msg.type === 'CHAT_SEND') {
           const text = msg.text.trim().slice(0, 200);
           if (!text) return;
           const specInfo = room.spectatorInfo.get(ws);
           const specName = specInfo?.name ?? 'Spectator';
           broadcast(room, { type: 'CHAT', seat: -1, name: specName, text, atMs: now() });
+          // Persist to DB
+          const db = getDb();
+          if (db) {
+            insertRoomMessage(db, { roomId: room.id, seat: -1, userName: specName, text }).catch(() => {});
+          }
           return;
         }
         if (msg.type === 'LEAVE_ROOM') {
           room.spectators.delete(ws);
+          room.spectatorInfo.delete(ws);
+          unindexWs(ws);
           return;
         }
         return;
       }
 
       if (msg.type === 'LEAVE_ROOM') {
+        unindexWs(ws);
         seatState.isConnected = false;
         seatState.ws = undefined;
         seatState.lastSeen = now();
+
+        // If leaving during active game, auto-propose surrender for their team
+        if (room.engine.phase === 'TRICK_PLAY' && !room.surrenderVote) {
+          const team = seatState.team;
+          const teammates = room.seats.filter((s) => s.team === team);
+          const votes = new Map<number, boolean | null>();
+          for (const tm of teammates) {
+            // The leaving player auto-accepts; teammates get 30s to respond (default accept)
+            votes.set(tm.seat, tm.seat === seatState.seat ? true : null);
+          }
+          const expiresAtMs = now() + 30_000;
+          const timer = setTimeout(() => {
+            // After 30s, auto-accept for teammates who haven't voted
+            if (!room.surrenderVote) return;
+            for (const [seat, vote] of room.surrenderVote.votes) {
+              if (vote === null) room.surrenderVote.votes.set(seat, true);
+            }
+            checkSurrenderVoteResult(room);
+          }, 30_000);
+          room.surrenderVote = { team, proposerSeat: seatState.seat, votes, timer, expiresAtMs };
+        }
+
         broadcastState(room);
         return;
       }
@@ -1124,6 +1248,11 @@ export function createWsServer(server: import('http').Server, path = '/ws') {
           text,
           atMs: now()
         });
+        // Persist to DB
+        const db = getDb();
+        if (db) {
+          insertRoomMessage(db, { roomId: room.id, seat: seatState.seat, userName: seatState.name || `Seat ${seatState.seat + 1}`, text }).catch(() => {});
+        }
         return;
       }
 
@@ -1374,22 +1503,63 @@ export function createWsServer(server: import('http').Server, path = '/ws') {
       }
     });
 
+    // Prevent unhandled WebSocket errors from crashing the process
+    ws.on('error', (err) => {
+      console.error('[ws] WebSocket error:', err.message);
+    });
+
     ws.on('close', () => {
-      for (const room of rooms.values()) {
-        room.spectators.delete(ws);
-        room.spectatorInfo.delete(ws);
-        const seat = room.seats.find((s) => s.ws === ws);
-        if (!seat) continue;
-        seat.isConnected = false;
-        seat.ws = undefined;
-        seat.lastSeen = now();
-        if (room.surrenderVote && seat.team === room.surrenderVote.team) {
-          cancelSurrenderVote(room);
+      lobbyClients.delete(ws);
+      // O(1) room lookup via reverse index instead of scanning all rooms
+      const room = wsToRoom.get(ws);
+      unindexWs(ws);
+      if (!room) return;
+
+      room.spectators.delete(ws);
+      room.spectatorInfo.delete(ws);
+      const seat = room.seats.find((s) => s.ws === ws);
+      if (!seat) return;
+      seat.isConnected = false;
+      seat.ws = undefined;
+      seat.lastSeen = now();
+      if (room.surrenderVote && seat.team === room.surrenderVote.team) {
+        cancelSurrenderVote(room);
+      }
+      broadcastState(room);
+
+      // If all human seats are disconnected and no spectators, clean up room chat
+      const allHumansGone = room.seats
+        .filter((s) => !s.isBot)
+        .every((s) => !s.isConnected);
+      if (allHumansGone && room.spectators.size === 0) {
+        const db = getDb();
+        if (db) {
+          deleteRoomMessages(db, room.id).catch(() => {});
         }
-        broadcastState(room);
       }
     });
   });
+
+  // Periodically clean up stale rooms to prevent memory leaks and timer accumulation
+  setInterval(() => {
+    const staleThreshold = now() - ROOM_STALE_THRESHOLD_MS;
+    for (const [id, room] of rooms) {
+      const allDisconnected = room.seats.length > 0 &&
+        room.seats.every((s) => !s.isConnected && !s.isBot && s.lastSeen < staleThreshold);
+      const emptyRoom = room.seats.length === 0 && room.spectators.size === 0 &&
+        room.createdAt < staleThreshold;
+      if (!allDisconnected && !emptyRoom) continue;
+
+      // Clean up all timers for this room
+      clearAllBotTimers(room);
+      if (room.dealingTimer) { clearTimeout(room.dealingTimer); room.dealingTimer = undefined; }
+      clearFairnessTimer(room);
+      if (room.surrenderVote?.timer) { clearTimeout(room.surrenderVote.timer); }
+      // Remove wsToRoom entries for any remaining spectator ws
+      for (const ws of room.spectators) unindexWs(ws);
+      rooms.delete(id);
+    }
+  }, ROOM_STALE_CHECK_MS);
 
   return wss;
 }

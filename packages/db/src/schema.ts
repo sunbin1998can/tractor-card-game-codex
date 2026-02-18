@@ -125,6 +125,46 @@ export interface EmailCodesTable {
 export type EmailCode = Selectable<EmailCodesTable>;
 export type NewEmailCode = Insertable<EmailCodesTable>;
 
+// ── lobby_messages ──
+
+export interface LobbyMessagesTable {
+  id: Generated<string>;
+  user_name: string;
+  user_id: string | null;
+  text: string;
+  created_at: Generated<Date>;
+}
+
+export type LobbyMessage = Selectable<LobbyMessagesTable>;
+export type NewLobbyMessage = Insertable<LobbyMessagesTable>;
+
+// ── room_messages ──
+
+export interface RoomMessagesTable {
+  id: Generated<string>;
+  room_id: string;
+  seat: number;
+  user_name: string;
+  text: string;
+  created_at: Generated<Date>;
+}
+
+export type RoomMessage = Selectable<RoomMessagesTable>;
+export type NewRoomMessage = Insertable<RoomMessagesTable>;
+
+// ── feedback ──
+
+export interface FeedbackTable {
+  id: Generated<string>;
+  user_name: string;
+  user_id: string | null;
+  text: string;
+  created_at: Generated<Date>;
+}
+
+export type Feedback = Selectable<FeedbackTable>;
+export type NewFeedback = Insertable<FeedbackTable>;
+
 // ── Database ──
 
 export interface Database {
@@ -135,4 +175,7 @@ export interface Database {
   round_events: RoundEventsTable;
   user_ratings: UserRatingsTable;
   email_codes: EmailCodesTable;
+  lobby_messages: LobbyMessagesTable;
+  room_messages: RoomMessagesTable;
+  feedback: FeedbackTable;
 }

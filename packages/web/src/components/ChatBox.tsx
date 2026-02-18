@@ -31,21 +31,27 @@ function useIsMobile() {
   );
 }
 
+type ChatTab = 'room' | 'lobby';
+
 export default function ChatBox() {
   const messages = useStore((s) => s.chatMessages);
+  const lobbyMessages = useStore((s) => s.lobbyMessages);
   const chatHidden = useStore((s) => s.chatHidden);
   const toggleChatHidden = useStore((s) => s.toggleChatHidden);
   const [text, setText] = useState('');
   const [seenCount, setSeenCount] = useState(messages.length);
+  const [activeTab, setActiveTab] = useState<ChatTab>('room');
   const logRef = useRef<HTMLDivElement | null>(null);
   const t = useT();
   const isMobile = useIsMobile();
+
+  const displayMessages = activeTab === 'room' ? messages : lobbyMessages;
 
   // Auto-scroll when visible
   useEffect(() => {
     if (!logRef.current || chatHidden) return;
     logRef.current.scrollTop = logRef.current.scrollHeight;
-  }, [messages, chatHidden]);
+  }, [displayMessages, chatHidden]);
 
   // Mark messages as seen when visible
   useEffect(() => {
@@ -57,7 +63,11 @@ export default function ChatBox() {
   const send = () => {
     const next = text.trim();
     if (!next) return;
-    wsClient.sendChat(next);
+    if (activeTab === 'lobby') {
+      wsClient.sendLobbyChat(next);
+    } else {
+      wsClient.sendChat(next);
+    }
     setText('');
   };
 
@@ -86,7 +96,20 @@ export default function ChatBox() {
   const chatContent = (
     <>
       <div className="chat-drawer-header">
-        <span className="chat-drawer-title">{t('chat.title')}</span>
+        <div className="chat-tabs">
+          <button
+            className={`chat-tab ${activeTab === 'room' ? 'active' : ''}`}
+            onClick={() => setActiveTab('room')}
+          >
+            {t('chat.room')}
+          </button>
+          <button
+            className={`chat-tab ${activeTab === 'lobby' ? 'active' : ''}`}
+            onClick={() => setActiveTab('lobby')}
+          >
+            {t('chat.lobby')}
+          </button>
+        </div>
         <button
           className="chat-drawer-btn"
           onClick={toggleChatHidden}
@@ -98,12 +121,12 @@ export default function ChatBox() {
       </div>
       <div className="chat-drawer-body">
         <div className="chat-log" role="log" aria-live="polite" ref={logRef}>
-          {messages.length === 0 ? (
+          {displayMessages.length === 0 ? (
             <div className="chat-empty">{t('chat.noMessages')}</div>
           ) : (
-            messages.map((m, idx) => (
-              <div key={`${m.atMs}-${m.seat}-${idx}`} className="chat-row">
-                <span className="chat-name">{m.name || `${t('seat.seat')} ${m.seat + 1}`}:</span>
+            displayMessages.map((m, idx) => (
+              <div key={`${m.atMs}-${idx}`} className="chat-row">
+                <span className="chat-name">{m.name || (('seat' in m) ? `${t('seat.seat')} ${(m as any).seat + 1}` : 'Guest')}:</span>
                 <span className="chat-text">{m.text}</span>
               </div>
             ))

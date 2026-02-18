@@ -78,7 +78,8 @@ export interface ApiRoom {
   players: number;
   seated: number;
   phase: string;
-  seats: { name: string; isConnected: boolean }[];
+  createdAt: number;
+  seats: { name: string; isConnected: boolean; isBot: boolean }[];
 }
 
 export async function getRooms(): Promise<ApiRoom[]> {
@@ -137,6 +138,13 @@ export async function getRating(authToken: string): Promise<{ rating: ApiRating 
   });
   if (!res.ok) throw new Error('Failed to fetch rating');
   return res.json();
+}
+
+export async function submitFeedback(userName: string, userId: string | null, text: string): Promise<void> {
+  await apiFetch('/api/feedback', {
+    method: 'POST',
+    body: JSON.stringify({ userName, userId, text }),
+  });
 }
 
 export async function getMatches(

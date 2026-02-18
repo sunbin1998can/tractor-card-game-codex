@@ -150,10 +150,10 @@ export default function TableCenter() {
                   animate={
                     serverWinnerSeat !== null
                       ? {
-                          x: exitTarget.x * 0.92,
-                          y: exitTarget.y * 0.92,
-                          opacity: 0.08,
-                          scale: 0.58,
+                          x: exitTarget.x * 0.3,
+                          y: exitTarget.y * 0.3,
+                          opacity: 0.7,
+                          scale: 0.85,
                         }
                       : {
                           x: 0,

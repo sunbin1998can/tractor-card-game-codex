@@ -668,11 +668,11 @@ describe('GameEngine round scoring', () => {
 
   // --- Banker succession ---
 
-  it('banker stays when banker team levels up', () => {
+  it('banker rotates to teammate when banker team levels up', () => {
     const engine = makeScoreEngine({ bankerSeat: 0, defenderPoints: 0, lastWinner: 0 });
     (engine as any).finishRound();
-    expect(getRoundResult(engine)?.nextBankerSeat).toBe(0);
-    expect(engine.config.bankerSeat).toBe(0);
+    expect(getRoundResult(engine)?.nextBankerSeat).toBe(2);
+    expect(engine.pendingNextRound?.bankerSeat).toBe(2);
   });
 
   it('last trick winner becomes banker when defender levels up', () => {

@@ -23,7 +23,9 @@ export type ClientMessage =
   | { type: 'ADD_BOT'; seat: number; difficulty: BotDifficulty }
   | { type: 'REMOVE_BOT'; seat: number }
   | { type: 'STAND_UP' }
-  | { type: 'SWAP_SEAT'; targetSeat: number };
+  | { type: 'SWAP_SEAT'; targetSeat: number }
+  | { type: 'LOBBY_JOIN'; name: string; authToken?: string }
+  | { type: 'LOBBY_CHAT_SEND'; text: string };
 
 // ── Server → Client messages ──
 
@@ -62,7 +64,9 @@ export type ServerMessage =
       trickHistory: { plays: { seat: number; cards: string[] }[]; winnerSeat: number }[];
     }
   | { type: 'GAME_OVER'; winnerTeam: number }
-  | { type: 'AUTH_INFO'; userId: string | null; displayName: string; isGuest: boolean };
+  | { type: 'AUTH_INFO'; userId: string | null; displayName: string; isGuest: boolean }
+  | { type: 'LOBBY_CHAT'; name: string; text: string; atMs: number }
+  | { type: 'LOBBY_HISTORY'; messages: { name: string; text: string; atMs: number }[] };
 
 // ── Surrender vote state ──
 

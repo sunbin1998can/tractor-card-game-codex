@@ -9,4 +9,7 @@ export type {
   RoundEvent, NewRoundEvent,
   UserRating, NewUserRating, UserRatingUpdate,
   EmailCode, NewEmailCode,
+  LobbyMessage, NewLobbyMessage,
+  RoomMessage, NewRoomMessage,
+  Feedback, NewFeedback,
 } from './schema.js';
