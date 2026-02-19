@@ -216,8 +216,24 @@ export default function ActionPanel() {
     setPlayConfirm(false);
   };
 
+  // Show leave button when user is a spectator (stood up / unseated)
+  const isSpectator = youSeat === null && publicState;
+
   return (
     <div className="panel action-panel">
+      {isSpectator && (
+        <div className="lobby-ready-bar">
+          <button
+            className="lobby-ready-btn leave-room-btn"
+            onClick={() => {
+              wsClient.leave();
+              useStore.getState().leaveRoom();
+            }}
+          >
+            {t('score.leave')}
+          </button>
+        </div>
+      )}
       {showLobbyReady && (
         <div className="lobby-ready-bar">
           <button

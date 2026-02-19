@@ -35,7 +35,7 @@ export type ServerMessage =
   | { type: 'REQUEST_ACTION'; legalActions: { count: number }[] }
   | { type: 'CHAT'; seat: number; name: string; text: string; atMs: number }
   | { type: 'KOU_DI'; cards: string[]; pointSteps: number[]; total: number; multiplier: number }
-  | { type: 'ACTION_REJECTED'; action: 'PLAY' | 'BURY' | 'DECLARE' | 'SNATCH' | 'ADD_BOT' | 'REMOVE_BOT' | 'STAND_UP' | 'SWAP_SEAT'; reason: string; expectedIds?: string[] }
+  | { type: 'ACTION_REJECTED'; action: 'PLAY' | 'BURY' | 'DECLARE' | 'SNATCH' | 'ADD_BOT' | 'REMOVE_BOT' | 'STAND_UP' | 'SWAP_SEAT' | 'JOIN_ROOM'; reason: string; expectedIds?: string[] }
   | { type: 'TRUMP_DECLARED'; seat: number; trumpSuit: string; cardIds: string[] }
   | { type: 'TRUMP_LED'; seat: number }
   | { type: 'LEAD_PATTERN'; seat: number; kind: 'PAIR' | 'TRACTOR' }

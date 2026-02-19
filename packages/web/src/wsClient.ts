@@ -865,13 +865,21 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
         this.playKittyRevealSound();
         this.speakKouDi(msg.pointSteps, msg.total);
       } else if (msg.type === 'ACTION_REJECTED') {
-        const humanMsg = this.rejectionMessage(msg.action, msg.reason, msg.expectedIds, store.publicState);
-        store.pushToast(humanMsg);
-        // Clear bad selection so user doesn't re-submit the same rejected play
-        store.clearSelect();
-        // Flash hinted cards if expectedIds provided
-        if (msg.expectedIds?.length) {
-          store.triggerHintFlash(msg.expectedIds);
+        if (msg.action === 'JOIN_ROOM' && msg.reason === 'ROOM_NOT_FOUND') {
+          store.pushToast(t('error.roomNotFound'));
+          this.lastJoin = null;
+          this.forceFreshJoin = false;
+          store.leaveRoom();
+          window.history.replaceState(null, '', '#/lobby');
+        } else {
+          const humanMsg = this.rejectionMessage(msg.action, msg.reason, msg.expectedIds, store.publicState);
+          store.pushToast(humanMsg);
+          // Clear bad selection so user doesn't re-submit the same rejected play
+          store.clearSelect();
+          // Flash hinted cards if expectedIds provided
+          if (msg.expectedIds?.length) {
+            store.triggerHintFlash(msg.expectedIds);
+          }
         }
       } else if (msg.type === 'TRUMP_DECLARED') {
         const speakerName =
@@ -1081,6 +1089,7 @@ Level: ${msg.levelFrom} -> ${msg.levelTo} (+${msg.delta})${swapLine}${finalLine}
     }
     this.lastRoundResultKey = null;
     this.ws = null;
+    window.history.replaceState(null, '', '#/lobby');
   }
 
   send(msg: ClientMessage) {

@@ -10,7 +10,9 @@ const translations: Record<string, Record<Lang, string>> = {
   'lobby.thisTab': { en: 'This tab', zh: '当前标签' },
   'lobby.status': { en: 'Status: Lobby', zh: '状态: 大厅' },
   'lobby.nickname': { en: 'Nickname', zh: '昵称' },
-  'lobby.roomId': { en: 'Room ID', zh: '房间号' },
+  'lobby.createRoom': { en: 'Create Room', zh: '创建房间' },
+  'lobby.creating': { en: 'Creating...', zh: '创建中...' },
+  'lobby.createFailed': { en: 'Failed to create room', zh: '创建房间失败' },
   'lobby.4players': { en: '4 players', zh: '4人' },
   'lobby.6players': { en: '6 players', zh: '6人' },
   'lobby.join': { en: 'Join Room', zh: '加入房间' },
@@ -187,6 +189,7 @@ const translations: Record<string, Record<Lang, string>> = {
   'error.BURY_REQUIRES_N_CARDS': { en: 'Select exactly {n} cards to bury in the kitty.', zh: '请选择恰好{n}张牌扣底。' },
   'error.DECLARE_NOT_STRONGER': { en: "Your declaration isn't strong enough to override.", zh: '你的亮主不够强，无法覆盖。' },
   'error.THROW_PUNISHED': { en: 'Your throw was broken! Forced to play {card}.', zh: '你的甩牌被拆解！被迫出{card}。' },
+  'error.roomNotFound': { en: 'Room not found. It may have expired.', zh: '房间未找到，可能已过期。' },
   'error.generic': { en: '{action} rejected: {reason}', zh: '{action}被拒绝：{reason}' },
 
   // Phase labels (H1)

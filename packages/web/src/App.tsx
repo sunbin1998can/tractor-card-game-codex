@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { useStore } from './store';
 import { wsClient } from './wsClient';
 import { useT } from './i18n';
-import { guestLogin, sendEmailCode, verifyEmailCode as apiVerifyEmail, getMe, getRooms } from './api';
+import { guestLogin, sendEmailCode, verifyEmailCode as apiVerifyEmail, getMe, getRooms, createRoom } from './api';
 import type { ApiRoom } from './api';
 import GameTable, { SeatSidebar } from './components/GameTable';
 import Hand from './components/Hand';
@@ -39,12 +39,26 @@ export default function App() {
     () => typeof window !== 'undefined' && window.location.hash.startsWith('#/guide'),
   );
 
+  // Redirect empty hash or #/ to #/lobby
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const hash = window.location.hash;
+    if (!hash || hash === '#' || hash === '#/' || hash === '#/lobby') {
+      window.history.replaceState(null, '', '#/lobby');
+    }
+  }, []);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const syncHash = () => {
-      setIsDemo(window.location.hash.startsWith('#/demo'));
-      setIsInsights(window.location.hash.startsWith('#/insights'));
-      setIsGuide(window.location.hash.startsWith('#/guide'));
+      const hash = window.location.hash;
+      // Redirect empty/root to #/lobby
+      if (!hash || hash === '#' || hash === '#/') {
+        window.history.replaceState(null, '', '#/lobby');
+      }
+      setIsDemo(hash.startsWith('#/demo'));
+      setIsInsights(hash.startsWith('#/insights'));
+      setIsGuide(hash.startsWith('#/guide'));
     };
     window.addEventListener('hashchange', syncHash);
     window.addEventListener('popstate', syncHash);
@@ -80,20 +94,13 @@ function MainApp() {
   const t = useT();
   const cardScale = useStore((s) => s.cardScale);
 
-  const [roomInput, setRoomInput] = useState(() => {
-    // Parse room from hash: #/room/roomId
-    if (typeof window !== 'undefined') {
-      const match = window.location.hash.match(/^#\/room\/(.+)$/);
-      if (match) return decodeURIComponent(match[1]);
-    }
-    return 'room1';
-  });
   const [emailInput, setEmailInput] = useState('');
   const [codeInput, setCodeInput] = useState('');
   const [emailSent, setEmailSent] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
   const [activeRooms, setActiveRooms] = useState<ApiRoom[]>([]);
   const [showSettings, setShowSettings] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   // Auto-guest login and auth validation on mount
   useEffect(() => {
@@ -125,12 +132,16 @@ function MainApp() {
     if (match && !roomId) {
       const hashRoom = decodeURIComponent(match[1]);
       if (hashRoom) {
-        setRoomInput(hashRoom);
         // Delay to let WS connect first
         setTimeout(() => {
           wsClient.joinRoom({ roomId: hashRoom, name: nickname || 'Player', players });
         }, 500);
       }
+    }
+    // If hash is #/lobby but sessionStorage has stale roomId, clear it
+    if (window.location.hash === '#/lobby' || window.location.hash === '#/lobby/') {
+      sessionStorage.removeItem('roomId');
+      sessionStorage.removeItem('lastRoomId');
     }
   }, []);
 
@@ -155,7 +166,7 @@ function MainApp() {
     if (!roomId) {
       document.title = `Tractor | ${playerLabel} | Lobby`;
       if (window.location.hash.startsWith('#/room/')) {
-        window.history.replaceState(null, '', '#/');
+        window.history.replaceState(null, '', '#/lobby');
       }
       return;
     }
@@ -184,13 +195,6 @@ function MainApp() {
               />
               <span className="form-hint">{t('lobby.nicknameHint')}</span>
             </div>
-            <div className="form-group">
-              <input
-                placeholder={t('lobby.roomId')}
-                value={roomInput}
-                onChange={(e) => setRoomInput(e.target.value)}
-              />
-            </div>
             <div className="form-row">
               <select value={players} onChange={(e) => setPlayers(Number(e.target.value))}>
                 <option value={4}>{t('lobby.4players')}</option>
@@ -199,14 +203,21 @@ function MainApp() {
             </div>
             <button
               className="btn-primary btn-full"
-              aria-label={t('lobby.join')}
-              onClick={() => {
-                const room = roomInput.trim();
-                if (!room) return;
-                wsClient.joinRoom({ roomId: room, name: nickname || 'Player', players });
+              aria-label={t('lobby.createRoom')}
+              disabled={creating}
+              onClick={async () => {
+                setCreating(true);
+                try {
+                  const { roomId: newRoomId } = await createRoom(players);
+                  wsClient.joinRoom({ roomId: newRoomId, name: nickname || 'Player', players });
+                } catch {
+                  pushToast(t('lobby.createFailed'));
+                } finally {
+                  setCreating(false);
+                }
               }}
             >
-              {t('lobby.join')}
+              {creating ? t('lobby.creating') : t('lobby.createRoom')}
             </button>
           </div>
           <div className="panel room-list-panel">
@@ -238,7 +249,6 @@ function MainApp() {
                       <button
                         className="room-list-join-btn"
                         onClick={() => {
-                          setRoomInput(room.id);
                           setPlayers(room.players);
                           wsClient.joinRoom({ roomId: room.id, name: nickname || 'Player', players: room.players });
                         }}

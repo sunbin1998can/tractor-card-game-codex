@@ -82,6 +82,15 @@ export interface ApiRoom {
   seats: { name: string; isConnected: boolean; isBot: boolean }[];
 }
 
+export async function createRoom(players: number): Promise<{ roomId: string }> {
+  const res = await apiFetch('/api/rooms/create', {
+    method: 'POST',
+    body: JSON.stringify({ players }),
+  });
+  if (!res.ok) throw new Error('Failed to create room');
+  return res.json();
+}
+
 export async function getRooms(): Promise<ApiRoom[]> {
   const res = await apiFetch('/api/rooms', { method: 'GET' });
   if (!res.ok) return [];

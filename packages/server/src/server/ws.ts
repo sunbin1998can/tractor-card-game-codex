@@ -757,34 +757,44 @@ function ensureFairnessTimer(room: Room) {
   }, 200);
 }
 
+export function createRoom(roomId: string, players: number): Room {
+  const kittySize = players === 6 ? 12 : 8;
+  const engine = new GameEngine({
+    numPlayers: players,
+    bankerSeat: 0,
+    levelRank: '2',
+    trumpSuit: 'H',
+    kittySize,
+    fairnessWindowMs: TRUMP_FAIRNESS_WINDOW_MS
+  });
+  const room: Room = {
+    id: roomId,
+    players,
+    engine,
+    seats: [],
+    spectators: new Set(),
+    spectatorInfo: new Map(),
+    kittySize,
+    createdAt: now(),
+    persistence: createRoomPersistence(),
+  };
+  room.engine.startTrumpPhase();
+  rooms.set(roomId, room);
+  return room;
+}
+
+export function getRoomIds(): Set<string> {
+  return new Set(rooms.keys());
+}
+
 function joinRoom(ws: WebSocket, msg: { roomId: string; name: string; players: number; authToken?: string }) {
   const roomId = msg.roomId.trim();
   const players = msg.players === 6 ? 6 : 4;
 
-  let room = rooms.get(roomId);
+  const room = rooms.get(roomId);
   if (!room) {
-    const kittySize = players === 6 ? 12 : 8;
-    const engine = new GameEngine({
-      numPlayers: players,
-      bankerSeat: 0,
-      levelRank: '2',
-      trumpSuit: 'H',
-      kittySize,
-      fairnessWindowMs: TRUMP_FAIRNESS_WINDOW_MS
-    });
-    room = {
-      id: roomId,
-      players,
-      engine,
-      seats: [],
-      spectators: new Set(),
-      spectatorInfo: new Map(),
-      kittySize,
-      createdAt: now(),
-      persistence: createRoomPersistence(),
-    };
-    room.engine.startTrumpPhase();
-    rooms.set(roomId, room);
+    send(ws, { type: 'ACTION_REJECTED', action: 'JOIN_ROOM', reason: 'ROOM_NOT_FOUND' });
+    return;
   }
 
   // In lobby, let new joiners immediately take disconnected seats so games can start.

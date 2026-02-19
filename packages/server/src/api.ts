@@ -12,7 +12,8 @@ import {
   createEmailUser,
 } from '@tractor/models';
 import { getUserStats, getUserMatches, getUserRating, ensureUserRating, getRecentLobbyMessages, insertFeedback } from '@tractor/models';
-import { getActiveRooms } from './server/ws.js';
+import { getActiveRooms, createRoom, getRoomIds } from './server/ws.js';
+import { generateRoomId } from './roomId.js';
 
 function json(res: ServerResponse, status: number, body: unknown) {
   res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -82,6 +83,20 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
   // GET /api/rooms — no DB required
   if (req.method === 'GET' && path === '/api/rooms') {
     json(res, 200, { rooms: getActiveRooms() });
+    return true;
+  }
+
+  // POST /api/rooms/create — no DB required
+  if (req.method === 'POST' && path === '/api/rooms/create') {
+    try {
+      const body = JSON.parse(await readBody(req));
+      const players = body.players === 6 ? 6 : 4;
+      const roomId = generateRoomId(getRoomIds());
+      createRoom(roomId, players);
+      json(res, 200, { roomId });
+    } catch {
+      json(res, 400, { error: 'Invalid request' });
+    }
     return true;
   }
 
